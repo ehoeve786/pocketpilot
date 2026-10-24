@@ -134,6 +134,7 @@ class AutomationEngine(
                 event.data,
                 fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS,
                 chain = event.chain,
+                triggerType = event.type,
             )
         }
     }
@@ -146,12 +147,13 @@ class AutomationEngine(
         checkConstraints: Boolean = true,
         fromOutside: Boolean = false,
         chain: List<String> = emptyList(),
+        triggerType: String? = null,
     ): Boolean {
         if (jobs.containsKey(rule.id)) return false
         val job =
             scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 try {
-                    run(rule, reason, data, checkConstraints, fromOutside, chain)
+                    run(rule, reason, data, checkConstraints, fromOutside, chain, triggerType)
                 } finally {
                     jobs.remove(rule.id)
                     runningIds.update { it - rule.id }
@@ -179,13 +181,14 @@ class AutomationEngine(
         checkConstraints: Boolean = true,
         fromOutside: Boolean = false,
         chain: List<String> = emptyList(),
+        triggerType: String? = null,
     ): RunRecord {
         val started = clock.nowMillis()
         val lines = mutableListOf<String>()
         val vars = HashMap(rule.variables)
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         val session = host.openSession(rule, toolsOf(rule), fromOutside)
-        val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain)
+        val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain, triggerType = triggerType)
         if (data.isNotEmpty()) lines += stamped("Trigger: " + data.entries.joinToString { "${it.key} = ${logged(it.key, it.value)}" })
         val outcome =
             try {
@@ -554,6 +557,22 @@ class AutomationEngine(
                 if (params.p("scope") == "global") setGlobal(target, value, context, type) else context.vars[target] = value
             }
 
+            "stopwatch" -> {
+                val name = params.p("name").ifBlank { throw AutomationFailure("Give the stopwatch a name") }
+                val now = clock.nowMillis()
+                store.update { data ->
+                    val watch = data.stopwatches[name] ?: Stopwatch()
+                    val next =
+                        when (params.p("command")) {
+                            "pause" -> Stopwatch(watch.millis(now))
+                            "reset" -> Stopwatch()
+                            "restart" -> Stopwatch(startedAtMillis = now)
+                            else -> if (watch.startedAtMillis != null) watch else watch.copy(startedAtMillis = now)
+                        }
+                    data.copy(stopwatches = data.stopwatches + (name to next))
+                }
+            }
+
             "var.math" -> {
                 val name = params.p("name")
                 val current = lookup(context, name)?.trim()?.toDoubleOrNull() ?: 0.0
@@ -782,6 +801,14 @@ class AutomationEngine(
             }
 
             override fun ruleEnabled(ruleId: String): Boolean? = store.rule(ruleId)?.enabled
+
+            override fun ruleRunning(ruleId: String): Boolean = ruleId in runningIds.value
+
+            override val triggerType: String? = context.triggerType
+
+            override fun stopwatchMillis(name: String): Long? =
+                store.data.value.stopwatches[name]
+                    ?.millis(clock.nowMillis())
         }
     }
 
@@ -795,6 +822,8 @@ class AutomationEngine(
         val fromOutside: Boolean = false,
         /** The rules whose runs led to this one, so a loop of variable changes stops. */
         val chain: List<String> = emptyList(),
+        /** The type of the trigger that started the run; null when it was started by hand. */
+        val triggerType: String? = null,
     )
 
     private class StopRun : RuntimeException()

@@ -34,6 +34,11 @@ object A11yOverlay {
     /** The floating buttons that are up. */
     private val buttonViews = mutableListOf<View>()
 
+    @Volatile private var shownButtons = 0
+
+    /** How many floating buttons are on screen now. */
+    fun buttonsShown(): Int = shownButtons
+
     /**
      * Shows the pill with [text], or updates it if it is already up. Returns false when the
      * Accessibility service is off, so the caller can fall back to a notification.
@@ -193,7 +198,10 @@ object A11yOverlay {
                             }
                         }
                 view.setOnTouchListener(touchListener(manager, view, params, button))
-                runCatching { manager.addView(view, params) }.onSuccess { buttonViews += view }
+                runCatching { manager.addView(view, params) }.onSuccess {
+                    buttonViews += view
+                    shownButtons = buttonViews.size
+                }
             }
         }
         return true
@@ -287,6 +295,7 @@ object A11yOverlay {
             runCatching { view.context.getSystemService(WindowManager::class.java).removeView(view) }
         }
         buttonViews.clear()
+        shownButtons = 0
     }
 
     private const val TOP_OFFSET_DP = 40

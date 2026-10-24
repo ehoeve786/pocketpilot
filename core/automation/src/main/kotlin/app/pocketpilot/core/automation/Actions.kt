@@ -967,6 +967,30 @@ internal object Actions {
                     sentence = { p -> "{${p.p("name")}} = ${p.p("value").take(30)}" },
                 ),
                 ActionDef(
+                    type = "stopwatch",
+                    category = Category.VARIABLES,
+                    title = "Stopwatch",
+                    description =
+                        "Starts, pauses, restarts or resets a named stopwatch. The Stopwatch condition checks how long it has run.",
+                    fields =
+                        listOf(
+                            textField("name", "Stopwatch name"),
+                            choiceField(
+                                "command",
+                                "Do",
+                                listOf(
+                                    Choice("start", "Start"),
+                                    Choice("pause", "Pause"),
+                                    Choice("restart", "Restart from zero"),
+                                    Choice("reset", "Reset and stop"),
+                                ),
+                            ),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "${p.p("command").ifBlank { "start" }.replaceFirstChar(Char::uppercase)} stopwatch ${p.p("name")}" },
+                ),
+                ActionDef(
                     type = "var.math",
                     category = Category.VARIABLES,
                     title = "Calculate",
