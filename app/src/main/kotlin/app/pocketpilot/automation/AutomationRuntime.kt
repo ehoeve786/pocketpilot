@@ -3,6 +3,7 @@ package app.pocketpilot.automation
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlarmManager
+import android.app.AppOpsManager
 import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
 import android.content.ComponentName
@@ -195,6 +196,15 @@ class AutomationRuntime(
 
                     PickSource.INTENT_ACTION -> {
                         INTENT_ACTIONS.map { PickOption(it, it) }
+                    }
+
+                    PickSource.CELL_TOWER -> {
+                        host.cellTowers().map { PickOption(it, it, "Seen now") }
+                    }
+
+                    // The rule editor fills these from the rule being edited.
+                    PickSource.RULE_TRIGGER -> {
+                        emptyList()
                     }
                 }
             mutableOptions.update { it + (source to list) }
@@ -441,6 +451,9 @@ class AutomationRuntime(
                 commands += "pm grant ${context.packageName} ${Manifest.permission.BLUETOOTH_CONNECT}"
             }
         }
+        if ("data.used" in types && !usageAccess()) {
+            commands += "appops set ${context.packageName} GET_USAGE_STATS allow"
+        }
         val wanted =
             PERMISSIONS
                 .filter { (prefix, _) -> types.any { it.startsWith(prefix) } }
@@ -478,6 +491,13 @@ class AutomationRuntime(
 
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
+    private fun usageAccess(): Boolean =
+        context.getSystemService(AppOpsManager::class.java).unsafeCheckOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            context.packageName,
+        ) == AppOpsManager.MODE_ALLOWED
+
     private var limitNotifiedMonth: String? = null
 
     private fun limitReached(data: AutomationData) {
@@ -494,14 +514,16 @@ class AutomationRuntime(
 
     private companion object {
         /** Runtime permissions by trigger or condition type prefix, granted through Shizuku. */
+        val LOCATION_PERMISSIONS =
+            listOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            )
+
         val PERMISSIONS =
             listOf(
-                "location." to
-                    listOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION,
-                        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                    ),
+                "location." to LOCATION_PERMISSIONS,
                 "call." to listOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG),
                 "sms." to listOf(Manifest.permission.RECEIVE_SMS),
             )
@@ -515,6 +537,9 @@ class AutomationRuntime(
                 "calendar.read" to listOf(Manifest.permission.READ_CALENDAR),
                 "calendar.add" to listOf(Manifest.permission.WRITE_CALENDAR),
                 "photo.taken" to listOf(Manifest.permission.READ_MEDIA_IMAGES),
+                "time.sun" to LOCATION_PERMISSIONS,
+                "cell.tower" to LOCATION_PERMISSIONS,
+                "mobile.service" to listOf(Manifest.permission.READ_PHONE_STATE),
             )
         val SIDELOAD_PERMISSIONS = setOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.RECEIVE_SMS)
         const val SHELL_TIMEOUT_MS = 5_000L

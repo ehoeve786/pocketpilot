@@ -21,6 +21,7 @@ import android.view.KeyEvent
 import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
+import app.pocketpilot.capability.accessibility.A11yOverlay
 import app.pocketpilot.capability.api.files.FileStore
 import app.pocketpilot.capability.api.screen.ImageFormat
 import app.pocketpilot.capability.api.screen.Role
@@ -136,11 +137,16 @@ class AndroidAutomationHost(
         StateKeys.screenTextOf(key)?.let { return screenShows(it) }
         StateKeys.screenTabOf(key)?.let { return tabSelected(it) }
         return when (key) {
+            StateKeys.SPEAKING -> if (tts?.isSpeaking == true) "on" else "off"
+            StateKeys.FLOATING_BUTTON -> if (A11yOverlay.buttonsShown() > 0) "on" else "off"
             StateKeys.LOCATION -> places.lastLocation()
             StateKeys.CALENDAR_NOW -> withContext(Dispatchers.IO) { runCatching { calendars.now() }.getOrNull() }
             else -> phone.read(key)
         }
     }
+
+    /** The cell towers the phone sees now, for the Cell towers condition's list. */
+    fun cellTowers(): List<String> = runCatching { phone.cellTowers() }.getOrDefault(emptyList())
 
     /** "on" when [text] is on the screen now, else "off"; a screen that cannot be read counts as "off". */
     private suspend fun screenShows(text: String): String {

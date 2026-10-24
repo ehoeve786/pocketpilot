@@ -411,7 +411,7 @@ internal object Constraints {
                     actual != null && (actual.equals(p.p("value"), ignoreCase = true) == (p.p("op") != "not_equals"))
                 },
             ),
-        )
+        ) + MoreConstraints.all
 
     /** True when [time] is in [from, to), with windows past midnight wrapping around. */
     fun inWindow(

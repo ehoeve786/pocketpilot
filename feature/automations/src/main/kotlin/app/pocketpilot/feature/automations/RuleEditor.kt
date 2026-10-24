@@ -192,10 +192,14 @@ internal fun RuleEditor(
     var ruleVariableEdit by remember { mutableStateOf<VariableEdit?>(null) }
     val localTypes = rule.localVariableTypes()
     val variablePicks = variableOptions(localTypes.keys + lastVariables.keys, localTypes, state.variables, state.variableTypes)
+    val packageManager = LocalContext.current.packageManager
+    val triggerPicks =
+        rule.triggers.distinctBy { it.type }.map { PickOption(it.type, Describe.trigger(it, packageManager::appLabel)) } +
+            PickOption("manual", "Started by hand or by another rule")
     val context =
         FieldContext(
             state.apps,
-            state.options + (PickSource.VARIABLE to variablePicks),
+            state.options + (PickSource.VARIABLE to variablePicks) + (PickSource.RULE_TRIGGER to triggerPicks),
             state.rules,
             state.tools,
             rule.id,

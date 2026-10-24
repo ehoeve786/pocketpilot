@@ -346,6 +346,29 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an If can act on the trigger that started the run, and a stopwatch starts once`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            val engine = engine(this, host, store)
+            val steps =
+                listOf(
+                    ActionStep("stopwatch", mapOf("name" to "lap", "command" to "start")),
+                    ActionStep(
+                        "flow.if",
+                        constraints = ConstraintGroup.of(ConstraintSpec("trigger.fired", mapOf("trigger" to "wifi.connected"))),
+                        children = listOf(ActionStep("notify.post", mapOf("title" to "Wi-Fi"))),
+                        elseChildren = listOf(ActionStep("notify.post", mapOf("title" to "Other"))),
+                    ),
+                )
+            engine.run(rule(steps), "Test", triggerType = "wifi.connected")
+            engine.run(rule(steps), "Test")
+            val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
+            assertEquals(listOf("Wi-Fi", "Other"), titles)
+            assertEquals(Stopwatch(startedAtMillis = clock.nowMillis()), store.data.value.stopwatches["lap"])
+        }
+
+    @Test
     fun `rule constraints skip the run`() =
         runTest {
             val host = FakeHost()

@@ -73,10 +73,16 @@ enum class PickSource {
     CALENDAR,
     INTENT_COMPONENT,
     INTENT_ACTION,
+
+    /** The cell towers the phone sees now. */
+    CELL_TOWER,
+
+    /** The triggers of the rule being edited. */
+    RULE_TRIGGER,
     ;
 
-    /** Bluetooth devices and Wi-Fi networks can be several, stored comma-separated. */
-    val multiple: Boolean get() = this == BLUETOOTH_DEVICE || this == WIFI_NETWORK
+    /** Bluetooth devices, Wi-Fi networks and cell towers can be several, stored comma-separated. */
+    val multiple: Boolean get() = this == BLUETOOTH_DEVICE || this == WIFI_NETWORK || this == CELL_TOWER
 }
 
 /** One suggested value: [value] is stored, [label] and [detail] are shown in the list. */
@@ -166,6 +172,15 @@ interface CheckScope {
     fun runsToday(ruleId: String): Int
 
     fun ruleEnabled(ruleId: String): Boolean?
+
+    /** True while the rule with [ruleId] is running. */
+    fun ruleRunning(ruleId: String): Boolean = false
+
+    /** The type of the trigger that started this run, or null when it was started by hand or by another rule. */
+    val triggerType: String? get() = null
+
+    /** How long the stopwatch named [name] has run, or null when it was never started. */
+    fun stopwatchMillis(name: String): Long? = null
 }
 
 /** A notification as constraints see it. */
@@ -249,6 +264,105 @@ object StateKeys {
     const val ACCESSIBILITY = "accessibility"
     const val SERVER = "server"
     const val MUSIC = "music.active"
+
+    /** Degrees Celsius, such as "31.5". */
+    const val BATTERY_TEMPERATURE = "battery.temperature"
+    const val LOCATION_ON = "location.on"
+
+    /** The phone's IP addresses, one per line. */
+    const val IP_ADDRESSES = "ip.addresses"
+    const val ROAMING = "roaming"
+    const val DATA_ROAMING = "data_roaming"
+    const val MOBILE_DATA = "mobile_data"
+
+    /** "in_service", "no_service", "emergency" or "off". */
+    const val MOBILE_SERVICE = "mobile.service"
+    const val USB_DEVICE = "usb.device"
+    const val HOTSPOT = "hotspot"
+    const val USB_TETHERING = "usb.tethering"
+
+    /** Megabytes of mobile data used today. */
+    const val DATA_TODAY_MB = "data.today"
+
+    /** Megabytes of mobile data used this month. */
+    const val DATA_MONTH_MB = "data.month"
+
+    /** Whole minutes since the phone started. */
+    const val UPTIME_MINUTES = "uptime.minutes"
+    const val AUTO_ROTATE = "auto_rotate"
+    const val AUTO_SYNC = "auto_sync"
+    const val CAMERA_IN_USE = "camera.in_use"
+    const val MIC_RECORDING = "mic.recording"
+    const val NFC = "nfc"
+    const val SPEAKING = "speaking"
+    const val TORCH = "torch"
+    const val WORK_PROFILE = "work_profile"
+
+    /** The package of the home screen app. */
+    const val HOME_APP = "home.package"
+
+    /** The cell towers the phone sees now, one per line, as "mcc-mnc-area-cell". */
+    const val CELL_TOWERS = "cell.towers"
+
+    /** Screen brightness as a percentage. */
+    const val BRIGHTNESS = "brightness"
+    const val KEYBOARD = "keyboard"
+    const val ALWAYS_ON_DISPLAY = "aod"
+
+    /** "up", "down" or "other". */
+    const val FACING = "facing"
+
+    /** "portrait" or "landscape". */
+    const val ORIENTATION = "orientation"
+
+    /** Light in lux. */
+    const val LIGHT = "light"
+
+    /** "near" or "far". */
+    const val PROXIMITY = "proximity"
+    const val SPEAKERPHONE = "speakerphone"
+    const val FLOATING_BUTTON = "floating_button"
+
+    private const val VOLUME = "volume:"
+
+    /** The volume of [stream] (ring, notification, media, alarm, call, system) as a percentage. */
+    fun volume(stream: String) = VOLUME + stream
+
+    /** The stream in a [volume] key, or null for other keys. */
+    fun volumeStream(key: String): String? = key.takeIf { it.startsWith(VOLUME) }?.removePrefix(VOLUME)
+
+    private const val SETTING = "setting:"
+
+    /** The value of a system setting, [table] being system, secure or global. */
+    fun setting(
+        table: String,
+        name: String,
+    ) = "$SETTING$table:$name"
+
+    /** The table and name in a [setting] key, or null for other keys. */
+    fun settingOf(key: String): Pair<String, String>? =
+        key
+            .takeIf { it.startsWith(SETTING) }
+            ?.removePrefix(SETTING)
+            ?.split(':', limit = 2)
+            ?.takeIf { it.size == 2 }
+            ?.let { it[0] to it[1] }
+
+    private const val APP_INSTALLED = "app.installed:"
+
+    /** "on" when the app with [packageName] is installed. */
+    fun appInstalled(packageName: String) = APP_INSTALLED + packageName
+
+    /** The package in an [appInstalled] key, or null for other keys. */
+    fun appInstalledOf(key: String): String? = key.takeIf { it.startsWith(APP_INSTALLED) }?.removePrefix(APP_INSTALLED)
+
+    private const val APP_ENABLED = "app.enabled:"
+
+    /** "on" when the app with [packageName] is installed and enabled. */
+    fun appEnabled(packageName: String) = APP_ENABLED + packageName
+
+    /** The package in an [appEnabled] key, or null for other keys. */
+    fun appEnabledOf(key: String): String? = key.takeIf { it.startsWith(APP_ENABLED) }?.removePrefix(APP_ENABLED)
 
     /** "latitude,longitude" of the phone's last known location. */
     const val LOCATION = "location"

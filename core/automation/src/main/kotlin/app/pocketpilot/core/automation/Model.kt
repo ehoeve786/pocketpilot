@@ -197,7 +197,19 @@ data class AutomationData(
     val runs: List<RunRecord> = emptyList(),
     /** Agent spending by automations, by month as "2026-10". */
     val agentSpendUsd: Map<String, Double> = emptyMap(),
+    /** Stopwatches started by the Stopwatch action, by name. */
+    val stopwatches: Map<String, Stopwatch> = emptyMap(),
 )
+
+/** A named stopwatch: the time it ran before its last pause, and when it started again if it is running. */
+@Serializable
+data class Stopwatch(
+    val elapsedMillis: Long = 0,
+    val startedAtMillis: Long? = null,
+) {
+    /** How long it has run by [now]. */
+    fun millis(now: Long): Long = elapsedMillis + (startedAtMillis?.let { (now - it).coerceAtLeast(0) } ?: 0)
+}
 
 /** Something that happened on the phone: [type] is a trigger type, [data] its details. */
 data class TriggerEvent(
