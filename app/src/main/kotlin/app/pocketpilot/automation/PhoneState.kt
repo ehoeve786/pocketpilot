@@ -211,6 +211,8 @@ class PhoneState(
             wifi.javaClass.getMethod("isWifiApEnabled").invoke(wifi) as Boolean
         }.getOrElse { interfaceUp(HOTSPOT_INTERFACES) }
 
+    /** Needs phone access, which may not be granted; the setting is read instead then. */
+    @SuppressLint("MissingPermission")
     private fun mobileDataOn(): Boolean = runCatching { telephony.isDataEnabled }.getOrElse { globalInt("mobile_data") == 1 }
 
     /** From the service state, which needs phone access; through Shizuku when the app does not have it. */
