@@ -21,11 +21,12 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * `shell.exec` (spec section 5): one command as the adb shell user. Off until the owner turns it on
- * ([enabled]), confirmed once per session for each exact command, and left out of the Play build.
+ * ([enabled], asked for each call's session, so a switch turned off takes effect at once), confirmed
+ * once per session for each exact command, and left out of the Play build.
  */
 class ShellExecTool(
     private val shell: ShellRunner,
-    private val enabled: () -> Boolean,
+    private val enabled: (Session) -> Boolean,
 ) : ToolHandler {
     override val spec =
         ToolSpec(
@@ -58,11 +59,12 @@ class ShellExecTool(
         call: ToolCall,
         session: Session,
     ): ToolResult {
-        if (!enabled()) {
+        if (!enabled(session)) {
             throw ToolException(
                 ToolErrorCode.CAPABILITY_UNAVAILABLE,
-                "Shell commands are off on this phone",
-                "Use the other tools, or ask the owner to turn on Shell commands in PocketPilot",
+                "Shell commands are off for this client",
+                "Use the other tools, or ask the owner to turn on Shell commands in PocketPilot, and for a remote " +
+                    "connection also its \"Also for remote clients\" switch",
             )
         }
         val command = call.arguments.string("command")?.takeIf(String::isNotBlank) ?: invalid("Give command")

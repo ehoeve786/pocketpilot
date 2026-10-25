@@ -115,6 +115,8 @@ fun HomeScreen(
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
+    shellRemoteEnabled: Boolean = false,
+    onShellRemoteChange: (Boolean) -> Unit = {},
     /** True after the owner pressed Stop on the "controlling this phone" pill. */
     clientsStopped: Boolean = false,
     onAllowClients: () -> Unit = {},
@@ -373,9 +375,11 @@ fun HomeScreen(
                                 protectedApps = protectedApps,
                                 shellAvailable = policyProfile != PolicyProfile.PLAY,
                                 shellEnabled = shellEnabled,
+                                shellRemoteEnabled = shellRemoteEnabled,
                             ),
                         onModeChange = onToolModeChange,
                         onShellChange = onShellChange,
+                        onShellRemoteChange = onShellRemoteChange,
                         modifier = content,
                     )
                 }

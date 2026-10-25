@@ -13,6 +13,8 @@ class SessionFactory(
     private val ids: UlidGenerator = UlidGenerator(clock),
     /** Scopes the owner turned on for the local token, such as the raw shell. */
     private val localExtraScopes: () -> Set<Scope> = { emptySet() },
+    /** Scopes the owner turned on for remote OAuth clients, such as the raw shell; checked for each new session. */
+    private val remoteExtraScopes: () -> Set<Scope> = { emptySet() },
 ) {
     /**
      * A session for the per-install local token used by on-device hosts such as Claude Code in Termux.
@@ -28,7 +30,10 @@ class SessionFactory(
             createdAtMillis = clock.nowMillis(),
         )
 
-    /** A session for an OAuth client, holding the scopes the owner granted it. */
+    /**
+     * A session for an OAuth client, holding the scopes the owner granted it, plus any [remoteExtraScopes]
+     * switched on now. Those are never part of the token, so switching them off takes them away at once.
+     */
     fun clientSession(
         clientName: String,
         grantedScopes: Set<Scope>,
@@ -36,8 +41,9 @@ class SessionFactory(
         Session(
             id = SessionId(ids.next()),
             kind = SessionKind.MCP_CLIENT,
-            principal = clientName,
-            grantedScopes = grantedScopes,
+            // A client cannot pass for the local token by registering under its name.
+            principal = if (clientName == LOCAL_PRINCIPAL) "$clientName (remote)" else clientName,
+            grantedScopes = grantedScopes + remoteExtraScopes(),
             createdAtMillis = clock.nowMillis(),
         )
 

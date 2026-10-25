@@ -66,6 +66,8 @@ internal class ToolsTabState(
     /** False in the Play build, which has no shell tool. */
     val shellAvailable: Boolean,
     val shellEnabled: Boolean,
+    /** Remote clients such as the Claude app may use the shell too, while it is on. */
+    val shellRemoteEnabled: Boolean = false,
 )
 
 /**
@@ -78,6 +80,7 @@ internal fun ToolsTab(
     onModeChange: (String, ToolMode?) -> Unit,
     onShellChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    onShellRemoteChange: (Boolean) -> Unit = {},
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var tierFilter by rememberSaveable { mutableStateOf<RiskTier?>(null) }
@@ -153,7 +156,7 @@ internal fun ToolsTab(
             ProtectedAppsCard(state.protectedApps, showAllApps) { showAllApps = !showAllApps }
         }
         if (state.shellAvailable) {
-            item(key = "shell") { ShellCard(state.shellEnabled, onShellChange) }
+            item(key = "shell") { ShellCard(state.shellEnabled, onShellChange, state.shellRemoteEnabled, onShellRemoteChange) }
         }
     }
 
@@ -362,6 +365,8 @@ private fun ProtectedAppsCard(
 internal fun ShellCard(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
+    remoteEnabled: Boolean = false,
+    onRemoteChange: (Boolean) -> Unit = {},
 ) {
     LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth(),
@@ -383,6 +388,15 @@ internal fun ShellCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.shell_remote_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = remoteEnabled, onCheckedChange = onRemoteChange)
+                }
+                Text(stringResource(R.string.shell_remote_explainer), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

@@ -46,6 +46,7 @@ import app.pocketpilot.core.imaging.ImagePipeline
 import app.pocketpilot.core.model.CapabilityId
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.model.Scope
+import app.pocketpilot.core.model.SessionKind
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolHandler
@@ -326,7 +327,11 @@ object AppModule {
             AdbQueryTool(system),
             AdbLogsTool(system),
             BatteryUsageTool(system),
-            ShellExecTool(shell) { shellSwitch.enabled.value },
+            ShellExecTool(shell) { session ->
+                // Remote clients need their own switch too; the local token, Agent mode and rules need only the shell switch.
+                val remote = session.kind == SessionKind.MCP_CLIENT && session.principal != SessionFactory.LOCAL_PRINCIPAL
+                shellSwitch.enabled.value && (!remote || shellSwitch.remoteAllowed)
+            },
         )
 
     /** Settings change through Shizuku only; without it the model uses the Settings app. */
@@ -596,7 +601,11 @@ object AppModule {
                     appVersion = BuildConfig.VERSION_NAME,
                     blocked = { toolModes.modeFor(it) == ToolMode.BLOCK },
                 ),
-            sessions = SessionFactory(localExtraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() }),
+            sessions =
+                SessionFactory(
+                    localExtraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() },
+                    remoteExtraScopes = { if (shell.remoteAllowed) setOf(Scope.SHELL_EXEC) else emptySet() },
+                ),
             localToken = tokens::current,
             oauth = oauth,
             remoteHosts = {

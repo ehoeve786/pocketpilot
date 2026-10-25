@@ -596,6 +596,8 @@ class MainActivity : ComponentActivity() {
                         shellEnabled = shellSwitch.enabled.collectAsStateWithLifecycle().value,
                         // Loosening a safeguard needs the owner, like approving an action does.
                         onShellChange = { on -> if (on) withOwner { shellSwitch.set(true) } else shellSwitch.set(false) },
+                        shellRemoteEnabled = shellSwitch.remote.collectAsStateWithLifecycle().value,
+                        onShellRemoteChange = { on -> if (on) withOwner { shellSwitch.setRemote(true) } else shellSwitch.setRemote(false) },
                         clientsStopped = controlOverlay.clientsStopped.collectAsStateWithLifecycle().value,
                         onAllowClients = controlOverlay::allowAgain,
                         biometricApprovals = biometricGate.enabled.collectAsStateWithLifecycle().value,
