@@ -51,6 +51,8 @@ class IntentArgsTest {
             )
         assertEquals(listOf("-n", "com.teslamotors.tesla/com.tesla.share.ShareActivity"), args.take(2))
         assertEquals("com.teslamotors.tesla", IntentArgs.targetPackage(args))
+        // A second share replaces the share screen left open by the first, so the new text arrives.
+        assertEquals(listOf("-a", "android.intent.action.SEND", "--activity-clear-task", "-t", "text/plain"), args.subList(2, 7))
     }
 
     @Test

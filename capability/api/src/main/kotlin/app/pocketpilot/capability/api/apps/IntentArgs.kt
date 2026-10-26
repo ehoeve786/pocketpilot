@@ -25,6 +25,9 @@ data class ActivityEntry(
  * list, and actions that place calls, install or remove apps or wipe the phone are refused.
  */
 object IntentArgs {
+    private const val CLEAR_TASK = "--activity-clear-task"
+    private val SHARE_ACTIONS = setOf("android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE")
+
     val COMPONENT = Regex("^([A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+)/([A-Za-z0-9_.$]+)$")
     private val NAME = Regex("^[A-Za-z0-9_.$:\\-]{1,200}$")
     private val EXTRA_FLAGS = mapOf("string" to "--es", "int" to "--ei", "long" to "--el", "bool" to "--ez", "float" to "--ef")
@@ -81,6 +84,9 @@ object IntentArgs {
                 add("-a")
                 add(it)
             }
+            // A share goes to a fresh copy of the target screen. Otherwise Android brings back a share
+            // screen still open from the last time, which keeps the old text and drops the new one.
+            if (action in SHARE_ACTIONS) add(CLEAR_TASK)
             data?.let {
                 add("-d")
                 add(it)
@@ -111,6 +117,10 @@ object IntentArgs {
         var i = 0
         while (i < args.size) {
             val flag = args[i]
+            if (flag == CLEAR_TASK) {
+                i++
+                continue
+            }
             val value = args.getOrNull(i + 1) ?: throw IllegalArgumentException("$flag needs a value")
             when (flag) {
                 "-n" -> {
@@ -165,6 +175,7 @@ object IntentArgs {
         while (i < size - 1) {
             when (this[i]) {
                 flag -> return this[i + 1]
+                CLEAR_TASK -> i += 1
                 in EXTRA_FLAGS.values -> i += 3
                 else -> i += 2
             }

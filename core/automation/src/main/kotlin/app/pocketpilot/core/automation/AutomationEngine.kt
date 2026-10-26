@@ -81,6 +81,9 @@ interface AutomationHost {
     /** Runs [prompt] in Agent mode and waits for it to end. */
     suspend fun askAgent(prompt: String): AgentOutcome
 
+    /** Asks the owner's AI model [prompt] as text only, with no tools and no look at the phone. */
+    suspend fun askText(prompt: String): AgentOutcome = AgentOutcome("This build cannot ask AI", costUsd = null, ok = false)
+
     /** False in the Play build, which has no shell. */
     val sideload: Boolean
 }
@@ -292,7 +295,9 @@ class AutomationEngine(
         context.lines += stamped("Agent: ${askAgent(task)}")
     }
 
-    private suspend fun askAgent(task: String): String {
+    private suspend fun askAgent(task: String): String = withinAiLimit { host.askAgent(task) }
+
+    private suspend fun withinAiLimit(ask: suspend () -> AgentOutcome): String {
         val data = store.data.value
         val month = YearMonth.now(zone()).toString()
         val cap = data.settings.agentMonthlyCapUsd
@@ -300,7 +305,7 @@ class AutomationEngine(
         if (cap != null && spent >= cap) {
             throw AutomationFailure("The monthly AI limit for automations ($${"%.2f".format(cap)}) is reached")
         }
-        val outcome = host.askAgent(task)
+        val outcome = ask()
         outcome.costUsd?.let { store.addAgentSpend(month, it) }
         if (!outcome.ok) throw AutomationFailure(outcome.summary)
         return outcome.summary
@@ -484,6 +489,12 @@ class AutomationEngine(
                 val summary = askAgent(task).trim()
                 save(summary)
                 return "done, $summary".take(MAX_NOTE)
+            }
+
+            "ai.ask" -> {
+                val answer = withinAiLimit { host.askText(params["prompt"].orEmpty()) }.trim()
+                save(answer)
+                return "answered, $answer".take(MAX_NOTE)
             }
 
             "flow.if" -> {
@@ -844,7 +855,7 @@ class AutomationEngine(
          * Steps an outside event may never run: they change which rules are on, which only the owner decides, or
          * they hand the AI a task the event wrote.
          */
-        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask")
+        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask", "ai.ask")
 
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"

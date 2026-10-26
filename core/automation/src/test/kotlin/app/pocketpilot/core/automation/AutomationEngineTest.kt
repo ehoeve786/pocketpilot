@@ -49,6 +49,7 @@ class AutomationEngineTest {
         val opened = mutableListOf<Set<String>>()
         val outside = mutableListOf<Boolean>()
         val prompts = mutableListOf<String>()
+        val textPrompts = mutableListOf<String>()
         var closed = 0
 
         override suspend fun callTool(
@@ -120,6 +121,11 @@ class AutomationEngineTest {
         override suspend fun askAgent(prompt: String): AgentOutcome {
             prompts += prompt
             return AgentOutcome("Did it", 0.01)
+        }
+
+        override suspend fun askText(prompt: String): AgentOutcome {
+            textPrompts += prompt
+            return AgentOutcome("22 East Cordova Street, Vancouver, BC", 0.001)
         }
 
         override val sideload = true
@@ -223,6 +229,27 @@ class AutomationEngineTest {
             assertEquals("text/plain", (args["mimeType"] as JsonPrimitive).content)
             val extras = args["extras"] as JsonObject
             assertEquals("Did it", (extras["android.intent.extra.TEXT"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `ask AI answers from text without starting the agent`() =
+        runTest {
+            val host = FakeHost()
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep("ai.ask", mapOf("prompt" to "Address in: {trigger.text}", "into" to "address")),
+                            ActionStep("notify.post", mapOf("title" to "{address}")),
+                        ),
+                    ),
+                    "Test run",
+                    mapOf("text" to "Breka Bakery, 22 East Cordova Street"),
+                )
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertEquals("Address in: Breka Bakery, 22 East Cordova Street", host.textPrompts.single())
+            assertTrue(host.prompts.isEmpty())
+            assertEquals("22 East Cordova Street, Vancouver, BC", (host.calls.single().second["title"] as JsonPrimitive).content)
         }
 
     @Test
