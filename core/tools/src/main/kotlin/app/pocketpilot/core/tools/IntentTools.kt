@@ -78,7 +78,9 @@ private fun ToolCall.intentArgs(): List<String> {
     }
 }
 
-private fun ToolCall.intentPackage(): String? = arguments.string("component")?.substringBefore('/') ?: arguments.string("package")
+private fun ToolCall.intentPackage(): String? =
+    arguments.string("component")?.takeIf { '/' in it }?.substringBefore('/') ?: arguments.string("package")
+        ?: arguments.string("component")
 
 private fun ToolCall.intentSummary(): String =
     listOfNotNull(

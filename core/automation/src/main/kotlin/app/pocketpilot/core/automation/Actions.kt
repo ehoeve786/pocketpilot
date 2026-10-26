@@ -13,6 +13,9 @@ import kotlinx.serialization.json.put
  * steps that combine several calls; native actions are done by the app itself.
  */
 internal object Actions {
+    private const val SEND = "android.intent.action.SEND"
+    private const val EXTRAS_HINT = "key=value on each line, for example android.intent.extra.TEXT={address}, or a JSON object"
+
     /** Actions that store a result put it in this variable. */
     private val INTO = textField("into", "Save result in variable", required = false, hint = "For example result")
 
@@ -67,11 +70,40 @@ internal object Actions {
         )
     }
 
-    private fun intentExtras(p: Map<String, String>): JsonObject? =
-        p.p("extras").takeIf { it.isNotBlank() }?.let { text ->
-            runCatching { AutomationJson.json.parseToJsonElement(text).jsonObject }.getOrNull()
-                ?: throw AutomationFailure("Extras must be a JSON object, for example {\"name\": \"value\"}")
+    /**
+     * Extras as a JSON object, or as key=value lines like MacroDroid's. A line without a key=value start
+     * belongs to the value above it, so a filled-in variable with line breaks stays one extra.
+     */
+    internal fun intentExtras(p: Map<String, String>): JsonObject? {
+        val text = p.p("extras").takeIf { it.isNotBlank() }?.trim() ?: return null
+        if (text.startsWith("{")) {
+            return runCatching { AutomationJson.json.parseToJsonElement(text).jsonObject }.getOrNull()
+                ?: throw AutomationFailure("Extras must be a JSON object, for example {\"name\": \"value\"}, or key=value lines")
         }
+        val extras = linkedMapOf<String, String>()
+        var last: String? = null
+        text.lines().forEach { line ->
+            val key = EXTRA_LINE.find(line)?.groupValues?.get(1)
+            val previous = last
+            when {
+                key != null -> {
+                    extras[key] = line.substringAfter('=').trimStart()
+                    last = key
+                }
+
+                previous != null -> {
+                    extras[previous] = extras.getValue(previous) + "\n" + line
+                }
+
+                line.isNotBlank() -> {
+                    throw AutomationFailure("Extras must be key=value lines, for example android.intent.extra.TEXT={address}")
+                }
+            }
+        }
+        return buildJsonObject { extras.forEach { (key, value) -> put(key, value.trimEnd()) } }
+    }
+
+    private val EXTRA_LINE = Regex("^\\s*([A-Za-z_][A-Za-z0-9_.]*)\\s*=")
 
     private val ui = Category.SCREEN
 
@@ -117,7 +149,13 @@ internal object Actions {
                                 hint = "For example android.intent.action.VIEW",
                             ),
                             textField("data", "Data URI", required = false),
-                            FieldDef("extras", "Extras (JSON)", FieldKind.JSON, required = false),
+                            textField(
+                                "mimeType",
+                                "Type",
+                                required = false,
+                                hint = "For example text/plain; Share uses text/plain when empty",
+                            ),
+                            FieldDef("extras", "Extras", FieldKind.JSON, required = false, hint = EXTRAS_HINT),
                         ),
                     tier = RiskTier.INTERACT,
                     kind =
@@ -127,6 +165,8 @@ internal object Actions {
                                 "package" to p.p("package"),
                                 "action" to p.p("action"),
                                 "data" to p.p("data"),
+                                "mimeType" to
+                                    p.p("mimeType").ifBlank { if (p.p("action") == SEND && p.p("data").isBlank()) "text/plain" else "" },
                                 "extras" to intentExtras(p),
                                 "returnSnapshot" to false,
                             )
@@ -143,7 +183,7 @@ internal object Actions {
                             pickField("action", "Action", PickSource.INTENT_ACTION),
                             singleAppField("package", "App", required = false),
                             pickField("component", "Component", PickSource.INTENT_COMPONENT, required = false),
-                            FieldDef("extras", "Extras (JSON)", FieldKind.JSON, required = false),
+                            FieldDef("extras", "Extras", FieldKind.JSON, required = false, hint = EXTRAS_HINT),
                         ),
                     tier = RiskTier.SENSITIVE,
                     kind =

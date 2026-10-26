@@ -480,7 +480,8 @@ class AutomationEngine(
             }
 
             "agent.ask" -> {
-                val summary = askAgent(params["prompt"].orEmpty())
+                val task = params["prompt"].orEmpty() + if (into.isNotEmpty()) ANSWER_ONLY else ""
+                val summary = askAgent(task).trim()
                 save(summary)
                 return "done, $summary".take(MAX_NOTE)
             }
@@ -883,6 +884,12 @@ class AutomationEngine(
         const val MAX_LOOPS = 1000
         const val MAX_DEPTH = 5
         const val MAX_NOTE = 200
+
+        /** Added to an Agent task whose answer a later step uses, so the answer is the value alone. */
+        const val ANSWER_ONLY =
+            "\n\nYour final reply is saved word for word into a variable that the next steps use. " +
+                "Reply with only the requested result: no reasoning, no explanation, no quotes and no markdown."
+
         const val MAX_WAIT_S = 3600.0
         const val DEFAULT_WHILE = 20
         const val POLL_MS = 2_000L

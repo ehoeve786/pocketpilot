@@ -38,6 +38,22 @@ class IntentArgsTest {
     }
 
     @Test
+    fun `a bare class name joins the app given beside it`() {
+        val args =
+            IntentArgs.build(
+                component = "com.tesla.share.ShareActivity",
+                packageName = "com.teslamotors.tesla",
+                action = "android.intent.action.SEND",
+                data = null,
+                mimeType = "text/plain",
+                categories = emptyList(),
+                extras = listOf(IntentExtra("android.intent.extra.TEXT", "string", "22 East Cordova Street, Vancouver")),
+            )
+        assertEquals(listOf("-n", "com.teslamotors.tesla/com.tesla.share.ShareActivity"), args.take(2))
+        assertEquals("com.teslamotors.tesla", IntentArgs.targetPackage(args))
+    }
+
+    @Test
     fun `an extra value cannot smuggle in another target`() {
         val args = IntentArgs.build(null, "com.example.app", null, null, null, emptyList(), listOf(IntentExtra("x", "string", "-n")))
         assertEquals("com.example.app", IntentArgs.targetPackage(args))

@@ -68,7 +68,8 @@ object IntentArgs {
         buildList {
             component?.let {
                 add("-n")
-                add(it)
+                // A bare class name, as MacroDroid stores it, belongs to the app given beside it.
+                add(if ('/' !in it && packageName != null) "$packageName/$it" else it)
             }
             if (component == null) {
                 packageName?.let {

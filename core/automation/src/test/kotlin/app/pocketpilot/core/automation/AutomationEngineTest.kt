@@ -21,6 +21,7 @@ import java.time.LocalTime
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -191,6 +192,49 @@ class AutomationEngineTest {
             assertEquals(1, host.closed)
             assertTrue("app.start_activity" in host.opened.single())
         }
+
+    @Test
+    fun `an agent answer shares to an app as a key=value extra`() =
+        runTest {
+            val host = FakeHost()
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep("agent.ask", mapOf("prompt" to "Find the address", "into" to "address")),
+                            ActionStep(
+                                "app.start_activity",
+                                mapOf(
+                                    "action" to "android.intent.action.SEND",
+                                    "component" to "com.tesla.share.ShareActivity",
+                                    "package" to "com.teslamotors.tesla",
+                                    "extras" to "android.intent.extra.TEXT={address}",
+                                ),
+                            ),
+                        ),
+                    ),
+                    "Test run",
+                    emptyMap(),
+                )
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertTrue(host.prompts.single().endsWith(AutomationEngine.ANSWER_ONLY))
+            val (tool, args) = host.calls.single()
+            assertEquals("app.start_activity", tool)
+            assertEquals("text/plain", (args["mimeType"] as JsonPrimitive).content)
+            val extras = args["extras"] as JsonObject
+            assertEquals("Did it", (extras["android.intent.extra.TEXT"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `extras take key=value lines or JSON`() {
+        val lines = Actions.intentExtras(mapOf("extras" to "a.b=x=1\nsecond line\n c = 2"))!!
+        assertEquals("x=1\nsecond line", (lines["a.b"] as JsonPrimitive).content)
+        assertEquals("2", (lines["c"] as JsonPrimitive).content)
+        assertEquals("1", (Actions.intentExtras(mapOf("extras" to "{\"n\": 1}"))!!["n"] as JsonPrimitive).content)
+        assertEquals(null, Actions.intentExtras(mapOf("extras" to " ")))
+        assertFailsWith<AutomationFailure> { Actions.intentExtras(mapOf("extras" to "just text")) }
+        assertFailsWith<AutomationFailure> { Actions.intentExtras(mapOf("extras" to "{broken")) }
+    }
 
     @Test
     fun `toggles a setting and stops on a failed action`() =
