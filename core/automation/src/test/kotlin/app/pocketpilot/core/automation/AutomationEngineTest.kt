@@ -50,6 +50,7 @@ class AutomationEngineTest {
         val outside = mutableListOf<Boolean>()
         val prompts = mutableListOf<String>()
         val textPrompts = mutableListOf<String>()
+        var askTextReply = "22 East Cordova Street, Vancouver, BC"
         var closed = 0
 
         override suspend fun callTool(
@@ -125,7 +126,7 @@ class AutomationEngineTest {
 
         override suspend fun askText(prompt: String): AgentOutcome {
             textPrompts += prompt
-            return AgentOutcome("22 East Cordova Street, Vancouver, BC", 0.001)
+            return AgentOutcome(askTextReply, 0.001)
         }
 
         override val sideload = true
@@ -250,6 +251,38 @@ class AutomationEngineTest {
             assertEquals("Address in: Breka Bakery, 22 East Cordova Street", host.textPrompts.single())
             assertTrue(host.prompts.isEmpty())
             assertEquals("22 East Cordova Street, Vancouver, BC", (host.calls.single().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `a screen read reaches the AI as the screen's text`() =
+        runTest {
+            val host = FakeHost()
+            engine(this, host).run(
+                rule(
+                    listOf(
+                        ActionStep("screen.read", mapOf("into" to "screen")),
+                        ActionStep("ai.ask", mapOf("prompt" to "Find the address in: {screen}", "into" to "address")),
+                    ),
+                ),
+                "Test run",
+                emptyMap(),
+            )
+            assertEquals("Find the address in: Side Menu", host.textPrompts.single())
+        }
+
+    @Test
+    fun `an AI reply that explains instead of answering fails the step`() =
+        runTest {
+            val host = FakeHost()
+            host.askTextReply = "The user wants me to analyze the text, but no text was given, so I cannot say. " + "x".repeat(200)
+            val record =
+                engine(this, host).run(
+                    rule(listOf(ActionStep("ai.ask", mapOf("prompt" to "Find the address", "into" to "address")))),
+                    "Test run",
+                    emptyMap(),
+                )
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue(host.calls.isEmpty())
         }
 
     @Test

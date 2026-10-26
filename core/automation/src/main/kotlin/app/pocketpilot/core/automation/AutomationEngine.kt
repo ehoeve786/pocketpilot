@@ -380,7 +380,11 @@ class AutomationEngine(
             ActionKind.Native -> {
                 val dictionary = host.nativeDictionary(step.type, params)
                 if (dictionary != null) {
-                    if (into.isNotEmpty()) dictionary.forEach { (key, value) -> context.vars["$into.$key"] = value }
+                    // The entries are also kept as one text, so {into} is the whole screen, as a plain value.
+                    if (into.isNotEmpty()) {
+                        dictionary.forEach { (key, value) -> context.vars["$into.$key"] = value }
+                        context.vars[into] = dictionary.values.joinToString("\n")
+                    }
                 } else {
                     val value = host.native(step.type, params)
                     if (into.isNotEmpty() && value != null) context.vars[into] = value
@@ -493,6 +497,8 @@ class AutomationEngine(
 
             "ai.ask" -> {
                 val answer = withinAiLimit { host.askText(params["prompt"].orEmpty()) }.trim()
+                // A reply that explains instead of answering must not reach the next step, such as a share.
+                if (answer.length > MAX_AI_ANSWER) throw AutomationFailure("The AI did not return just a result")
                 save(answer)
                 return "answered, $answer".take(MAX_NOTE)
             }
@@ -895,6 +901,7 @@ class AutomationEngine(
         const val MAX_LOOPS = 1000
         const val MAX_DEPTH = 5
         const val MAX_NOTE = 200
+        const val MAX_AI_ANSWER = 200
 
         /** Added to an Agent task whose answer a later step uses, so the answer is the value alone. */
         const val ANSWER_ONLY =
