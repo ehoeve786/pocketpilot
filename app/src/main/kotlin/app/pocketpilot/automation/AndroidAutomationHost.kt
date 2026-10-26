@@ -193,6 +193,15 @@ class AndroidAutomationHost(
         )
     }
 
+    override suspend fun askText(prompt: String): AgentOutcome {
+        val answer = agent().askText(prompt) ?: return AgentOutcome(NO_MODEL, costUsd = 0.0, ok = false)
+        return AgentOutcome(
+            summary = answer.text ?: answer.problem.orEmpty(),
+            costUsd = answer.costUsd,
+            ok = answer.text != null,
+        )
+    }
+
     override suspend fun native(
         type: String,
         params: Map<String, String>,
@@ -544,6 +553,7 @@ class AndroidAutomationHost(
     private companion object {
         const val SHELL_EXEC = "shell.exec"
         const val NO_AGENT = "Agent mode has no usable model, or another Agent run is in progress"
+        const val NO_MODEL = "No AI model is set up; add one under Activity > Agent"
         const val SHELL_TIMEOUT_MS = 5_000L
         const val WAKE_MS = 5_000L
         const val SPEAK_TIMEOUT_MS = 120_000L

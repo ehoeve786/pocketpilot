@@ -881,6 +881,18 @@ internal object Actions {
                 ),
                 // AI
                 ActionDef(
+                    type = "ai.ask",
+                    category = Category.AI,
+                    title = "Ask AI",
+                    description =
+                        "Asks your AI model about text, such as a screen read, and saves its answer. It never sees or uses " +
+                            "the phone, so it is quick and cheap. Counts against the monthly AI limit.",
+                    fields = listOf(FieldDef("prompt", "Question", FieldKind.MULTILINE), INTO),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "Ask AI: ${p.p("prompt").take(40)}" },
+                ),
+                ActionDef(
                     type = "agent.ask",
                     category = Category.AI,
                     title = "Ask Agent to do a task",

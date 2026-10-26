@@ -20,6 +20,8 @@ import app.pocketpilot.agent.runtime.ProviderKind
 import app.pocketpilot.agent.runtime.RunModel
 import app.pocketpilot.agent.runtime.RunState
 import app.pocketpilot.agent.runtime.RunStatus
+import app.pocketpilot.agent.runtime.TextAnswer
+import app.pocketpilot.agent.runtime.TextAsk
 import app.pocketpilot.agent.runtime.ToolMode
 import app.pocketpilot.agent.runtime.chatsToDelete
 import app.pocketpilot.core.model.Scope
@@ -155,6 +157,17 @@ class AgentCoordinator(
                 return null
             }
         return run.state.first { !it.active }
+    }
+
+    /** Asks the owner's models [prompt] as text only, with no tools; null when no model is set up. */
+    suspend fun askText(prompt: String): TextAnswer? {
+        val chain = profiles.profiles.value.filter(::usable)
+        if (chain.isEmpty()) return null
+        return try {
+            TextAsk.ask(chainedModel(chain), prompt)
+        } catch (e: IllegalArgumentException) {
+            TextAnswer(null, costUsd = null, problem = e.message ?: "The model is not set up right")
+        }
     }
 
     fun pause() = runner.current.value?.pause()
