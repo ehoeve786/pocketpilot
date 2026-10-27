@@ -17,6 +17,10 @@ class PocketPilotA11yService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         A11yBridge.onEvent(event)
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // The floating buttons step aside while the notification shade is pulled down.
+            A11yOverlay.setButtonsHidden(windows.any { it.title?.toString() == NOTIFICATION_SHADE_TITLE })
+        }
     }
 
     /** Key presses are only observed, never consumed, so they reach the phone as usual. */
@@ -26,6 +30,11 @@ class PocketPilotA11yService : AccessibilityService() {
     }
 
     override fun onInterrupt() = Unit
+
+    private companion object {
+        /** The title of the system window that the notification shade is drawn in. */
+        const val NOTIFICATION_SHADE_TITLE = "NotificationShade"
+    }
 
     override fun onUnbind(intent: Intent?): Boolean {
         A11yBridge.detach(this)
