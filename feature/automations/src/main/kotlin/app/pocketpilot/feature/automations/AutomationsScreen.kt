@@ -527,6 +527,14 @@ private fun RunCard(run: RunRecord) {
                     style = MaterialTheme.typography.labelMedium,
                     color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                 )
+                // Copy stays in the header so it is one tap away while the card is collapsed.
+                IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context, outcome))) }) {
+                    Icon(
+                        painterResource(DsR.drawable.core_designsystem_ic_copy),
+                        contentDescription = stringResource(R.string.feature_automations_copy_log),
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
             }
             Text(
                 "${run.reason} · ${DateUtils.getRelativeTimeSpanString(run.startedAtMillis)}",
@@ -535,15 +543,6 @@ private fun RunCard(run: RunRecord) {
             )
             if (open) {
                 run.lines.forEach { RunLogLine(it) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context, outcome))) }) {
-                        Icon(
-                            painterResource(DsR.drawable.core_designsystem_ic_copy),
-                            contentDescription = stringResource(R.string.feature_automations_copy_log),
-                            tint = MaterialTheme.colorScheme.outline,
-                        )
-                    }
-                }
             }
         }
     }
