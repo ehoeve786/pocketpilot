@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
 
 /**
  * The Accessibility service the owner turns on in system settings. It holds no logic: it hands itself
@@ -17,6 +18,10 @@ class PocketPilotA11yService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         A11yBridge.onEvent(event)
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // The floating buttons step aside while the notification shade is pulled down.
+            A11yOverlay.setButtonsHidden(windows.any { it.type == AccessibilityWindowInfo.TYPE_NOTIFICATION_SHADE })
+        }
     }
 
     /** Key presses are only observed, never consumed, so they reach the phone as usual. */

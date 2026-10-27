@@ -36,6 +36,9 @@ object A11yOverlay {
 
     @Volatile private var shownButtons = 0
 
+    /** True while the notification shade is pulled down, so the floating buttons stay out of its way. */
+    private var hiddenByShade = false
+
     /** How many floating buttons are on screen now. */
     fun buttonsShown(): Int = shownButtons
 
@@ -198,6 +201,7 @@ object A11yOverlay {
                             }
                         }
                 view.setOnTouchListener(touchListener(manager, view, params, button))
+                view.visibility = if (hiddenByShade) View.INVISIBLE else View.VISIBLE
                 runCatching { manager.addView(view, params) }.onSuccess {
                     buttonViews += view
                     shownButtons = buttonViews.size
@@ -288,6 +292,14 @@ object A11yOverlay {
     /** Removes the floating buttons if they are up. */
     fun hideButtons() {
         main.post { removeButtons() }
+    }
+
+    /** Hides the floating buttons while [hidden] is true, and shows them again once it is false. */
+    fun setButtonsHidden(hidden: Boolean) {
+        main.post {
+            hiddenByShade = hidden
+            buttonViews.forEach { it.visibility = if (hidden) View.INVISIBLE else View.VISIBLE }
+        }
     }
 
     private fun removeButtons() {
