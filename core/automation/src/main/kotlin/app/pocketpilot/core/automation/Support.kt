@@ -41,6 +41,12 @@ object Placeholders {
 
     /** True when [text] has a placeholder, so its value can change from one run to the next. */
     fun contains(text: String): Boolean = PATTERN.containsMatchIn(text)
+
+    /**
+     * The names of the placeholders in [text]. Passed the text after [fill], these are the ones with no value,
+     * since [fill] leaves them as written.
+     */
+    fun names(text: String): List<String> = PATTERN.findAll(text).map { it.groupValues[1] }.toList()
 }
 
 /** Sentences for the builder's cards and the proposal sheet. */

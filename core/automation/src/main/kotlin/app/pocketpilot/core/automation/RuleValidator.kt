@@ -29,6 +29,68 @@ object RuleValidator {
         return problems
     }
 
+    /**
+     * Variables a rule reads before any step sets them, or never sets. These are warnings, not problems: a trigger
+     * can supply names the rule does not set, and [globals] are the global variables the phone already holds.
+     */
+    fun variableWarnings(
+        rule: Rule,
+        globals: Set<String>,
+    ): List<String> {
+        val steps = flatten(rule.actions)
+        val setAnywhere = steps.flatMap(::setNames).toSet()
+        val known = globals.toMutableSet()
+        val warnings = linkedSetOf<String>()
+        fun check(
+            title: String,
+            reads: List<String>,
+        ) {
+            reads.forEach { name ->
+                val base = name.substringBefore('.')
+                if (base in known || base in BUILT_IN) return@forEach
+                warnings +=
+                    if (base in setAnywhere) {
+                        "$title reads {$name} before a step sets it"
+                    } else {
+                        "$title reads {$name}, which no step or global variable sets"
+                    }
+            }
+        }
+        if (rule.runAs == RunMode.AGENT) check("The Agent task", Placeholders.names(rule.agentPrompt))
+        check("A condition", constraintReads(rule.constraints))
+        steps.forEach { step ->
+            val title = AutomationCatalog.action(step.type)?.title ?: step.type
+            check(title, step.params.values.flatMap(Placeholders::names) + constraintReads(step.constraints))
+            known += setNames(step)
+        }
+        return warnings.toList()
+    }
+
+    private fun flatten(steps: List<ActionStep>): List<ActionStep> =
+        steps.flatMap { listOf(it) + flatten(it.children) + flatten(it.elseChildren) }
+
+    /** The names a step sets: its `into` target, and the `name` of a variable step. */
+    private fun setNames(step: ActionStep): List<String> {
+        val named = if (step.type == "var.set" || step.type == "var.text") step.params["name"] else null
+        return listOfNotNull(step.params["into"], named).filter { it.isNotBlank() }
+    }
+
+    private fun constraintReads(group: ConstraintGroup): List<String> =
+        group.items.flatMap { node ->
+            when (node) {
+                is ConstraintNode.Check -> {
+                    node.spec.params.values.flatMap(Placeholders::names) +
+                        listOfNotNull(node.spec.params["name"].takeIf { node.spec.type == "variable.compare" })
+                }
+
+                is ConstraintNode.Group -> {
+                    constraintReads(node.group)
+                }
+            }
+        }
+
+    private val BUILT_IN = setOf("now", "rule", "trigger")
+
     private fun actions(
         steps: List<ActionStep>,
         problems: MutableList<String>,
