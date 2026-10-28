@@ -314,6 +314,7 @@ fun HomeScreen(
                                 serverState = serverState,
                                 remoteState = remoteState,
                                 wireGuardState = wireGuardState,
+                                publicState = publicState,
                                 clients = clients,
                                 auditEvents = auditEvents,
                                 tiers = tiers,
