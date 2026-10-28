@@ -63,6 +63,7 @@ import app.pocketpilot.designsystem.status.TelemetryItemUi
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
+import app.pocketpilot.network.api.PublicAccessState
 import app.pocketpilot.server.http.ServerState
 import app.pocketpilot.core.designsystem.R as DsR
 
@@ -83,6 +84,7 @@ internal class HomeTabState(
     val serverState: ServerState,
     val remoteState: NetworkState,
     val wireGuardState: NetworkState,
+    val publicState: PublicAccessState,
     val clients: List<ClientRow>,
     val auditEvents: List<AuditEvent>,
     val tiers: Map<String, RiskTier>,
@@ -473,6 +475,7 @@ private fun mcpStatus(
             listOf(
                 RemoteLink(TAILSCALE, state.remoteState is NetworkState.Connected),
                 RemoteLink(WIREGUARD, state.wireGuardState is NetworkState.Connected),
+                RemoteLink(PUBLIC_ACCESS, state.publicState.enabled),
             ),
         callInFlight =
             running != null &&
@@ -575,4 +578,5 @@ private const val DEFAULT_LOCAL_URL = "http://127.0.0.1:8765/mcp"
 private const val SHIZUKU_STEP = "shizuku"
 private const val TAILSCALE = "Tailscale"
 private const val WIREGUARD = "WireGuard"
+private const val PUBLIC_ACCESS = "Public (Funnel)"
 private val STATUS_PANE_WIDTH = 360.dp
