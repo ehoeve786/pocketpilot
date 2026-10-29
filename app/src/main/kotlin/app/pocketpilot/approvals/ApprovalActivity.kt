@@ -100,7 +100,7 @@ class ApprovalActivity : ComponentActivity() {
     }
 
     private companion object {
-        /** What a client that names no scopes needs to drive the phone like Claude Code does locally. */
-        val DEFAULT_SCOPES = setOf("screen:read", "ui:interact", "apps:read", "apps:control", "device:read")
+        /** What a client that names no scopes gets preselected: reading only. Acting on the phone is the owner's choice. */
+        val DEFAULT_SCOPES = setOf("screen:read", "apps:read", "device:read")
     }
 }

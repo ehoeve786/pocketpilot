@@ -94,35 +94,3 @@ jobs:
           path: |
             **/build/reports/
             **/build/test-results/
-
-  # The latest green build of this repository's own branches, at a fixed link the phone can open:
-  # https://github.com/<owner>/<repo>/releases/download/dev/pocketpilot-oss-debug.apk
-  dev-release:
-    name: Publish the dev build
-    needs: build
-    # Only builds of main reach the dev release, so a branch cannot replace the APK the owner's phone installs from.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: pocketpilot-oss-debug
-          path: apk
-
-      - name: Replace the dev release's APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          REF: ${{ github.head_ref || github.ref_name }}
-        run: |
-          cp apk/*.apk pocketpilot-oss-debug.apk
-          notes="Debug build of $REF at $SHA (CI run ${{ github.run_number }}). Signed with the public debug key and debuggable, so it is for testing on a phone you control only: once turned on, its MCP control server accepts any client that holds a token."
-          if gh release view dev > /dev/null 2>&1; then
-            gh release edit dev --prerelease --title "Dev build" --notes "$notes"
-          else
-            gh release create dev --prerelease --title "Dev build" --notes "$notes" --target "$SHA"
-          fi
-          gh release upload dev pocketpilot-oss-debug.apk --clobber
