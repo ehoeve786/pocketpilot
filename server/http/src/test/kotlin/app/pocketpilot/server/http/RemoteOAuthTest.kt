@@ -57,7 +57,7 @@ class RemoteOAuthTest {
     @BeforeTest
     fun start() {
         val registry = ToolRegistry(setOf(DeviceInfoTool { deviceInfo }), PolicyProfile.OSS)
-        val factory = McpServerFactory(registry, CallDispatcher(registry, InMemoryAuditSink()), appVersion = "0.1.0-test")
+        val factory = McpServerFactory(registry, CallDispatcher(registry, InMemoryAuditSink(), allowingPolicy()), appVersion = "0.1.0-test")
         server =
             McpHttpServer(
                 factory,
@@ -116,7 +116,7 @@ class RemoteOAuthTest {
             )
         assertEquals(200, authorize.status, authorize.body)
         val pending = oauth.pending.value.single()
-        assertEquals("Claude", pending.clientName)
+        assertEquals("Unverified: Claude", pending.clientName)
         assertEquals("claude.ai", pending.redirectHost)
         assertEquals(setOf(Scope.DEVICE_READ), pending.requestedScopes)
 

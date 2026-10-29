@@ -68,6 +68,7 @@ class FileToolsTest {
                 PolicyProfile.OSS,
             ),
             InMemoryAuditSink(),
+            allowingPolicy(),
         )
     private val session = SessionFactory().localTokenSession()
 

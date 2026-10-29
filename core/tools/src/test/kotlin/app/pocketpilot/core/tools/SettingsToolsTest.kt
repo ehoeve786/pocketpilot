@@ -35,7 +35,11 @@ class SettingsToolsTest {
 
     private val settings = FakeSettings()
     private val dispatcher =
-        CallDispatcher(ToolRegistry(setOf(SettingsGetTool(settings), SettingsSetTool(settings)), PolicyProfile.OSS), InMemoryAuditSink())
+        CallDispatcher(
+            ToolRegistry(setOf(SettingsGetTool(settings), SettingsSetTool(settings)), PolicyProfile.OSS),
+            InMemoryAuditSink(),
+            allowingPolicy(),
+        )
     private val session = SessionFactory().localTokenSession()
 
     @Test

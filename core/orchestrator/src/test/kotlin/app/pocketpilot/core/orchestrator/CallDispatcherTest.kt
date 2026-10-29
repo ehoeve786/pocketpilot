@@ -68,7 +68,8 @@ class CallDispatcherTest {
     private val audit = InMemoryAuditSink()
     private val session = SessionFactory().localTokenSession()
 
-    private fun dispatcher(vararg tools: ToolHandler) = CallDispatcher(ToolRegistry(tools.toSet(), PolicyProfile.OSS), audit)
+    private fun dispatcher(vararg tools: ToolHandler) =
+        CallDispatcher(ToolRegistry(tools.toSet(), PolicyProfile.OSS), audit, allowingPolicy())
 
     private fun args(text: String? = "hi") = buildJsonObject { text?.let { put("text", it) } }
 

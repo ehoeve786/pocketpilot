@@ -62,8 +62,6 @@ private fun withoutCredentials(steps: List<ActionStep>): List<ActionStep> =
         )
     }
 
-private val CREDENTIAL_WORDS = listOf("header", "auth", "token", "secret", "password", "cookie", "apikey", "api_key")
-
 /**
  * The rule in a shared file's [json], as a disabled proposal from [SHARED_RULE_PROPOSER] with the id from
  * [newId]. Returns null when the file is not a rule.

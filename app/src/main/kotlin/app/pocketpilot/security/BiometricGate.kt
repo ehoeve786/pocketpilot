@@ -47,6 +47,9 @@ class BiometricGate(
      * Runs [onSuccess] once the owner proves it is them. Runs it straight away when the lock is off or
      * the phone has no screen lock to check against. A cancelled or failed prompt runs nothing, so
      * the owner can try again or deny.
+     *
+     * The result is taken from the prompt's callback, not from a signed challenge, so a compromised system framework
+     * could skip the check. That is accepted for this threat model, and the settings say so when there is no lock.
      */
     fun authenticate(
         activity: Activity,

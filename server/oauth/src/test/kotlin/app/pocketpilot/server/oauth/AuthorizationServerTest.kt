@@ -84,7 +84,7 @@ class AuthorizationServerTest {
         val tokens = exchange(client.id, authorize(client.id, setOf(Scope.SCREEN_READ, Scope.UI_INTERACT)))
         val grant = assertNotNull(server.authenticate(tokens.accessToken))
         assertEquals(setOf(Scope.SCREEN_READ, Scope.UI_INTERACT), grant.scopes)
-        assertEquals("Claude (claude.ai)", grant.clientName)
+        assertEquals("Unverified: Claude (claude.ai)", grant.clientName)
         assertEquals("screen:read ui:interact", tokens.scope)
     }
 
@@ -182,9 +182,15 @@ class AuthorizationServerTest {
     }
 
     @Test
+    fun `a client name is labelled unverified and capped at 40 characters`() {
+        val client = server.register("x".repeat(80), listOf(redirect))
+        assertEquals("Unverified: " + "x".repeat(40), client.name)
+    }
+
+    @Test
     fun `client names are one clean line and confirmations name the sign-in host`() {
         val client = server.register("Claude\nApproved by Erik\u202e", listOf(redirect))
-        assertEquals("Claude Approved by Erik", client.name)
+        assertEquals("Unverified: Claude Approved by Erik", client.name)
         val code =
             server
                 .beginAuthorization(
@@ -209,7 +215,7 @@ class AuthorizationServerTest {
                     "code_verifier" to verifier,
                 ),
             )
-        assertEquals("Claude Approved by Erik (claude.ai)", server.authenticate(tokens.accessToken)?.clientName)
+        assertEquals("Unverified: Claude Approved by Erik (claude.ai)", server.authenticate(tokens.accessToken)?.clientName)
     }
 
     @Test

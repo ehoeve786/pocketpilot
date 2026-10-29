@@ -36,22 +36,36 @@ class RuleStore(
     private val persistence: Persistence,
     private val clock: Clock = Clock.System,
     private val ids: UlidGenerator = UlidGenerator(clock),
+    /** Keeps credential values out of the rules file. Null keeps them in the file, as a plain store does. */
+    private val secrets: RuleSecrets? = null,
 ) {
+    /** As saved: credential values are references when [secrets] is set. */
     private val state = MutableStateFlow(load())
 
-    val data: StateFlow<AutomationData> = state.asStateFlow()
+    /** The rules as the engine and the screens see them, with the credential values filled in again. */
+    private val view = MutableStateFlow(open(state.value))
 
-    val rules: List<Rule> get() = state.value.rules
+    val data: StateFlow<AutomationData> = view.asStateFlow()
 
-    fun rule(id: String): Rule? = state.value.rules.firstOrNull { it.id == id }
+    init {
+        // A file written before the secret store existed still holds its credentials. Moving them now keeps them out of
+        // the file from the first run on.
+        if (secrets != null) update { it }
+    }
+
+    val rules: List<Rule> get() = view.value.rules
+
+    fun rule(id: String): Rule? = view.value.rules.firstOrNull { it.id == id }
 
     fun newId(): String = ids.next()
 
     @Synchronized
     fun update(transform: (AutomationData) -> AutomationData) {
-        val next = transform(state.value)
-        if (next == state.value) return
+        val before = state.value
+        val next = protect(transform(view.value), before)
+        if (next == before) return
         state.value = next
+        view.value = open(next)
         persistence.save(AutomationJson.json.encodeToString(AutomationData.serializer(), next))
     }
 
@@ -177,6 +191,55 @@ class RuleStore(
         change: (Rule) -> Rule,
     ) = update { data -> data.copy(rules = data.rules.map { if (it.id == id) change(it) else it }) }
 
+    /** The data with each credential value stored in [secrets] and replaced by a reference; secrets no rule uses are removed. */
+    private fun protect(
+        data: AutomationData,
+        before: AutomationData,
+    ): AutomationData {
+        val store = secrets ?: return data
+        val rules =
+            data.rules.map { rule ->
+                rule.mapCredentials { path, key, value ->
+                    if (value.isBlank() || value.startsWith(SECRET_REF)) {
+                        value
+                    } else {
+                        val name = secretName(rule.id, path, key)
+                        store.put(name, value)
+                        SECRET_REF + name
+                    }
+                }
+            }
+        val kept = referencesIn(AutomationData(rules = rules))
+        referencesIn(before).filterNot { it in kept }.forEach(store::remove)
+        return data.copy(rules = rules)
+    }
+
+    /** The data with each reference replaced by its value, so the rest of the app never sees a reference. */
+    private fun open(data: AutomationData): AutomationData {
+        val store = secrets ?: return data
+        return data.copy(
+            rules =
+                data.rules.map { rule ->
+                    rule.mapCredentials { _, _, value ->
+                        if (value.startsWith(SECRET_REF)) store.get(value.removePrefix(SECRET_REF)).orEmpty() else value
+                    }
+                },
+        )
+    }
+
+    private fun referencesIn(data: AutomationData): Set<String> =
+        data.rules
+            .flatMap { rule -> rule.paramValues() }
+            .filter { it.startsWith(SECRET_REF) }
+            .map { it.removePrefix(SECRET_REF) }
+            .toSet()
+
+    private fun secretName(
+        ruleId: String,
+        path: String,
+        key: String,
+    ): String = "rule_${ruleId}_${path}_$key".replace(Regex("[^A-Za-z0-9_]"), "_")
+
     private fun load(): AutomationData =
         persistence
             .load()
@@ -192,7 +255,37 @@ class RuleStore(
     }
 
     companion object {
+        /** Marks a parameter whose value is kept in the secret store; the rest of it is the secret's name. */
+        const val SECRET_REF = "@secret:"
+
         const val MAX_RUNS = 200
         const val MAX_HISTORY_CHARS = 256 * 1024
     }
+}
+
+/** The rule's settings with each credential value passed through [transform], given its step path, key and value. */
+internal fun Rule.mapCredentials(transform: (path: String, key: String, value: String) -> String): Rule {
+    fun steps(
+        list: List<ActionStep>,
+        prefix: String,
+    ): List<ActionStep> =
+        list.mapIndexed { index, step ->
+            val path = "$prefix$index"
+            step.copy(
+                params = step.params.mapValues { (key, value) -> if (isCredentialKey(key)) transform(path, key, value) else value },
+                children = steps(step.children, "$path."),
+                elseChildren = steps(step.elseChildren, "$path.else."),
+            )
+        }
+    return copy(actions = steps(actions, ""))
+}
+
+/** Every parameter value in the rule's steps, nested ones included. */
+internal fun Rule.paramValues(): List<String> {
+    fun steps(list: List<ActionStep>): List<String> =
+        list.flatMap { step ->
+            step.params.values + steps(step.children) +
+                steps(step.elseChildren)
+        }
+    return steps(actions)
 }

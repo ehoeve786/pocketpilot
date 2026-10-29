@@ -59,6 +59,7 @@ class NotifyToolsTest {
         CallDispatcher(
             ToolRegistry(setOf(NotifyListTool(source, hidden), NotifyActTool(source, hidden)), PolicyProfile.OSS),
             InMemoryAuditSink(),
+            allowingPolicy(),
         )
     private val session = SessionFactory().localTokenSession()
 

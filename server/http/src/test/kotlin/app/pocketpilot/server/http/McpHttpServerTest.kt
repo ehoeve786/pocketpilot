@@ -47,7 +47,7 @@ class McpHttpServerTest {
     @BeforeTest
     fun start() {
         val registry = ToolRegistry(setOf(DeviceInfoTool { deviceInfo }), PolicyProfile.OSS)
-        val factory = McpServerFactory(registry, CallDispatcher(registry, audit), appVersion = "0.1.0-test")
+        val factory = McpServerFactory(registry, CallDispatcher(registry, audit, allowingPolicy()), appVersion = "0.1.0-test")
         server = McpHttpServer(factory, SessionFactory(), localToken = { token })
         server.start(port = 0)
         val running = assertIs<ServerState.Running>(server.serverState.value)

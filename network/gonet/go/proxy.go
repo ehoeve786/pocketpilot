@@ -30,6 +30,9 @@ func newProxyServer(targetPort int, logs *ring, onRequest func()) *http.Server {
 	return &http.Server{
 		Handler:           logRequests(logs, onRequest, proxy),
 		ReadHeaderTimeout: 30 * time.Second,
+		// Bounds idle keep-alive connections, so a client that stops sending does not hold one open forever. An open
+		// event stream that is still being read is not cut by this.
+		IdleTimeout: 10 * time.Minute,
 		// TLS is already terminated by the listener.
 		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 	}

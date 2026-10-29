@@ -141,6 +141,7 @@ class AutomationDispatchTest {
                         PolicyProfile.OSS,
                     ),
                     audit,
+                    allowingPolicy(),
                     clock = clock,
                 )
             // Every known scope except apps:control, which app.stop needs.
@@ -174,6 +175,7 @@ class AutomationDispatchTest {
                 CallDispatcher(
                     ToolRegistry(setOf(tool("app.stop", Scope.APPS_CONTROL)), PolicyProfile.OSS),
                     audit,
+                    allowingPolicy(),
                     clock = clock,
                 )
             val host = DispatchingHost(dispatcher, granted = Scope.KNOWN)

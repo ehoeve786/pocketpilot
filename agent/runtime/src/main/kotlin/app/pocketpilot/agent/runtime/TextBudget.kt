@@ -30,6 +30,10 @@ internal object TextBudget {
     /** JSON fallback results travel as user text starting with "Result of". */
     private fun isJsonResult(message: Message): Boolean = (message.parts.firstOrNull() as? Part.Text)?.text?.startsWith(JSON_RESULT) == true
 
+    /**
+     * Cuts a part down. A cut inside an untrusted block can leave the block without its closing tag, but the
+     * rest of the block is removed with the cut, so no injected text survives it.
+     */
     private fun cut(part: Part): Part =
         when (part) {
             is Part.Text -> if (part.text.length > LONG) Part.Text(part.text.take(KEEP_CHARS) + MARKER) else part

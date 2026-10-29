@@ -26,6 +26,7 @@ data class ActivityEntry(
  */
 object IntentArgs {
     private const val CLEAR_TASK = "--activity-clear-task"
+    private const val OWN_PACKAGE = "app.pocketpilot"
     private val SHARE_ACTIONS = setOf("android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE")
 
     val COMPONENT = Regex("^([A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+)/([A-Za-z0-9_.$]+)$")
@@ -45,6 +46,8 @@ object IntentArgs {
         setOf(
             "android.intent.action.CALL",
             "android.intent.action.CALL_PRIVILEGED",
+            "android.intent.action.CALL_BUTTON",
+            "android.intent.action.SENDTO",
             "android.intent.action.CALL_EMERGENCY",
             "android.intent.action.DELETE",
             "android.intent.action.UNINSTALL_PACKAGE",
@@ -134,6 +137,7 @@ object IntentArgs {
                 "-a" -> {
                     require(NAME.matches(value)) { "Not an action name: $value" }
                     require(value !in REFUSED_ACTIONS) { "$value is not allowed" }
+                    require(!value.startsWith("android.intent.action.CALL")) { "$value places calls, which is not allowed" }
                 }
 
                 "-c" -> {
@@ -166,6 +170,8 @@ object IntentArgs {
             i += 2
         }
         val pkg = targetPackage(args) ?: throw IllegalArgumentException("Name the app: give component or package")
+        // PocketPilot's own components are not started through this, whatever app is named.
+        require(pkg != OWN_PACKAGE && !pkg.startsWith("$OWN_PACKAGE.")) { "PocketPilot's own components cannot be started this way" }
         AppAdminArgs.checkPackage(pkg)
         AppAdminArgs.checkNotProtected(pkg)
     }

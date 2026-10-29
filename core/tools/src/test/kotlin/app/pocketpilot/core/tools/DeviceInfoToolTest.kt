@@ -31,7 +31,8 @@ class DeviceInfoToolTest {
     @Test
     fun `returns a summary and structured content`() =
         runTest {
-            val dispatcher = CallDispatcher(ToolRegistry(setOf(DeviceInfoTool { info }), PolicyProfile.OSS), InMemoryAuditSink())
+            val dispatcher =
+                CallDispatcher(ToolRegistry(setOf(DeviceInfoTool { info }), PolicyProfile.OSS), InMemoryAuditSink(), allowingPolicy())
             val result = dispatcher.dispatch(SessionFactory().localTokenSession(), "device.info", JsonObject(emptyMap()))
             assertFalse(result.isError)
             val structured = result.structured!!

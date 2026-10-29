@@ -35,6 +35,7 @@ class AppPolicy(
 
     companion object {
         /**
+         * Matches exact package names only: a bank whose package is not listed here is allowed until category matching exists.
          * Starter deny list. Matching by Play category arrives with the app policy screen; until then,
          * this list covers the common wallets, payment apps, password managers, authenticators and
          * the major North American banks.
@@ -86,6 +87,13 @@ class AppPolicy(
                 "com.konylabs.capitalone",
                 "com.americanexpress.android.acctsvcs.us",
                 "com.discoverfinancial.mobile",
+                // More banks and brokerages, from the packages these apps are published under; check them on the Play Store.
+                "com.usaa.mobile.android.usaa",
+                "com.ally.MobileBanking",
+                "com.navyfederal.android",
+                "com.chime.android",
+                "com.fidelity.android",
+                "com.robinhood.android",
             )
     }
 }
