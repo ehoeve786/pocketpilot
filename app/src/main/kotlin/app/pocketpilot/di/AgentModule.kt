@@ -38,6 +38,8 @@ object AgentModule {
     @Singleton
     fun httpClient(): HttpClient =
         HttpClient(OkHttp) {
+            // A redirect could send the provider's key to another host, so redirects are not followed.
+            followRedirects = false
             install(HttpTimeout) {
                 connectTimeoutMillis = 15_000
                 requestTimeoutMillis = 180_000

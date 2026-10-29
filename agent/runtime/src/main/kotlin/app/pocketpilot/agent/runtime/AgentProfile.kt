@@ -83,7 +83,10 @@ class ProfileStore(
 
     /** Adds [profile] at the end, or replaces the one with the same id in its place. */
     fun save(profile: AgentProfile) {
+        require(ID.matches(profile.id)) { "A profile id is letters, digits, - or _, up to 64 characters" }
         write { list ->
+            // Two ids that differ only in case or punctuation would share one stored key, so they may not both exist.
+            require(list.none { it.id != profile.id && it.keyName == profile.keyName }) { "Another profile already uses that key name" }
             if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
         }
     }
@@ -106,6 +109,10 @@ class ProfileStore(
         writeAtomically(file, json.encodeToString(serializer, mutableProfiles.value))
     }
 
+    private companion object {
+        val ID = Regex("[A-Za-z0-9_-]{1,64}")
+    }
+
     private fun load(): List<AgentProfile> =
         try {
             if (file.exists()) json.decodeFromString(serializer, file.readText()) else emptyList()
@@ -121,6 +128,7 @@ class ProfileStore(
 /**
  * Keeps one transcript file per run (spec section 9, Transcript), dropping the oldest beyond [keep].
  * The spec's Room tables come with the database in a later milestone; until then this is the store.
+ * Each step rewrites the whole transcript. That is quadratic over a long run, and acceptable at the sizes runs reach.
  */
 class FileRunStore(
     private val dir: File,

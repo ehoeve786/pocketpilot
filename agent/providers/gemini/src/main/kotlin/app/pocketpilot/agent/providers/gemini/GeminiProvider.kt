@@ -19,11 +19,12 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.content.TextContent
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -75,6 +76,7 @@ class GeminiProvider(
     override suspend fun listModels(): List<ModelInfo> {
         val models = mutableListOf<ModelInfo>()
         var pageToken: String? = null
+        var pages = 0
         do {
             val response =
                 http.get("$baseUrl/v1beta/models") {
@@ -83,11 +85,11 @@ class GeminiProvider(
                     parameter("pageSize", PAGE_SIZE)
                     pageToken?.let { parameter("pageToken", it) }
                 }
-            val body = response.bodyAsText()
+            val body = response.boundedText()
             if (!response.status.isSuccess()) throw IOException("HTTP ${response.status.value}: ${body.take(MAX_ERROR_BODY)}")
             val page = pageOf(body)
             page["models"]?.jsonArray?.forEach { item ->
-                val model = item.jsonObject
+                val model = item as? JsonObject ?: return@forEach
                 val methods = (model["supportedGenerationMethods"] as? JsonArray)?.map { (it as? JsonPrimitive)?.contentOrNull }
                 val name = model.string("name")?.removePrefix("models/")
                 if (name != null && methods?.contains("generateContent") == true) {
@@ -95,7 +97,8 @@ class GeminiProvider(
                 }
             }
             pageToken = page.string("nextPageToken")?.takeIf { it.isNotEmpty() }
-        } while (pageToken != null)
+            // A server that keeps returning a next page must not keep the app in this loop.
+        } while (pageToken != null && ++pages < MAX_MODEL_PAGES)
         return models
     }
 
@@ -119,7 +122,7 @@ class GeminiProvider(
         }
 
     private suspend fun readReply(response: HttpResponse): List<ModelEvent> {
-        val body = response.bodyAsText()
+        val body = response.boundedText()
         if (!response.status.isSuccess()) return listOf(httpError(response.status.value, body, response.headers[HttpHeaders.RetryAfter]))
         return try {
             parseReply(Json.parseToJsonElement(body).jsonObject)
@@ -282,6 +285,7 @@ class GeminiProvider(
     private companion object {
         const val API_KEY_HEADER = "x-goog-api-key"
         const val PAGE_SIZE = 1000
+        const val MAX_MODEL_PAGES = 50
         const val MAX_ERROR_BODY = 500
         val RETRY_DELAY = Regex(""""retryDelay"\s*:\s*"([\d.]+)s"""")
 
@@ -337,3 +341,20 @@ class GeminiCallMemory {
         const val MAX_SIGNATURES = 256
     }
 }
+
+/** The reply's body as text. A body over [MAX_BODY_BYTES] is refused, so a huge reply cannot fill memory. */
+private suspend fun HttpResponse.boundedText(): String {
+    val channel = bodyAsChannel()
+    val out = java.io.ByteArrayOutputStream()
+    val chunk = ByteArray(CHUNK_BYTES)
+    while (true) {
+        val read = channel.readAvailable(chunk, 0, chunk.size)
+        if (read < 0) break
+        if (out.size() + read > MAX_BODY_BYTES) throw IOException("The provider's reply is larger than $MAX_BODY_BYTES bytes")
+        out.write(chunk, 0, read)
+    }
+    return out.toString(Charsets.UTF_8)
+}
+
+private const val MAX_BODY_BYTES = 16 * 1024 * 1024
+private const val CHUNK_BYTES = 8192

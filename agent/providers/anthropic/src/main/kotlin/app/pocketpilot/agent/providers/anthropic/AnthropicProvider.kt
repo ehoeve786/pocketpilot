@@ -20,11 +20,12 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.content.TextContent
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -77,7 +78,7 @@ class AnthropicProvider(
                     parameter("limit", PAGE_SIZE)
                     afterId?.let { parameter("after_id", it) }
                 }
-            val body = response.bodyAsText()
+            val body = response.boundedText()
             if (!response.status.isSuccess()) throw IOException("HTTP ${response.status.value}: ${body.take(MAX_ERROR_BODY)}")
             val page = pageOf(body)
             page["data"]?.jsonArray?.forEach { item ->
@@ -116,7 +117,7 @@ class AnthropicProvider(
     }
 
     private suspend fun readReply(response: HttpResponse): List<ModelEvent> {
-        val body = response.bodyAsText()
+        val body = response.boundedText()
         if (!response.status.isSuccess()) {
             return listOf(ModelErrors.fromHttp(response.status.value, body, response.headers[HttpHeaders.RetryAfter]))
         }
@@ -281,3 +282,20 @@ class AnthropicProvider(
         private fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
     }
 }
+
+/** The reply's body as text. A body over [MAX_BODY_BYTES] is refused, so a huge reply cannot fill memory. */
+private suspend fun HttpResponse.boundedText(): String {
+    val channel = bodyAsChannel()
+    val out = java.io.ByteArrayOutputStream()
+    val chunk = ByteArray(CHUNK_BYTES)
+    while (true) {
+        val read = channel.readAvailable(chunk, 0, chunk.size)
+        if (read < 0) break
+        if (out.size() + read > MAX_BODY_BYTES) throw IOException("The provider's reply is larger than $MAX_BODY_BYTES bytes")
+        out.write(chunk, 0, read)
+    }
+    return out.toString(Charsets.UTF_8)
+}
+
+private const val MAX_BODY_BYTES = 16 * 1024 * 1024
+private const val CHUNK_BYTES = 8192

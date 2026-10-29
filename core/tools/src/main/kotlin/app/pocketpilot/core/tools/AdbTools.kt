@@ -238,6 +238,9 @@ internal object LogRedactor {
         Regex("(?i)(bearer|token|authorization|password|passwd|secret|api[_-]?key)([\"']?\\s*[:=]\\s*[\"']?|\\s+)[^\\s\"',;]+")
     private val LONG_SECRET = Regex("\\b[A-Za-z0-9_\\-]{40,}\\b")
 
+    /** The Wi-Fi network name in `dumpsys wifi` and `cmd wifi` output, which can show where the owner is. */
+    private val NETWORK_NAME = Regex("(?i)(SSID\\s*[:=]\\s*)(\"[^\"]*\"|[^\\s,]+)")
+
     /** A JSON web token: three base64url parts joined by dots, the first two starting with an encoded `{"`. */
     private val JWT = Regex("eyJ[A-Za-z0-9_\\-]*\\.[A-Za-z0-9_\\-]+\\.[A-Za-z0-9_\\-]*")
 
@@ -246,6 +249,7 @@ internal object LogRedactor {
             .replace(BEARER) { "${it.groupValues[1]}${it.groupValues[2]}[masked]" }
             .replace(EMAIL, "[email]")
             .replace(PHONE, "[phone]")
+            .replace(NETWORK_NAME) { "${it.groupValues[1]}[network]" }
             .replace(JWT, "[masked]")
             .replace(LONG_SECRET, "[masked]")
 }

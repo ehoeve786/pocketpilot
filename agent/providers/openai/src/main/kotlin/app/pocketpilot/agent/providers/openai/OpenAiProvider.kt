@@ -13,11 +13,12 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.content.TextContent
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.io.IOException
@@ -48,7 +49,7 @@ class OpenAiProvider(
      */
     override suspend fun listModels(): List<ModelInfo> {
         val response = http.get("$baseUrl/models") { configure() }
-        val body = response.bodyAsText()
+        val body = response.boundedText()
         if (!response.status.isSuccess()) throw IOException(httpError(response, body).message)
         return runCatching { ChatCompletionsCodec.decodeModels(body) }.getOrElse { throw IOException("Unreadable model list", it) }
     }
@@ -62,7 +63,7 @@ class OpenAiProvider(
                             configure()
                             setBody(TextContent(ChatCompletionsCodec.encodeRequest(request).toString(), ContentType.Application.Json))
                         }
-                    val body = response.bodyAsText()
+                    val body = response.boundedText()
                     if (response.status.isSuccess()) {
                         ChatCompletionsCodec.decodeResponse(body) { "call_${toolCallIds.incrementAndGet()}" }
                     } else {
@@ -95,3 +96,20 @@ class OpenAiProvider(
         private val toolCallIds = AtomicLong()
     }
 }
+
+/** The reply's body as text. A body over [MAX_BODY_BYTES] is refused, so a huge reply cannot fill memory. */
+private suspend fun HttpResponse.boundedText(): String {
+    val channel = bodyAsChannel()
+    val out = java.io.ByteArrayOutputStream()
+    val chunk = ByteArray(CHUNK_BYTES)
+    while (true) {
+        val read = channel.readAvailable(chunk, 0, chunk.size)
+        if (read < 0) break
+        if (out.size() + read > MAX_BODY_BYTES) throw IOException("The provider's reply is larger than $MAX_BODY_BYTES bytes")
+        out.write(chunk, 0, read)
+    }
+    return out.toString(Charsets.UTF_8)
+}
+
+private const val MAX_BODY_BYTES = 16 * 1024 * 1024
+private const val CHUNK_BYTES = 8192
