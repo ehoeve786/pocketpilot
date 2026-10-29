@@ -770,6 +770,22 @@ internal object Actions {
                     kind = ActionKind.Engine,
                     sentence = { p -> "{${p.p("into")}} = ${p.p("path")}" },
                 ),
+                ActionDef(
+                    type = "address.from_screen",
+                    category = Category.VARIABLES,
+                    title = "Address from screen",
+                    description =
+                        "Finds a delivery address on a screen that an app read, such as a Dasher or Uber Driver screen. " +
+                            "Saves nothing when the screen has no known address, so a later step can ask the AI instead.",
+                    fields =
+                        listOf(
+                            textField("screen", "Screen variable", hint = "Usually screen_read"),
+                            INTO.copy(required = true, default = "address"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "{${p.p("into")}} = address from ${p.p("screen")}" },
+                ),
                 // Home Assistant
                 ActionDef(
                     type = "ha.call",

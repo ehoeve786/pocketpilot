@@ -666,6 +666,13 @@ class AutomationEngine(
                 return "{$into} = ${value.take(MAX_NOTE)}"
             }
 
+            "address.from_screen" -> {
+                val screen = params.p("screen")
+                val address = ScreenAddress.find { id -> context.vars["$screen.$id"] }
+                save(address.orEmpty())
+                return if (address == null) "no address on the screen" else "{$into} = ${address.take(MAX_NOTE)}"
+            }
+
             "var.random" -> {
                 val min = params.p("min").toIntOrNull() ?: 1
                 val max = params.p("max").toIntOrNull() ?: 6
