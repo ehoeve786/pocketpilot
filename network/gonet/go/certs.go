@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,9 @@ const (
 	renewBefore = 30 * 24 * time.Hour
 	renewCheck  = 12 * time.Hour
 )
+
+// validDomain is a host name: labels of letters, digits and hyphens, and a top-level name of at least two characters.
+var validDomain = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$`)
 
 // CertManager gets and renews a publicly trusted certificate for the owner's own domain from Let's
 // Encrypt, proving control of the domain with a DNS-01 TXT record it adds through the Cloudflare
@@ -68,6 +72,12 @@ func (c *CertManager) Configure(domain, email, cloudflareToken string) {
 	domain = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if domain != "" && !validDomain.MatchString(domain) {
+		// A name that is not a host name would only fail later at Let's Encrypt or Cloudflare, so say so now.
+		c.domain, c.cert, c.notAfter = "", nil, time.Time{}
+		c.lastError = fmt.Sprintf("%q is not a domain name, such as phone.example.com", domain)
+		return
+	}
 	if domain != c.domain {
 		c.cert = nil
 		c.notAfter = time.Time{}
@@ -175,6 +185,8 @@ func (c *CertManager) PointDomainAt(ip string) error {
 func (c *CertManager) Forget() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// The Cloudflare token goes too, so it does not stay in memory after the owner has forgotten the certificate.
+	c.token = ""
 	c.cert, c.notAfter, c.lastError = nil, time.Time{}, ""
 	c.blobs.Remove(accountKeyName)
 	if c.domain != "" {

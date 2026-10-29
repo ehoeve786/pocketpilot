@@ -547,17 +547,21 @@ func isDomainName(s string) bool {
 	return nonNumeric
 }
 
-func randU16() uint16 {
+// randU16 returns a random 16-bit value. A failure of the system's random source is returned, not panicked on,
+// since a panic here would crash the whole app.
+func randU16() (uint16, error) {
 	var b [2]byte
-	_, err := rand.Read(b[:])
-	if err != nil {
-		panic(err)
+	if _, err := rand.Read(b[:]); err != nil {
+		return 0, err
 	}
-	return binary.LittleEndian.Uint16(b[:])
+	return binary.LittleEndian.Uint16(b[:]), nil
 }
 
 func newRequest(q dnsmessage.Question) (id uint16, udpReq, tcpReq []byte, err error) {
-	id = randU16()
+	id, err = randU16()
+	if err != nil {
+		return 0, nil, nil, err
+	}
 	b := dnsmessage.NewBuilder(make([]byte, 2, 514), dnsmessage.Header{ID: id, RecursionDesired: true})
 	b.EnableCompression()
 	if err := b.StartQuestions(); err != nil {
@@ -968,7 +972,7 @@ var protoSplitter = regexp.MustCompile(`^(tcp|udp|ping)(4|6)?$`)
 
 func (tnet *Net) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	if ctx == nil {
-		panic("nil context")
+		return nil, errors.New("nil context")
 	}
 	var acceptV4, acceptV6 bool
 	matches := protoSplitter.FindStringSubmatch(network)
