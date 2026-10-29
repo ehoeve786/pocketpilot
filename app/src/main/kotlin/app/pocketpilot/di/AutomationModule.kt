@@ -10,6 +10,7 @@ import app.pocketpilot.automation.Calendars
 import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.automation.PhoneState
 import app.pocketpilot.automation.PlaceWatcher
+import app.pocketpilot.automation.SecretStoreRuleSecrets
 import app.pocketpilot.automation.TriggerSources
 import app.pocketpilot.capability.api.notifications.NotificationPoster
 import app.pocketpilot.capability.api.screen.ScreenCapturer
@@ -56,7 +57,12 @@ object AutomationModule {
     @Singleton
     fun ruleStore(
         @ApplicationContext context: Context,
-    ): RuleStore = RuleStore(FilePersistence(File(context.noBackupFilesDir, "automations.json")))
+        secrets: SecretStore,
+    ): RuleStore =
+        RuleStore(
+            FilePersistence(File(context.noBackupFilesDir, "automations.json")),
+            secrets = SecretStoreRuleSecrets(secrets),
+        )
 
     @Provides
     @Singleton

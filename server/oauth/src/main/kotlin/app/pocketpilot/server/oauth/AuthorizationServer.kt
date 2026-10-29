@@ -131,7 +131,8 @@ class AuthorizationServer(
         val client =
             OAuthClient(
                 id = "ppc_" + randomToken(CLIENT_ID_BYTES),
-                name = cleanName(name) ?: hostOf(redirectUris.first()),
+                // The client chose this name itself, so it is labelled unverified wherever it is shown.
+                name = "Unverified: " + (cleanName(name)?.take(MAX_CLIENT_NAME) ?: hostOf(redirectUris.first())),
                 redirectUris = redirectUris,
                 createdAtMillis = clock.nowMillis(),
             )
@@ -471,6 +472,7 @@ class AuthorizationServer(
 
         /** Sign-ins that may wait for the owner at once, across all clients. */
         private const val MAX_PENDING = 8
+        private const val MAX_CLIENT_NAME = 40
         private const val MAX_PAIRING_TRIES = 5
         private const val PAIRING_CODE_LENGTH = 6
         private const val PAIRING_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"

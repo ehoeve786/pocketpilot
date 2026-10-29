@@ -53,7 +53,7 @@ class CertificateManager(
                 domain = prefs.getString(KEY_DOMAIN, "").orEmpty(),
                 email = prefs.getString(KEY_EMAIL, "").orEmpty(),
                 hasToken = secrets.get(SECRET_TOKEN) != null,
-                followRelay = prefs.getBoolean(KEY_FOLLOW_RELAY, true),
+                followRelay = prefs.getBoolean(KEY_FOLLOW_RELAY, false),
             ),
         )
     val state: StateFlow<CertificateState> = mutableState.asStateFlow()

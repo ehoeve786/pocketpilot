@@ -87,6 +87,13 @@ class AppPolicy(
                 "com.konylabs.capitalone",
                 "com.americanexpress.android.acctsvcs.us",
                 "com.discoverfinancial.mobile",
+                // More banks and brokerages, from the packages these apps are published under; check them on the Play Store.
+                "com.usaa.mobile.android.usaa",
+                "com.ally.MobileBanking",
+                "com.navyfederal.android",
+                "com.chime.android",
+                "com.fidelity.android",
+                "com.robinhood.android",
             )
     }
 }
