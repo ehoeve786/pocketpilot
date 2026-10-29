@@ -57,9 +57,7 @@ object ScreenAddress {
     private fun value(
         lookup: (String) -> String?,
         id: String,
-    ): String? {
-        return lookup(id)?.trim()?.takeIf { it.isNotEmpty() && Placeholders.names(it).isEmpty() }
-    }
+    ): String? = lookup(id)?.trim()?.takeIf { it.isNotEmpty() && Placeholders.names(it).isEmpty() }
 
     private val UNIT_IN_STREET = Regex("""^(\d+)\s+(\d+)-\s*(.+)$""")
 }
