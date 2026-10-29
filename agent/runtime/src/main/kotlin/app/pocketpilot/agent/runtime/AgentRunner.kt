@@ -399,7 +399,7 @@ class AgentRun internal constructor(
             }
         seen(spec, result)
         val summary = summary(result).take(SUMMARY_CHARS)
-        return result to StepCall(spec?.name ?: name, argsJson, summary, result.isError)
+        return result to StepCall(spec?.name ?: name, transcriptArgs(argsJson), summary, result.isError)
     }
 
     private fun loadTools(
@@ -412,7 +412,7 @@ class AgentRun internal constructor(
                     ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
             }.getOrNull().orEmpty()
         val result = ToolResult.success(tools.load(names))
-        return result to StepCall(AgentTools.LOAD_DOTTED, argsJson, summary(result).take(SUMMARY_CHARS), false)
+        return result to StepCall(AgentTools.LOAD_DOTTED, transcriptArgs(argsJson), summary(result).take(SUMMARY_CHARS), false)
     }
 
     private suspend fun call(

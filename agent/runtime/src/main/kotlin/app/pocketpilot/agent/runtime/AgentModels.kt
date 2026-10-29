@@ -1,8 +1,13 @@
 package app.pocketpilot.agent.runtime
 
 import app.pocketpilot.agent.providers.api.ModelProvider
+import app.pocketpilot.core.audit.Redactor
 import app.pocketpilot.core.model.Scope
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /** Limits for one run (spec section 9, Budgets). A run stops when it reaches any of them. */
 @Serializable
@@ -82,11 +87,24 @@ enum class RunStatus {
 @Serializable
 data class StepCall(
     val tool: String,
+    /** The arguments with typed text, file contents and secrets summarised; see [transcriptArgs]. */
     val argsJson: String,
     /** The first part of the tool's text result. */
     val resultSummary: String,
     val isError: Boolean,
 )
+
+/**
+ * The arguments as the transcript keeps them. Typed text, file contents and secrets are summarised the way the audit
+ * log summarises them, so the run files and copied transcripts never hold them. Arguments that do not parse are kept
+ * only as a length, since they may hold anything.
+ */
+internal fun transcriptArgs(argsJson: String): String {
+    if (argsJson.isBlank()) return argsJson
+    val parsed = runCatching { Json.parseToJsonElement(argsJson) as? JsonObject }.getOrNull()
+        ?: return buildJsonObject { put("redacted", true); put("length", argsJson.length) }.toString()
+    return Redactor().redact(parsed).toString()
+}
 
 /** One plan-act-observe step (spec section 9, Transcript). */
 @Serializable
