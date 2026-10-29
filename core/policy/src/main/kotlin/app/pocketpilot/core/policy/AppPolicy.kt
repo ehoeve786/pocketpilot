@@ -87,7 +87,9 @@ class AppPolicy(
                 "com.konylabs.capitalone",
                 "com.americanexpress.android.acctsvcs.us",
                 "com.discoverfinancial.mobile",
-                // More banks and brokerages, from the packages these apps are published under; check them on the Play Store.
+                // More banks and brokerages. Confirmed on third-party listings: com.ally.MobileBanking, com.fidelity.android,
+                // com.robinhood.android. Not confirmed (a wrong id matches nothing): com.navyfederal.android, com.chime.android,
+                // com.usaa.mobile.android.usaa. Check every id against its Play Store listing URL (details?id=...).
                 "com.usaa.mobile.android.usaa",
                 "com.ally.MobileBanking",
                 "com.navyfederal.android",

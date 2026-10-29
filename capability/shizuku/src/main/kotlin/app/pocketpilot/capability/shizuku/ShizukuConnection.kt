@@ -52,6 +52,14 @@ class ShizukuConnection(
 
     private val handler = Handler(Looper.getMainLooper())
 
+    private val connectTimeout =
+        Runnable {
+            if (binding && service == null) {
+                binding = false
+                refresh()
+            }
+        }
+
     private val args =
         Shizuku
             .UserServiceArgs(ComponentName(context.packageName, PrivilegedService::class.java.name))
@@ -67,6 +75,7 @@ class ShizukuConnection(
                 binder: IBinder?,
             ) {
                 if (binder == null || !binder.pingBinder()) return
+                handler.removeCallbacks(connectTimeout)
                 service = IPocketPilotPrivileged.Stub.asInterface(binder)
                 binding = false
                 disconnects = 0
@@ -137,6 +146,9 @@ class ShizukuConnection(
                     if (!binding) {
                         binding = true
                         Shizuku.bindUserService(args, connection)
+                        // A bind that never calls back would leave the state at CONNECTING for good, so give up on it.
+                        handler.removeCallbacks(connectTimeout)
+                        handler.postDelayed(connectTimeout, CONNECT_TIMEOUT_MS)
                     }
                     ShizukuState.CONNECTING
                 }
@@ -147,5 +159,6 @@ class ShizukuConnection(
         const val PERMISSION_REQUEST = 4_201
         const val BASE_RETRY_MS = 1_000L
         const val MAX_RETRY_MS = 60_000L
+        const val CONNECT_TIMEOUT_MS = 15_000L
     }
 }
