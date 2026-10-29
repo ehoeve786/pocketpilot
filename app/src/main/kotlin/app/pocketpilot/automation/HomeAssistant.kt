@@ -105,6 +105,13 @@ class HomeAssistant(
             }.getOrDefault(emptyList()).sortedBy { it.value }
         }
 
+    /**
+     * Services a rule may not call: they run commands on the host, or restart or stop Home Assistant itself.
+     * Entity actions such as light.turn_on are not affected.
+     */
+    private val hostDomains = setOf("hassio", "shell_command", "python_script", "pyscript", "rest_command")
+    private val hostServices = setOf("restart", "stop", "reload_all")
+
     /** Calls the action [service] ("light.turn_on") with [data], adding [entity] as its target. */
     suspend fun call(
         service: String,
@@ -114,6 +121,9 @@ class HomeAssistant(
         val domain = service.substringBefore('.', "").trim()
         val name = service.substringAfter('.', "").trim()
         if (domain.isEmpty() || name.isEmpty()) throw AutomationFailure("Give the action as domain.action, like light.turn_on")
+        if (domain in hostDomains || (domain == "homeassistant" && name in hostServices)) {
+            throw AutomationFailure("$service is not allowed from a rule: it runs commands on the host or restarts Home Assistant")
+        }
         val body =
             JsonObject(
                 data +

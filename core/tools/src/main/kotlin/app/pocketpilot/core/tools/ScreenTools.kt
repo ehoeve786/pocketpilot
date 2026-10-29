@@ -246,9 +246,17 @@ class ScreenCaptureTool(
             }
         val format = args.string("format")?.let { ImageFormat.valueOf(it.uppercase()) } ?: ImageFormat.WEBP
         // The frame comes first and the snapshot after it, so a password field that showed in the frame is in the snapshot too.
+        // Without the reader the password fields cannot be found, so no frame is taken at all.
+        if (!reader.available.value) {
+            throw ToolException(
+                ToolErrorCode.CAPABILITY_UNAVAILABLE,
+                "The screenshot is not taken: the accessibility service is off, so password fields could not be hidden",
+                "Turn on PocketPilot's accessibility service, then try again.",
+            )
+        }
         val frame = capturer.capture()
         // Password fields and whatever ScreenPrivacy hid from the snapshot, such as a banking app in split screen.
-        val passwords = if (reader.available.value) reader.snapshot().let { passwordBounds(it) + it.hidden } else emptyList()
+        val passwords = reader.snapshot().let { passwordBounds(it) + it.hidden }
         val image =
             pipeline.process(
                 frame,
