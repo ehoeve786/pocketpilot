@@ -7,6 +7,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.screen.Bounds
+import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
 import app.pocketpilot.capability.api.screen.ScreenPrivacy
@@ -127,7 +128,23 @@ class A11yScreenReader(
                 ?: throw SnapshotCache.stale("Element ${target.elementId} is not in snapshot ${entry.snapshot.id}")
         val node = entry.payload.nodes[index]
         if (!node.refresh()) throw SnapshotCache.stale("Element ${target.elementId} has left the screen")
+        // A list row can be reused for another item, so the node may refresh fine yet show something else now.
+        val element = entry.snapshot.elements.firstOrNull { it.id == target.elementId }
+        if (element != null && !node.isSameAs(element)) {
+            throw SnapshotCache.stale("Element ${target.elementId} now shows something else; read the screen again")
+        }
         return node
+    }
+
+    /** True when the node still shows what [element] showed when the screen was read. */
+    private fun AccessibilityNodeInfo.isSameAs(element: Element): Boolean {
+        val rect = Rect()
+        getBoundsInScreen(rect)
+        val sameBounds =
+            rect.left == element.bounds.left && rect.top == element.bounds.top &&
+                rect.right == element.bounds.right && rect.bottom == element.bounds.bottom
+        val sameText = element.password || text?.toString()?.takeIf { it.isNotBlank() } == element.text
+        return sameBounds && sameText && viewIdResourceName?.takeIf { it.isNotBlank() } == element.resourceId
     }
 
     private fun walk(

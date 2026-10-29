@@ -45,9 +45,24 @@ private data class SharedRule(
 
 /** The rule as the JSON text of a shared file. */
 fun Rule.shareFileJson(): String {
-    val shared = SharedRule(name, triggers, constraints, actions, runAs, agentPrompt)
+    val shared = SharedRule(name, triggers, constraints, withoutCredentials(actions), runAs, agentPrompt)
     return AutomationJson.json.encodeToString(SharedRule.serializer(), shared)
 }
+
+/**
+ * The steps with any setting whose name suggests a credential (headers with an Authorization line, tokens, passwords,
+ * cookies, API keys) removed, so a shared file never carries the owner's credentials. The receiver types those again.
+ */
+private fun withoutCredentials(steps: List<ActionStep>): List<ActionStep> =
+    steps.map { step ->
+        step.copy(
+            params = step.params.filterKeys { key -> CREDENTIAL_WORDS.none { key.lowercase().contains(it) } },
+            children = withoutCredentials(step.children),
+            elseChildren = withoutCredentials(step.elseChildren),
+        )
+    }
+
+private val CREDENTIAL_WORDS = listOf("header", "auth", "token", "secret", "password", "cookie", "apikey", "api_key")
 
 /**
  * The rule in a shared file's [json], as a disabled proposal from [SHARED_RULE_PROPOSER] with the id from

@@ -447,7 +447,7 @@ private fun ProposalsList(
         items(proposals, key = { it.id }) { rule ->
             ProposalCard(
                 rule = rule,
-                replacesName = rule.replaces?.let { id -> rules.firstOrNull { it.id == id }?.name },
+                replaces = rule.replaces?.let { id -> rules.firstOrNull { it.id == id } },
                 onAccept = { actions.accept(rule.id) },
                 onEdit = { onEdit(rule) },
                 onDecline = { actions.decline(rule.id) },

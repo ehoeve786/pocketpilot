@@ -253,8 +253,8 @@ private fun StepText(text: String) {
 @Composable
 internal fun ProposalCard(
     rule: Rule,
-    /** The name of the rule this proposal changes, when it changes one. */
-    replacesName: String?,
+    /** The rule this proposal changes, when it changes one. Its steps are shown before the new ones. */
+    replaces: Rule?,
     onAccept: () -> Unit,
     onEdit: () -> Unit,
     onDecline: () -> Unit,
@@ -270,11 +270,18 @@ internal fun ProposalCard(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.tertiary,
             )
-            if (replacesName != null) {
+            if (replaces != null) {
+                val before = (replaces.triggers.map { Describe.trigger(it) } + replaces.actions.map { Describe.action(it) })
                 Text(
-                    stringResource(R.string.feature_automations_proposal_replaces, replacesName),
+                    stringResource(R.string.feature_automations_proposal_replaces, replaces.name),
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Text(
+                    stringResource(R.string.feature_automations_change_before),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+                Text(before.joinToString("\n"), style = MaterialTheme.typography.bodySmall)
             }
             RuleSummary(rule)
             if (rule.actions.any { it.tier() >= RiskTier.SENSITIVE } || rule.runAs == RunMode.AGENT) {
