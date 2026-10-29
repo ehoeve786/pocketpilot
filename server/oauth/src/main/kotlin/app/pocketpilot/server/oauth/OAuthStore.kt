@@ -3,6 +3,9 @@ package app.pocketpilot.server.oauth
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /** A registered client (RFC 7591). PocketPilot only has public clients, so there is no secret. */
 @Serializable
@@ -81,9 +84,11 @@ class FileOAuthStore(
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")
         temp.writeText(json.encodeToString(OAuthState.serializer(), state))
-        if (!temp.renameTo(file)) {
-            file.delete()
-            temp.renameTo(file)
+        // Replaces the live file in one step. The old file is never deleted first, so a failed move keeps the store.
+        try {
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } catch (e: AtomicMoveNotSupportedException) {
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
 }

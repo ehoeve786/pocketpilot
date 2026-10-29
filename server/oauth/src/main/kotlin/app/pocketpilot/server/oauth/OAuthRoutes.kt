@@ -132,12 +132,11 @@ fun Route.oauthRoutes(
 
     post("/token") {
         val params = call.receiveParameters().entries().associate { it.key to it.value.first() }
-        // Remote callers share one address, so a failing client is locked by its own client_id instead.
+        // Remote callers share one address, so a failing client is counted by its own client_id instead. A client_id
+        // is public, so a blocked client still gets its valid grants: anyone can send bad ones, but only the owner's
+        // client holds a code or refresh token that succeeds. The block refuses failures only.
         val address = params["client_id"]?.let { "client:$it" } ?: clientAddress(call)
-        if (lockout.isBlocked(address)) {
-            call.respondOAuthError(OAuthException("invalid_client", "Too many failed attempts; try again in an hour", 429))
-            return@post
-        }
+        val blocked = lockout.isBlocked(address)
         try {
             val tokens = server.token(params)
             call.response.header(HttpHeaders.CacheControl, "no-store")
@@ -152,7 +151,11 @@ fun Route.oauthRoutes(
             )
         } catch (e: OAuthException) {
             if (e.code == "invalid_grant") lockout.recordFailure(address)
-            call.respondOAuthError(e)
+            if (blocked) {
+                call.respondOAuthError(OAuthException("invalid_client", "Too many failed attempts; try again in an hour", 429))
+            } else {
+                call.respondOAuthError(e)
+            }
         }
     }
 

@@ -119,7 +119,7 @@ jobs:
           REF: ${{ github.head_ref || github.ref_name }}
         run: |
           cp apk/*.apk pocketpilot-oss-debug.apk
-          notes="Debug build of $REF at $SHA (CI run ${{ github.run_number }}). Signed with the public debug key; for testing only."
+          notes="Debug build of $REF at $SHA (CI run ${{ github.run_number }}). Signed with the public debug key and debuggable, so it is for testing on a phone you control only: once turned on, its MCP control server accepts any client that holds a token."
           if gh release view dev > /dev/null 2>&1; then
             gh release edit dev --prerelease --title "Dev build" --notes "$notes"
           else
