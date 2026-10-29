@@ -15,6 +15,7 @@
     <string name="automation_reason_run">Run button</string>
     <string name="automation_icon_unsupported">This launcher cannot add home screen icons</string>
     <string name="automation_accept_shell">Accepting this automation lets it run shell commands on this phone.</string>
+    <string name="automation_accept_change">Accepting this changes an automation that runs on its own: its triggers or sensitive steps.</string>
     <string name="automation_reason_test">Test run</string>
     <string name="automation_tile">PocketPilot %1$d</string>
     <string name="automation_tile_1">PocketPilot 1</string>
