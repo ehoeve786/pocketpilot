@@ -30,7 +30,11 @@ object ScreenAddress {
     fun find(lookup: (String) -> String?): String? {
         RECIPES.forEach { recipe ->
             val street = value(lookup, recipe.street) ?: return@forEach
-            val locality = recipe.locality?.let { value(lookup, it) }?.let(::withoutUnit)?.takeIf { it.isNotEmpty() }
+            val locality =
+                recipe.locality
+                    ?.let { value(lookup, it) }
+                    ?.let(::withoutUnit)
+                    ?.takeIf { it.isNotEmpty() }
             val line = clean(street)
             return if (locality == null) line else "$line, $locality"
         }
