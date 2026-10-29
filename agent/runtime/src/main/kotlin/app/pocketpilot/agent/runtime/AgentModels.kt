@@ -102,9 +102,15 @@ data class StepCall(
 internal fun transcriptArgs(argsJson: String): String {
     if (argsJson.isBlank()) return argsJson
     val parsed = runCatching { Json.parseToJsonElement(argsJson) as? JsonObject }.getOrNull()
-        ?: return buildJsonObject { put("redacted", true); put("length", argsJson.length) }.toString()
+    if (parsed == null) return unparsedSummary(argsJson)
     return Redactor().redact(parsed).toString()
 }
+
+private fun unparsedSummary(text: String): String =
+    buildJsonObject {
+        put("redacted", true)
+        put("length", text.length)
+    }.toString()
 
 /** One plan-act-observe step (spec section 9, Transcript). */
 @Serializable

@@ -331,7 +331,7 @@ class AutomationEngine(
             val summaryAt = context.lines.size
             try {
                 val note = step(context, step, label)
-                .also { if (readsAi(context, step)) context.aiTainted += taintTargets(step) }
+                if (readsAi(context, step)) context.aiTainted += taintTargets(step)
                 context.lines.add(summaryAt, stamped("$label. $title: ${note ?: "ok"}"))
             } catch (e: StopRun) {
                 context.lines.add(summaryAt, stamped("$label. $title"))
