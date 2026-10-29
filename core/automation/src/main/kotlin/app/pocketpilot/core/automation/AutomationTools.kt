@@ -512,7 +512,8 @@ class AutomationRunTool(
                 "The owner must turn it on and give it the trigger \"AI app asks\".",
             )
         }
-        val record = engine().run(rule, "AI app: ${session.principal}", mapOf("client" to session.principal))
+        // An AI app's run gets none of the owner's pre-approvals, as an outside run does: each sensitive call asks.
+        val record = engine().run(rule, "AI app: ${session.principal}", mapOf("client" to session.principal), fromOutside = true)
         val text = "${rule.name}: ${record.outcome.name.lowercase()}\n" + record.lines.joinToString("\n")
         return if (record.outcome == RunOutcome.FAILED) {
             ToolResult.error(ToolErrorCode.INTERNAL_ERROR, text, "Read the log; fix the cause before running it again.")

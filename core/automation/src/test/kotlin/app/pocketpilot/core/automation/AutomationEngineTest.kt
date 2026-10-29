@@ -859,6 +859,41 @@ class AutomationEngineTest {
         assertTrue(rule.pinned)
     }
 
+    @Test
+    fun `a proposal the owner has not accepted does not run, not even as a test`() =
+        runTest {
+            val host = FakeHost()
+            val proposal = rule(listOf(ActionStep("setting.dnd", mapOf("value" to "on")))).copy(proposedBy = "Claude")
+            assertFalse(engine(this, host).start(proposal, "Test", checkConstraints = false))
+            assertTrue(host.calls.isEmpty())
+        }
+
+    @Test
+    fun `a rule that runs a disabled rule is refused for that step`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(Rule("other", "Off", enabled = false, actions = listOf(ActionStep("notify.post", mapOf("title" to "hi")))))
+            val record =
+                engine(this, host, store).run(rule(listOf(ActionStep("flow.run_rule", mapOf("rule" to "other")))), "Test")
+            assertTrue(record.lines.any { "is off, or waiting for the owner" in it }, record.lines.joinToString("\n"))
+        }
+
+    @Test
+    fun `an outside run cannot pick the address a browser opens from event data`() =
+        runTest {
+            val host = FakeHost()
+            val record =
+                engine(this, host).run(
+                    rule(listOf(ActionStep("app.open_url", mapOf("url" to "{trigger.url}")))),
+                    "Test",
+                    data = mapOf("url" to "https://example.com"),
+                    fromOutside = true,
+                )
+            assertTrue(record.lines.any { "Not run: an outside app, event or AI app" in it }, record.lines.joinToString("\n"))
+            assertTrue(host.calls.isEmpty())
+        }
+
     private val office = mapOf("ssid" to "Office")
 
     private fun updateArgs(

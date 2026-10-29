@@ -37,6 +37,12 @@ object AdbQuery {
             "keystore",
             "android.security.keystore",
             "android.security.legacykeystore",
+            "statusbar",
+            "accessibility",
+            "media_session",
+            "bluetooth_manager",
+            "wifi",
+            "activity",
         )
 
     private val READ_VERB_PREFIXES = listOf("get", "list", "status", "query", "is-", "has-", "print", "help")
@@ -101,6 +107,51 @@ object AdbQuery {
             "quit",
             "exit",
             "save",
+            "run",
+            "plug",
+            "unplug",
+            "tempwhitelist",
+            "collapse",
+            "expand",
+            "vibrate",
+            "cancel",
+            "send",
+            "click",
+            "inject",
+            "grant",
+            "revoke",
+            "suspend",
+            "resume",
+            "toggle",
+            "bind",
+            "unbind",
+            "wake",
+            "sleep",
+        )
+
+    /**
+     * Plain words that a dump service reads as a filter: a package or component name (any word with a dot) or
+     * one of these. Any other word after the service name is refused, so an unknown verb cannot change state.
+     */
+    private val READ_DUMP_WORDS =
+        setOf(
+            "whitelist",
+            "activities",
+            "services",
+            "providers",
+            "receivers",
+            "recents",
+            "summary",
+            "dump",
+            "all",
+            "history",
+            "state",
+            "settings",
+            "usage",
+            "list",
+            "brief",
+            "details",
+            "stats",
         )
     private val PING_FLAGS = setOf("-c", "-W", "-w", "-i", "-s", "-q", "-n", "-4", "-6")
     private val READABLE_PATHS =
@@ -160,7 +211,9 @@ object AdbQuery {
                 if (service != "-l") checkService(service)
                 // Services take their own words after the name; only read-only options and plain words pass.
                 args.drop(1).forEach { option ->
-                    val plainWord = !option.startsWith("-") && NAME.matches(option) && option !in MUTATING_DUMP_WORDS
+                    val plainWord =
+                        !option.startsWith("-") && NAME.matches(option) && option !in MUTATING_DUMP_WORDS &&
+                            (option.contains('.') || option in READ_DUMP_WORDS)
                     require(option in READ_DUMP_OPTIONS || plainWord) { "dumpsys $service takes only read-only options, not $option" }
                 }
             }

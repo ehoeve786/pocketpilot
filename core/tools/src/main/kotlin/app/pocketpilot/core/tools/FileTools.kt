@@ -271,7 +271,7 @@ class FilesDeleteTool(
                 schema(
                     """{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}""",
                 ),
-            riskTier = RiskTier.SENSITIVE,
+            riskTier = RiskTier.DESTRUCTIVE,
             requiredScopes = setOf(Scope.FILES_WRITE),
             requiredCapabilities = setOf(CapabilityId.READ_FILES),
             annotations = ToolAnnotations(destructive = true),

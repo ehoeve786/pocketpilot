@@ -158,7 +158,8 @@ class AutomationEngine(
         chain: List<String> = emptyList(),
         triggerType: String? = null,
     ): Boolean {
-        if (jobs.containsKey(rule.id)) return false
+        // A proposal the owner has not accepted never runs, not even as a test: its tools are not approved yet.
+        if (rule.pending || jobs.containsKey(rule.id)) return false
         val job =
             scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 try {
@@ -355,14 +356,16 @@ class AutomationEngine(
         if (def.sideloadOnly && !host.sideload) throw AutomationFailure("${def.title} is only in the sideload build")
         if (!def.conditional && !step.constraints.isEmpty && !holds(context, step.constraints)) return "skipped, conditions did not hold"
         if (context.fromOutside && step.type in OUTSIDE_REFUSED) {
-            throw AutomationFailure("Not run: another app started this automation, so it cannot ${def.title.lowercase()}")
+            throw AutomationFailure(
+                "Not run: an outside app, event or AI app started this automation, so it cannot ${def.title.lowercase()}",
+            )
         }
         // Any placeholder can carry outside data (event fields, variables set from them), so an outside run may
-        // only send with fixed parameters.
-        val steeredFromOutside = step.type in SENDS_OUT && step.params.values.any { PLACEHOLDER.containsMatchIn(it) }
-        if (context.fromOutside && def.kind == ActionKind.Native && steeredFromOutside) {
+        // only use these steps with fixed parameters.
+        val steeredFromOutside = step.type in OUTSIDE_FIXED_ONLY && step.params.values.any { PLACEHOLDER.containsMatchIn(it) }
+        if (context.fromOutside && steeredFromOutside) {
             throw AutomationFailure(
-                "Not run: another app started this automation, so its data cannot choose where ${def.title} sends things",
+                "Not run: an outside app, event or AI app started this automation, so its data cannot choose what ${def.title} acts on",
             )
         }
         val params =
@@ -565,6 +568,9 @@ class AutomationEngine(
 
             "flow.run_rule" -> {
                 val other = store.rule(params.p("rule")) ?: throw AutomationFailure("That rule no longer exists")
+                if (!other.enabled || other.pending) {
+                    throw AutomationFailure("${other.name} is off, or waiting for the owner to accept it")
+                }
                 if (other.id == context.rule.id || context.depth >= MAX_DEPTH) throw AutomationFailure("A rule cannot run itself")
                 if (!holds(context.copy(rule = other), other.constraints)) return "skipped, its conditions did not hold"
                 execute(context.copy(rule = other, depth = context.depth + 1), other.actions, "$label.")
@@ -881,6 +887,28 @@ class AutomationEngine(
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
         private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
+
+        /**
+         * Steps that send, open, change or run something on the phone. An outside run may use them only with
+         * fixed parameters, so that no event or screen text picks the target, the text typed, or the command.
+         */
+        private val OUTSIDE_FIXED_ONLY =
+            SENDS_OUT +
+                setOf(
+                    "app.launch",
+                    "app.open_url",
+                    "app.start_activity",
+                    "app.send_broadcast",
+                    "app.clear_data",
+                    "app.set_enabled",
+                    "app.stop",
+                    "files.write",
+                    "files.delete",
+                    "files.copy",
+                    "ui.type_text",
+                    "shell.exec",
+                    "tool.call",
+                )
         private val PLACEHOLDER = Regex("""\{[^{}]+\}""")
 
         /**

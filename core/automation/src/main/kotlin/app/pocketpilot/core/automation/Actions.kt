@@ -740,7 +740,7 @@ internal object Actions {
                     title = "Delete a file",
                     description = "Deletes one file in a shared folder. Asks you each time.",
                     fields = listOf(fileField("path", "Path", hint = "Folder/file.txt")),
-                    tier = RiskTier.SENSITIVE,
+                    tier = RiskTier.DESTRUCTIVE,
                     kind = ActionKind.Tool("files.delete") { p -> args("path" to p.p("path")) },
                     sentence = { p -> "Delete ${p.p("path")}" },
                 ),
