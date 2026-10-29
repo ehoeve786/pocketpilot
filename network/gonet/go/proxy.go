@@ -1,6 +1,7 @@
 package ppnet
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -40,18 +41,26 @@ func newProxyServer(targetPort int, logs *ring, onRequest func()) *http.Server {
 
 // logRequests adds a line per request to the log (method, path, status, time taken), so the owner
 // can copy it when a client such as claude.ai cannot connect. Tokens and bodies are not logged.
+//
+// A request, an event stream included, ends after maxRequestTime. A client that vanished therefore cannot hold a stream
+// open for good; a client that still needs the stream reconnects.
 func logRequests(logs *ring, onRequest func(), next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		if onRequest != nil {
 			onRequest()
 		}
+		ctx, cancel := context.WithTimeout(r.Context(), maxRequestTime)
+		defer cancel()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(rec, r)
+		next.ServeHTTP(rec, r.WithContext(ctx))
 		logs.logf("ppnet: %s %s %s -> %d in %v (%s)", r.Method, r.Host, r.URL.Path, rec.status,
 			time.Since(start).Round(time.Millisecond), r.UserAgent())
 	})
 }
+
+// maxRequestTime is how long one request may run. A variable so a test can shorten it.
+var maxRequestTime = 30 * time.Minute
 
 type statusRecorder struct {
 	http.ResponseWriter

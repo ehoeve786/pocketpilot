@@ -39,6 +39,8 @@ class ControlOverlay(
     private val agent: dagger.Lazy<AgentCoordinator>,
 ) : ControlIndicator {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    // The stop is kept in plain preferences. The MCP server enforces it, so this holds unless the phone is rooted.
     private val stopped = MutableStateFlow(prefs.getBoolean(KEY_STOPPED, false))
 
     /** True while the owner has stopped AI apps from using the phone. */

@@ -239,7 +239,7 @@ internal object LogRedactor {
     private val LONG_SECRET = Regex("\\b[A-Za-z0-9_\\-]{40,}\\b")
 
     /** The Wi-Fi network name in `dumpsys wifi` and `cmd wifi` output, which can show where the owner is. */
-    private val NETWORK_NAME = Regex("(?i)(SSID\\s*[:=]\\s*)(\"[^\"]*\"|[^\\s,]+)")
+    private val NETWORK_NAME = Regex("(?i)(\"?SSID\"?\\s*[:=]\\s*|SSID\\s+)(\"[^\"]*\"|[^\\s,]+)")
 
     /** A JSON web token: three base64url parts joined by dots, the first two starting with an encoded `{"`. */
     private val JWT = Regex("eyJ[A-Za-z0-9_\\-]*\\.[A-Za-z0-9_\\-]+\\.[A-Za-z0-9_\\-]*")
