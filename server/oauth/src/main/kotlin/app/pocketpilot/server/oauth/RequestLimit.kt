@@ -5,6 +5,9 @@ import app.pocketpilot.core.common.Clock
 /**
  * Caps how often one address may call an endpoint that needs no token, such as registration and
  * authorize, so nobody on the internet can flood the owner with sign-in prompts.
+ *
+ * Each call walks every tracked address. That is fine at the number of addresses a phone sees; a much larger
+ * table would need an index first.
  */
 class RequestLimit(
     private val maxRequests: Int,

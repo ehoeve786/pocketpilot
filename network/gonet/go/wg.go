@@ -109,7 +109,8 @@ func (t *Tunnel) Start(config string) error {
 // routeRepliesThroughServer sends every reply to the one server peer. The tunnel carries only
 // connections the relay forwards to the phone, from any address on the internet, so a config that
 // lists just the VPN's subnet (as router exports often do) would otherwise drop the replies. The
-// phone's own traffic never uses this network stack, so nothing else is routed through the tunnel.
+// phone's own traffic never uses this network stack, so nothing else is routed through the tunnel. The peer may
+// send any inner address into the stack; that is accepted because the peer is the owner's own server.
 func routeRepliesThroughServer(cfg *wgConfig) {
 	if len(cfg.Peers) != 1 {
 		return

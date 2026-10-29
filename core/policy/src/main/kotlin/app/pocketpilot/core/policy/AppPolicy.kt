@@ -35,6 +35,7 @@ class AppPolicy(
 
     companion object {
         /**
+         * Matches exact package names only: a bank whose package is not listed here is allowed until category matching exists.
          * Starter deny list. Matching by Play category arrives with the app policy screen; until then,
          * this list covers the common wallets, payment apps, password managers, authenticators and
          * the major North American banks.
