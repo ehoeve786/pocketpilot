@@ -855,7 +855,7 @@ class AutomationEngineTest {
         val rule = store.rules.single()
         assertEquals("r1", rule.id)
         assertEquals("screen.on", rule.triggers.single().type)
-        assertTrue(rule.enabled)
+        assertFalse(rule.enabled, "the owner had turned the replaced rule off, and accepting keeps it off")
         assertTrue(rule.pinned)
     }
 
