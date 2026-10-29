@@ -58,6 +58,9 @@ object A11yOverlay {
                 return@post
             }
             val manager = service.getSystemService(WindowManager::class.java)
+            // A pill left from an earlier service would stay beside the new one, with its old stop button still live.
+            shown?.let { old -> runCatching { manager.removeView(old) } }
+            shown = null
             val dp = { value: Int ->
                 TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), service.resources.displayMetrics).toInt()
             }

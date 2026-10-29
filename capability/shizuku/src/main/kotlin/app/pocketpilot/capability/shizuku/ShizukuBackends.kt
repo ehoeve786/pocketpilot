@@ -60,7 +60,7 @@ private suspend fun <T> ShizukuConnection.call(block: (IPocketPilotPrivileged) -
         } catch (e: Exception) {
             throw ToolException(
                 ToolErrorCode.INTERNAL_ERROR,
-                "Shizuku call failed: ${e.message}",
+                "Shizuku could not run that call",
                 "Retry; if it keeps failing, restart Shizuku",
             )
         }
@@ -451,6 +451,7 @@ class ShizukuAppAdmin(
         optimized: Boolean,
     ) {
         mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
         shizuku.call { it.setDozeExempt(packageName, !optimized) }
     }
 

@@ -190,6 +190,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         exempt: Boolean,
     ) {
         mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
         run("cmd", "deviceidle", "whitelist", (if (exempt) "+" else "-") + packageName)
     }
 

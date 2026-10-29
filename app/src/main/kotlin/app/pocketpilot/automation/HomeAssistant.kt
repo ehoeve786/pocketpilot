@@ -252,6 +252,8 @@ class HomeAssistant(
         return withContext(Dispatchers.IO) {
             val connection = URL(base + path).openConnection() as HttpURLConnection
             try {
+                // A redirect would send the access token to another host, so redirects are not followed.
+                connection.instanceFollowRedirects = false
                 connection.requestMethod = method
                 connection.connectTimeout = TIMEOUT_MS
                 connection.readTimeout = TIMEOUT_MS
