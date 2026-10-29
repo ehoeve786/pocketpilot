@@ -894,6 +894,44 @@ class AutomationEngineTest {
             assertTrue(host.calls.isEmpty())
         }
 
+    @Test
+    fun `an AI answer cannot choose where a sensitive step goes, even through a copied variable`() =
+        runTest {
+            val host = FakeHost()
+            host.askTextReply = "1668 Davie St"
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep("ai.ask", mapOf("prompt" to "Where is the address?", "into" to "answer")),
+                            ActionStep("var.set", mapOf("name" to "copy", "value" to "{answer}")),
+                            ActionStep("app.open_url", mapOf("url" to "https://maps.example/{copy}")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertTrue(record.lines.any { "an AI answer is not checked" in it }, record.lines.joinToString("\n"))
+            assertTrue(host.calls.isEmpty())
+        }
+
+    @Test
+    fun `an AI answer may still be shown in a notification`() =
+        runTest {
+            val host = FakeHost()
+            host.askTextReply = "1668 Davie St"
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep("ai.ask", mapOf("prompt" to "Where is the address?", "into" to "answer")),
+                            ActionStep("notify.post", mapOf("title" to "{answer}")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertFalse(record.lines.any { "an AI answer is not checked" in it }, record.lines.joinToString("\n"))
+        }
+
     private val office = mapOf("ssid" to "Office")
 
     private fun updateArgs(

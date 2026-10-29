@@ -331,6 +331,7 @@ class AutomationEngine(
             val summaryAt = context.lines.size
             try {
                 val note = step(context, step, label)
+                .also { if (readsAi(context, step)) context.aiTainted += taintTargets(step) }
                 context.lines.add(summaryAt, stamped("$label. $title: ${note ?: "ok"}"))
             } catch (e: StopRun) {
                 context.lines.add(summaryAt, stamped("$label. $title"))
@@ -367,6 +368,11 @@ class AutomationEngine(
             throw AutomationFailure(
                 "Not run: an outside app, event or AI app started this automation, so its data cannot choose what ${def.title} acts on",
             )
+        }
+        // An AI answer is not checked, and a screen can steer it, so it may not choose what a sensitive step acts on.
+        // The one exception is handing it to an app, such as a share, which the owner's rule chooses.
+        if (step.type in AI_REFUSED && readsAi(context, step)) {
+            throw AutomationFailure("Not run: an AI answer is not checked, so it cannot choose what ${def.title} acts on")
         }
         val params =
             RuleValidator.withDefaults(def.fields, step.params).mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
@@ -508,6 +514,7 @@ class AutomationEngine(
                 val task = params["prompt"].orEmpty() + if (into.isNotEmpty()) ANSWER_ONLY else ""
                 val summary = askAgent(task).trim()
                 save(summary)
+                if (into.isNotEmpty()) context.aiTainted += into
                 return "done, $summary".take(MAX_NOTE)
             }
 
@@ -516,6 +523,7 @@ class AutomationEngine(
                 // A reply that explains instead of answering must not reach the next step, such as a share.
                 if (answer.length > MAX_AI_ANSWER) throw AutomationFailure("The AI did not return just a result")
                 save(answer)
+                if (into.isNotEmpty()) context.aiTainted += into
                 return "answered, $answer".take(MAX_NOTE)
             }
 
@@ -706,6 +714,21 @@ class AutomationEngine(
         return null
     }
 
+    /** True when [step] reads a value an AI answer set, directly or through a name that such a value was copied into. */
+    private fun readsAi(
+        context: RunContext,
+        step: ActionStep,
+    ): Boolean =
+        context.aiTainted.isNotEmpty() &&
+            step.params.values.flatMap(Placeholders::names).any { name ->
+                name in context.aiTainted || name.substringBefore('.') in context.aiTainted
+            }
+
+    /** The names a step with an AI-derived input writes, so their values count as AI-derived too. */
+    private fun taintTargets(step: ActionStep): List<String> =
+        listOfNotNull(step.params["into"], step.params["name"]?.takeIf { step.type.startsWith("var.") })
+            .filter { it.isNotBlank() }
+
     /** Sets a run variable, or the global one when a global of that name exists. */
     private fun assign(
         context: RunContext,
@@ -874,6 +897,8 @@ class AutomationEngine(
         val chain: List<String> = emptyList(),
         /** The type of the trigger that started the run; null when it was started by hand. */
         val triggerType: String? = null,
+        /** The variables an AI answer set, and the ones copied from them. Such values may not drive a sensitive step. */
+        val aiTainted: MutableSet<String> = mutableSetOf(),
     )
 
     private class StopRun : RuntimeException()
@@ -919,6 +944,9 @@ class AutomationEngine(
 
         /** Steps that send data out of the phone or to another app, which refuse to send a placeholder's own text. */
         private val SENDS = SENDS_OUT + setOf("app.start_activity", "app.send_broadcast", "app.open_url")
+
+        /** The steps an AI answer may not feed: every outside-steered step except the app start, which is how a share goes. */
+        private val AI_REFUSED = OUTSIDE_FIXED_ONLY - setOf("app.start_activity")
 
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"
