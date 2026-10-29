@@ -116,6 +116,8 @@ class A11yInputController(
     ) {
         val service = A11yBridge.require()
         var field = target?.let(reader::resolve) ?: focusedInput(service)
+        // Checked before any click, so a button beside a password field cannot be pressed on its behalf.
+        if (field.isPassword) throw passwordFieldRefused()
         if (!field.isEditable) {
             // Search bars are often a button that opens the real field: tap it and use what gets focus.
             field.selfOrAncestor { it.isClickable }?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -147,11 +149,14 @@ class A11yInputController(
             }
 
             Key.ENTER -> {
-                imeEnter(focusedInput(service))
+                val field = focusedInput(service)
+                if (field.isPassword) throw passwordFieldRefused()
+                imeEnter(field)
             }
 
             Key.DEL -> {
                 val field = focusedInput(service)
+                if (field.isPassword) throw passwordFieldRefused()
                 val current = if (field.isShowingHintText) "" else field.text?.toString().orEmpty()
                 if (current.isNotEmpty()) setText(field, current.dropLast(1))
             }
@@ -273,7 +278,8 @@ class A11yInputController(
         path: Path,
         durationMs: Long,
     ) {
-        val description = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, durationMs)).build()
+        val duration = durationMs.coerceIn(1L, MAX_GESTURE_MS)
+        val description = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, duration)).build()
         suspendCancellableCoroutine { continuation ->
             val callback =
                 object : AccessibilityService.GestureResultCallback() {
@@ -296,6 +302,7 @@ class A11yInputController(
 
     private companion object {
         const val TAP_MS = 50L
+        const val MAX_GESTURE_MS = 10_000L
         const val EDGE_INSET = 0.15f
         const val MAX_ANCESTORS = 8
         const val FOCUS_SETTLE_MS = 400L

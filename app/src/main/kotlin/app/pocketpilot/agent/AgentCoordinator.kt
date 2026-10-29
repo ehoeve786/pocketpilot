@@ -342,6 +342,7 @@ class AgentCoordinator(
                         baseUrl = profile.baseUrl.orEmpty(),
                         apiKey = key?.ifBlank { null },
                         displayName = profile.name,
+                        allowCleartext = profile.allowCleartext,
                     ),
                 )
             }

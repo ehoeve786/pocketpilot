@@ -13,6 +13,19 @@ fun keyMayBeSentTo(
     apiKey: String?,
 ): Boolean {
     if (apiKey.isNullOrBlank() || baseUrl.startsWith("https://")) return true
+    return onThisPhone(baseUrl)
+}
+
+/**
+ * Plain http sends prompts, screen text and answers in the clear. It is used only for a server on this phone,
+ * or for a server on the home network that the owner allowed for its profile.
+ */
+fun cleartextMayBeUsed(
+    baseUrl: String,
+    allowedByOwner: Boolean,
+): Boolean = baseUrl.startsWith("https://") || allowedByOwner || onThisPhone(baseUrl)
+
+private fun onThisPhone(baseUrl: String): Boolean {
     val host = runCatching { URI(baseUrl).host }.getOrNull() ?: return false
     return host in ON_THIS_PHONE
 }

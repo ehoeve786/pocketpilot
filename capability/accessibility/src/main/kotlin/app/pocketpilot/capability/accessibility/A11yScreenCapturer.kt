@@ -11,6 +11,7 @@ import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 
@@ -18,8 +19,6 @@ import kotlin.coroutines.resume
 class A11yScreenCapturer : ScreenCapturer {
     override val backendId: String = BackendIds.ACCESSIBILITY
     override val available: StateFlow<Boolean> = A11yBridge.connected
-
-    private val executor = Executors.newSingleThreadExecutor()
 
     override suspend fun capture(): Frame {
         val service = A11yBridge.require()
@@ -61,7 +60,7 @@ class A11yScreenCapturer : ScreenCapturer {
         suspendCancellableCoroutine { continuation ->
             service.takeScreenshot(
                 Display.DEFAULT_DISPLAY,
-                executor,
+                screenshotExecutor,
                 object : AccessibilityService.TakeScreenshotCallback {
                     override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
                         val buffer = screenshot.hardwareBuffer
@@ -86,5 +85,8 @@ class A11yScreenCapturer : ScreenCapturer {
 
     private companion object {
         const val RETRY_DELAY_MS = 400L
+
+        // One shared thread: every capturer, and every screenshot, runs in order instead of each leaving a thread behind.
+        val screenshotExecutor: Executor = Executors.newSingleThreadExecutor()
     }
 }

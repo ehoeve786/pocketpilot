@@ -16,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.pocketpilot.agent.providers.api.cleartextMayBeUsed
 import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import app.pocketpilot.agent.runtime.AgentProfile
 import app.pocketpilot.agent.runtime.ProviderKind
@@ -166,6 +168,7 @@ private fun ProfileForm(
     var name by rememberSaveable { mutableStateOf(existing?.name ?: "") }
     var model by rememberSaveable { mutableStateOf(existing?.model ?: defaultModel(kind)) }
     var baseUrl by rememberSaveable { mutableStateOf(existing?.baseUrl ?: "") }
+    var allowCleartext by rememberSaveable { mutableStateOf(existing?.allowCleartext ?: false) }
     var keys by rememberSaveable { mutableStateOf(listOf("")) }
     var clearSaved by rememberSaveable { mutableStateOf(false) }
     val keptKeys = if (clearSaved) 0 else savedKeys
@@ -184,6 +187,7 @@ private fun ProfileForm(
             model = model.trim(),
             baseUrl = baseUrl.trim().ifBlank { null }.takeIf { kind == ProviderKind.OPENAI_COMPATIBLE },
             maxCostUsd = cost.trim().toDoubleOrNull(),
+            allowCleartext = allowCleartext,
         )
 
     val canList =
@@ -191,7 +195,8 @@ private fun ProfileForm(
             ProviderKind.OPENAI_COMPATIBLE -> {
                 baseUrl.trim().let { url ->
                     (url.startsWith("http://") || url.startsWith("https://")) &&
-                        keyMayBeSentTo(url, if (key.isNotBlank() || keptKeys > 0) key.ifBlank { "saved" } else null)
+                        keyMayBeSentTo(url, if (key.isNotBlank() || keptKeys > 0) key.ifBlank { "saved" } else null) &&
+                        cleartextMayBeUsed(url, allowCleartext)
                 }
             }
 
@@ -248,6 +253,16 @@ private fun ProfileForm(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             )
+            if (baseUrl.trim().startsWith("http://") && !cleartextMayBeUsed(baseUrl.trim(), false)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.feature_agent_allow_cleartext),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = allowCleartext, onCheckedChange = { allowCleartext = it })
+                }
+            }
         }
         if (keptKeys > 0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -298,7 +313,12 @@ private fun ProfileForm(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         )
-        val valid = model.isNotBlank() && (kind != ProviderKind.OPENAI_COMPATIBLE || baseUrl.startsWith("http"))
+        val valid =
+            model.isNotBlank() &&
+                (
+                    kind != ProviderKind.OPENAI_COMPATIBLE ||
+                        (baseUrl.startsWith("http") && cleartextMayBeUsed(baseUrl.trim(), allowCleartext))
+                )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 enabled = valid,

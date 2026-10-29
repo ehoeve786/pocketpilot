@@ -190,6 +190,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         exempt: Boolean,
     ) {
         mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
         run("cmd", "deviceidle", "whitelist", (if (exempt) "+" else "-") + packageName)
     }
 
@@ -278,6 +279,8 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
             throw IllegalStateException("${argv.first()} timed out")
         }
         reader.join(TimeUnit.SECONDS.toMillis(1))
+        // A reader still running has read only part of the output; that is an error, not a shorter answer.
+        check(!reader.isAlive) { "${argv.first()} output was cut short" }
         check(process.exitValue() == 0) { "${argv.first()} failed: ${output.take(MAX_ERROR).trim()}" }
         return output
     }

@@ -31,6 +31,7 @@ import kotlinx.serialization.json.put
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.logging.Logger
 
 /**
  * The owner's Home Assistant: its address is in the automation settings and its long-lived access token
@@ -47,6 +48,7 @@ class HomeAssistant(
     private var watcher: Job? = null
     private var watched: Set<String> = emptySet()
     private var onChange: (String, String, String) -> Unit = { _, _, _ -> }
+    private val log = Logger.getLogger("PocketPilot")
 
     val configured: Boolean get() = baseUrl() != null && token() != null
 
@@ -149,6 +151,7 @@ class HomeAssistant(
         watcher =
             scope.launch {
                 var backoff = MIN_BACKOFF_MS
+                var refusals = 0
                 while (isActive) {
                     val url = baseUrl()
                     val token = token()
@@ -156,10 +159,19 @@ class HomeAssistant(
                         try {
                             listen(url, token, entities) { entity, state, previous -> onChange(entity, state, previous) }
                             backoff = MIN_BACKOFF_MS
+                            refusals = 0
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
                             // Reconnects below; Home Assistant restarts and phone network changes end the socket.
+                            refusals = if (e.message == TOKEN_REFUSED) refusals + 1 else 0
+                            if (refusals >= MAX_REFUSALS) {
+                                // Retrying a refused token only repeats the refusal. Saving the address or token again restarts the watch.
+                                log.warning(
+                                    "Home Assistant refused the access token $MAX_REFUSALS times; entity triggers stop until it is saved again",
+                                )
+                                return@launch
+                            }
                         }
                     }
                     delay(backoff)
@@ -205,7 +217,7 @@ class HomeAssistant(
                     }
 
                     "auth_invalid" -> {
-                        throw AutomationFailure("Home Assistant refused the access token")
+                        throw AutomationFailure(TOKEN_REFUSED)
                     }
 
                     "auth_ok" -> {
@@ -252,6 +264,8 @@ class HomeAssistant(
         return withContext(Dispatchers.IO) {
             val connection = URL(base + path).openConnection() as HttpURLConnection
             try {
+                // A redirect would send the access token to another host, so redirects are not followed.
+                connection.instanceFollowRedirects = false
                 connection.requestMethod = method
                 connection.connectTimeout = TIMEOUT_MS
                 connection.readTimeout = TIMEOUT_MS
@@ -265,7 +279,7 @@ class HomeAssistant(
                 val stream = if (status >= HTTP_ERROR) connection.errorStream else connection.inputStream
                 val reply = stream?.bufferedReader()?.use { it.readText().take(MAX_REPLY_CHARS) }.orEmpty()
                 when {
-                    status == HTTP_UNAUTHORIZED -> throw AutomationFailure("Home Assistant refused the access token")
+                    status == HTTP_UNAUTHORIZED -> throw AutomationFailure(TOKEN_REFUSED)
                     status == HTTP_NOT_FOUND -> throw AutomationFailure("Home Assistant has no such entity or action")
                     status >= HTTP_ERROR -> throw AutomationFailure("Home Assistant answered HTTP $status: ${reply.take(MAX_ERROR_CHARS)}")
                 }
@@ -288,6 +302,8 @@ class HomeAssistant(
 
     private companion object {
         const val TOKEN = "home_assistant_token"
+        const val TOKEN_REFUSED = "Home Assistant refused the access token"
+        const val MAX_REFUSALS = 3
         const val NOT_SET_UP = "Home Assistant is not set up; add its address and a token under Automations settings"
         const val PING_MS = 30_000L
         const val MIN_BACKOFF_MS = 5_000L

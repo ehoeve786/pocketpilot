@@ -33,7 +33,7 @@ class CompatibleProfileTest {
     @Test
     fun ollamaHasNoKeyAndUsesItsPort() =
         runTest {
-            val provider = compatibleProvider(http, CompatiblePresets.ollama("192.168.1.20"))
+            val provider = compatibleProvider(http, CompatiblePresets.ollama("192.168.1.20", allowCleartext = true))
             assertEquals("openai-compatible:ollama", provider.id)
             assertEquals("Ollama", provider.displayName)
             provider.stream(request).toList()
@@ -57,8 +57,8 @@ class CompatibleProfileTest {
         assertEquals("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", CompatiblePresets.qwen("k").baseUrl)
         assertEquals("https://api.groq.com/openai/v1", CompatiblePresets.groq("k").baseUrl)
         assertEquals("https://api.mistral.ai/v1", CompatiblePresets.mistral("k").baseUrl)
-        assertEquals("http://studio.lan:1234/v1", CompatiblePresets.lmStudio("studio.lan").baseUrl)
-        assertEquals("http://[fd00::5]:8080/v1", CompatiblePresets.llamaCpp("fd00::5").baseUrl)
+        assertEquals("http://studio.lan:1234/v1", CompatiblePresets.lmStudio("studio.lan", allowCleartext = true).baseUrl)
+        assertEquals("http://[fd00::5]:8080/v1", CompatiblePresets.llamaCpp("fd00::5", allowCleartext = true).baseUrl)
     }
 
     @Test
@@ -70,6 +70,14 @@ class CompatibleProfileTest {
     fun rejectsBadProfiles() {
         assertFailsWith<IllegalArgumentException> { CompatibleProfile(" ", "http://x/v1", null) }
         assertFailsWith<IllegalArgumentException> { CompatibleProfile("x", "ftp://x/v1", null) }
+    }
+
+    @Test
+    fun `plain http to another computer needs the owner's go-ahead for its profile`() {
+        assertFailsWith<IllegalArgumentException> { CompatiblePresets.ollama("192.168.1.20") }
+        assertFailsWith<IllegalArgumentException> { CompatibleProfile("x", "http://192.168.1.20:8080/v1", null) }
+        assertTrue(CompatiblePresets.ollama("192.168.1.20", allowCleartext = true).allowCleartext)
+        assertFalse(CompatiblePresets.ollama("127.0.0.1").allowCleartext)
     }
 
     @Test
