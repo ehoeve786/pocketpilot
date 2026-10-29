@@ -1216,6 +1216,18 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an outside event cannot ask the owner a question`() =
+        runTest {
+            val host = FakeHost()
+            val ask = rule(listOf(ActionStep("confirm.ask", mapOf("title" to "Cancel the delivery?", "into" to "confirmed"))))
+
+            val record = engine(this, host).run(ask, "intent", fromOutside = true)
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue(host.asks.isEmpty())
+        }
+
+    @Test
     fun `a send stops instead of sending a placeholder whose value is missing`() =
         runTest {
             val host = FakeHost()

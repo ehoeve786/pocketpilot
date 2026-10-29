@@ -887,7 +887,7 @@ class AutomationEngine(
          * Steps an outside event may never run: they change which rules are on, which only the owner decides, or
          * they hand the AI a task the event wrote.
          */
-        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask", "ai.ask")
+        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask", "ai.ask", "confirm.ask")
 
         /** Steps that send data out of the phone or to another app, which refuse to send a placeholder's own text. */
         private val SENDS = SENDS_OUT + setOf("app.start_activity", "app.send_broadcast", "app.open_url")
