@@ -41,6 +41,7 @@ object RuleValidator {
         val setAnywhere = steps.flatMap(::setNames).toSet()
         val known = globals.toMutableSet()
         val warnings = linkedSetOf<String>()
+
         fun check(
             title: String,
             reads: List<String>,
@@ -79,8 +80,10 @@ object RuleValidator {
         group.items.flatMap { node ->
             when (node) {
                 is ConstraintNode.Check -> {
-                    node.spec.params.values.flatMap(Placeholders::names) +
-                        listOfNotNull(node.spec.params["name"].takeIf { node.spec.type == "variable.compare" })
+                    val spec = node.spec
+                    val placeholders = spec.params.values.flatMap(Placeholders::names)
+                    val named = listOfNotNull(spec.params["name"].takeIf { spec.type == "variable.compare" })
+                    placeholders + named
                 }
 
                 is ConstraintNode.Group -> {
