@@ -298,17 +298,17 @@ class AndroidAutomationHost(
 
     /** Saves the screen as a PNG in Pictures/PocketPilot, with password fields blacked out as the screenshot tool does. */
     private suspend fun saveScreenshot() {
+        // Without the screen reader the password fields cannot be found, so the picture is not taken at all.
+        if (!screen.available.value) {
+            throw AutomationFailure("Not saved: the screen reader is off, so password fields could not be hidden")
+        }
         val frame = screenCapturer.capture()
         val passwords =
-            if (screen.available.value) {
-                screen
-                    .snapshot()
-                    .elements
-                    .filter { it.password }
-                    .map { it.bounds }
-            } else {
-                emptyList()
-            }
+            screen
+                .snapshot()
+                .elements
+                .filter { it.password }
+                .map { it.bounds }
         val image =
             imagePipeline.process(
                 frame,

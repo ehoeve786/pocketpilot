@@ -22,6 +22,8 @@ import kotlinx.coroutines.withContext
  * LAUNCH_APPS through the package manager. Starting an activity from the background is only allowed
  * while PocketPilot's Accessibility service is on, which the error hint says.
  */
+private val OPEN_URL_SCHEMES = setOf("http", "https", "mailto", "tel")
+
 class PackageAppController(
     private val context: Context,
 ) : AppController {
@@ -61,7 +63,16 @@ class PackageAppController(
         url: String,
         packageName: String?,
     ) {
-        start(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage(packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        val uri = Uri.parse(url)
+        // Only web, mail and phone links: an intent: URL can start any component, which skips the app policy.
+        if (uri.scheme.orEmpty() !in OPEN_URL_SCHEMES) {
+            throw ToolException(
+                ToolErrorCode.INVALID_ARGUMENTS,
+                "Only http, https, mailto and tel links can be opened",
+                "Give a link that starts with https://",
+            )
+        }
+        start(Intent(Intent.ACTION_VIEW, uri).setPackage(packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun start(intent: Intent) {

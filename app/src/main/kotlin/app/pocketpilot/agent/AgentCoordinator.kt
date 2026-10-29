@@ -206,7 +206,10 @@ class AgentCoordinator(
         newKeys: List<String>,
         clearSaved: Boolean,
     ) {
-        val kept = if (clearSaved) emptyList() else keys(profile)
+        // A key belongs to the provider and server it was saved for, so a change of either drops it.
+        val previous = profiles.profiles.value.firstOrNull { it.id == profile.id }
+        val movedAway = previous == null || previous.kind != profile.kind || hostOf(previous.baseUrl) != hostOf(profile.baseUrl)
+        val kept = if (clearSaved || movedAway) emptyList() else keys(profile)
         val all = (kept + newKeys).distinct()
         if (all.isEmpty()) secrets.remove(profile.keyName) else secrets.put(profile.keyName, all.joinToString(KEY_SEPARATOR))
         profiles.save(profile)
@@ -222,6 +225,8 @@ class AgentCoordinator(
     fun keyCount(profile: AgentProfile): Int = keys(profile).size
 
     fun moveUp(id: String) = profiles.moveUp(id)
+
+    private fun hostOf(url: String?): String? = url?.let { runCatching { java.net.URI(it).host }.getOrNull() }
 
     /** A profile's API keys, kept as one secret with one key per line. */
     private fun keys(profile: AgentProfile): List<String> =

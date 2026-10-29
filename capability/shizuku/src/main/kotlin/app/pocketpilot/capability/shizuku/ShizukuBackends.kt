@@ -1,5 +1,6 @@
 package app.pocketpilot.capability.shizuku
 
+import android.net.Uri
 import android.os.ParcelFileDescriptor
 import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.apps.ActivityEntry
@@ -307,6 +308,8 @@ class ShizukuScreenCapturer(
 }
 
 /** LAUNCH_APPS second backend: `monkey` and `am start` as the shell user, allowed from the background. */
+private val OPEN_URL_SCHEMES = setOf("http", "https", "mailto", "tel")
+
 class ShizukuAppController(
     private val shizuku: ShizukuConnection,
     scope: CoroutineScope,
@@ -325,6 +328,14 @@ class ShizukuAppController(
         url: String,
         packageName: String?,
     ) {
+        // The same scheme limit as the package backend: an intent: URL would start any component.
+        if (Uri.parse(url).scheme.orEmpty() !in OPEN_URL_SCHEMES) {
+            throw ToolException(
+                ToolErrorCode.INVALID_ARGUMENTS,
+                "Only http, https, mailto and tel links can be opened",
+                "Give a link that starts with https://",
+            )
+        }
         val result = shizuku.call { it.openUrl(url, packageName.orEmpty()) }
         if (result.contains("unable to resolve Intent") || result.startsWith("Error")) {
             throw ToolException(
