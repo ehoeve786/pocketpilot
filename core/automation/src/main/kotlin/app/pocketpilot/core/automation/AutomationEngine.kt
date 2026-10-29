@@ -40,6 +40,9 @@ interface AutomationHost {
     /** The name to show for an app's package, such as "Uber". The package itself when the host cannot tell. */
     fun appName(packageName: String): String = packageName
 
+    /** Gets the phone ready for [rule]'s actions before its first step runs, such as granting a permission they need. */
+    suspend fun prepare(rule: Rule) {}
+
     /** Calls a tool through the dispatcher, so policy, the deny list and audit apply. */
     suspend fun callTool(
         session: Session,
@@ -197,6 +200,7 @@ class AutomationEngine(
         val lines = mutableListOf<String>()
         val vars = HashMap(rule.variables)
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
+        host.prepare(rule)
         val session = host.openSession(rule, toolsOf(rule), fromOutside)
         val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain, triggerType = triggerType)
         if (data.isNotEmpty()) lines += stamped("Trigger: " + data.entries.joinToString { "${it.key} = ${logged(it.key, it.value)}" })
@@ -581,6 +585,7 @@ class AutomationEngine(
                 }
                 if (other.id == context.rule.id || context.depth >= MAX_DEPTH) throw AutomationFailure("A rule cannot run itself")
                 if (!holds(context.copy(rule = other), other.constraints)) return "skipped, its conditions did not hold"
+                host.prepare(other)
                 execute(context.copy(rule = other, depth = context.depth + 1), other.actions, "$label.")
                 return "ran ${other.name}"
             }

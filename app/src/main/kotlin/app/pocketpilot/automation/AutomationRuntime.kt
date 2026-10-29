@@ -74,6 +74,11 @@ class AutomationRuntime(
 ) {
     val engine = AutomationEngine(store, host, scope)
 
+    init {
+        // The engine calls this before a rule's first step, so the step finds the permission it needs.
+        host.prepareRun = ::grantForRun
+    }
+
     private val sources = sources(::onEvent)
 
     private val mutableApps = MutableStateFlow<List<AppOption>>(emptyList())
@@ -436,11 +441,30 @@ class AutomationRuntime(
 
     /**
      * Exact alarms for timed rules and Bluetooth device names are permissions Android hides in
-     * Settings; with Shizuku they are granted in the background instead.
+     * Settings; with Shizuku they are granted in the background instead. Turning a rule on grants what its
+     * triggers and conditions need, since their sources start then. What its actions need is granted just
+     * before the rule's first step runs (see [grantForRun]), not when it is turned on.
      */
     private fun grantWhatRulesNeed(rules: List<Rule>) {
         if (!shell.available.value) return
-        val types = rules.flatMap(::typesIn).toSet()
+        scope.launch {
+            grantsFor(rules.flatMap(::enableTypesIn).toSet())
+            // Alarms set before the grant were inexact, and sources that needed a permission start now.
+            withContext(Dispatchers.Main) {
+                rules.forEach(::schedule)
+                if (active) sources.use(rules)
+            }
+        }
+    }
+
+    /** Grants what the actions of [rule] need. The engine waits for this before the rule's first step. */
+    suspend fun grantForRun(rule: Rule) {
+        if (!shell.available.value) return
+        grantsFor(actionTypesIn(rule).toSet())
+    }
+
+    /** Runs the commands that grant what [types] need, and waits for them. */
+    private suspend fun grantsFor(types: Set<String>) {
         val commands = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarms = context.getSystemService(AlarmManager::class.java)
@@ -463,31 +487,26 @@ class AutomationRuntime(
             .distinct()
             .filterNot(::granted)
             .forEach { commands += "pm grant ${context.packageName} $it" }
-        if (commands.isEmpty()) return
-        scope.launch {
-            commands.forEach { runCatching { shell.run(it, SHELL_TIMEOUT_MS) } }
-            // Alarms set before the grant were inexact, and sources that needed a permission start now.
-            withContext(Dispatchers.Main) {
-                rules.forEach(::schedule)
-                if (active) sources.use(rules)
+        commands.forEach { runCatching { shell.run(it, SHELL_TIMEOUT_MS) } }
+    }
+
+    /** The types of [rule]'s triggers and conditions, nested conditions included. */
+    private fun enableTypesIn(rule: Rule): List<String> = rule.triggers.map { it.type } + constraintTypes(rule.constraints)
+
+    /** The types of [rule]'s actions and their conditions, including the steps inside flow steps. */
+    private fun actionTypesIn(rule: Rule): List<String> {
+        fun steps(list: List<ActionStep>): List<String> =
+            list.flatMap { listOf(it.type) + constraintTypes(it.constraints) + steps(it.children) + steps(it.elseChildren) }
+        return steps(rule.actions)
+    }
+
+    private fun constraintTypes(group: ConstraintGroup): List<String> =
+        group.items.flatMap { node ->
+            when (node) {
+                is ConstraintNode.Check -> listOf(node.spec.type)
+                is ConstraintNode.Group -> constraintTypes(node.group)
             }
         }
-    }
-
-    /** Every trigger, condition and action type in [rule], nested ones included. */
-    private fun typesIn(rule: Rule): List<String> {
-        fun group(g: ConstraintGroup): List<String> =
-            g.items.flatMap { node ->
-                when (node) {
-                    is ConstraintNode.Check -> listOf(node.spec.type)
-                    is ConstraintNode.Group -> group(node.group)
-                }
-            }
-
-        fun steps(list: List<ActionStep>): List<String> =
-            list.flatMap { listOf(it.type) + group(it.constraints) + steps(it.children) + steps(it.elseChildren) }
-        return rule.triggers.map { it.type } + group(rule.constraints) + steps(rule.actions)
-    }
 
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
