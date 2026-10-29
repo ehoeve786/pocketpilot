@@ -42,6 +42,7 @@ import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.common.UlidGenerator
 import app.pocketpilot.core.imaging.CaptureRequest
 import app.pocketpilot.core.imaging.ImagePipeline
+import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
@@ -49,6 +50,9 @@ import app.pocketpilot.core.model.SessionKind
 import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.orchestrator.CallDispatcher
+import app.pocketpilot.core.policy.ConfirmationAnswer
+import app.pocketpilot.core.policy.ConfirmationRequest
+import app.pocketpilot.core.policy.Confirmer
 import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -87,6 +91,7 @@ class AndroidAutomationHost(
     private val screen: ScreenReader,
     private val screenCapturer: ScreenCapturer,
     private val imagePipeline: ImagePipeline,
+    private val confirmer: Confirmer,
     override val sideload: Boolean,
 ) : AutomationHost {
     private val ids = UlidGenerator(Clock.System)
@@ -183,6 +188,20 @@ class AndroidAutomationHost(
                 .filterNot { hidden(it.packageName) }
                 .map { NotificationInfo(it.packageName, it.title, it.text) }
         }
+
+    override suspend fun confirm(
+        title: String,
+        detail: String,
+    ): Boolean =
+        confirmer.confirm(
+            ConfirmationRequest(
+                principal = "A PocketPilot automation",
+                tool = "automation.confirm",
+                toolTitle = title,
+                riskTier = RiskTier.SENSITIVE,
+                detail = detail,
+            ),
+        ) == ConfirmationAnswer.APPROVED
 
     override suspend fun askAgent(prompt: String): AgentOutcome {
         val run = agent().runForAutomation(prompt) ?: return AgentOutcome(NO_AGENT, costUsd = 0.0, ok = false)

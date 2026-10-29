@@ -771,6 +771,23 @@ internal object Actions {
                     sentence = { p -> "{${p.p("into")}} = ${p.p("path")}" },
                 ),
                 ActionDef(
+                    type = "confirm.ask",
+                    category = Category.FLOW,
+                    title = "Ask the owner",
+                    description =
+                        "Shows a question on the phone with Approve and Decline. Saves yes or no in the variable, so the steps " +
+                            "after it can run only when the owner approves. A question with no answer counts as declined.",
+                    fields =
+                        listOf(
+                            textField("title", "Question", hint = "For example Cancel this delivery?"),
+                            textField("detail", "Details", required = false, hint = "What happens if the owner approves"),
+                            INTO.copy(required = true, default = "confirmed"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "Ask the owner: ${p.p("title")}" },
+                ),
+                ActionDef(
                     type = "address.from_screen",
                     category = Category.VARIABLES,
                     title = "Address from screen",

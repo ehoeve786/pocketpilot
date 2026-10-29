@@ -52,6 +52,8 @@ class AutomationEngineTest {
         val textPrompts = mutableListOf<String>()
         var askTextReply = "22 East Cordova Street, Vancouver, BC"
         var closed = 0
+        val asks = mutableListOf<Pair<String, String>>()
+        var approve = true
 
         override suspend fun callTool(
             session: Session,
@@ -118,6 +120,14 @@ class AutomationEngineTest {
             type: String,
             params: Map<String, String>,
         ): Map<String, String>? = if (type == "screen.read") mapOf("index:20" to "Side Menu") else null
+
+        override suspend fun confirm(
+            title: String,
+            detail: String,
+        ): Boolean {
+            asks += title to detail
+            return approve
+        }
 
         override suspend fun askAgent(prompt: String): AgentOutcome {
             prompts += prompt
@@ -1177,6 +1187,32 @@ class AutomationEngineTest {
 
             assertEquals(RunOutcome.OK, none.outcome)
             assertEquals("[]", (empty.calls.last().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `a confirm step asks the owner, and the steps behind it run only when approved`() =
+        runTest {
+            val check = ConstraintSpec("variable.compare", mapOf("name" to "confirmed", "op" to "equals", "value" to "yes"))
+            val onYes = ConstraintGroup(items = listOf(ConstraintNode.Check(check)))
+            val ask = mapOf("title" to "Cancel the delivery?", "detail" to "The pay is lost", "into" to "confirmed")
+            val steps =
+                listOf(
+                    ActionStep("confirm.ask", ask),
+                    ActionStep("notify.post", mapOf("title" to "cancelled"), constraints = onYes),
+                )
+            val host = FakeHost().apply { approve = false }
+
+            val declined = engine(this, host).run(rule(steps), "Test")
+
+            assertEquals(listOf("Cancel the delivery?" to "The pay is lost"), host.asks)
+            assertEquals(RunOutcome.OK, declined.outcome)
+            assertTrue(host.calls.none { it.first == "notify.post" })
+
+            val approved = FakeHost()
+            val record = engine(this, approved).run(rule(steps), "Test")
+
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertEquals("cancelled", (approved.calls.last().second["title"] as JsonPrimitive).content)
         }
 
     @Test

@@ -2,6 +2,7 @@ package app.pocketpilot.di
 
 import android.content.Context
 import app.pocketpilot.agent.AgentCoordinator
+import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.automation.AndroidAutomationHost
 import app.pocketpilot.automation.AutomationNotifier
 import app.pocketpilot.automation.AutomationRuntime
@@ -106,6 +107,7 @@ object AutomationModule {
         screen: ScreenReader,
         capturer: ScreenCapturer,
         imaging: ImagePipeline,
+        approvals: ApprovalCenter,
     ): AutomationRuntime {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
         val calendars = Calendars(context)
@@ -127,6 +129,7 @@ object AutomationModule {
                 screen = screen,
                 screenCapturer = capturer,
                 imagePipeline = imaging,
+                confirmer = approvals,
                 sideload = profile.shellExecAvailable,
             )
         return AutomationRuntime(
