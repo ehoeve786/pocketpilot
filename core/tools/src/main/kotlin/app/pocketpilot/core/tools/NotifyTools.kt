@@ -70,19 +70,22 @@ class NotifyListTool(
         return ToolResult.success(json.toString(), json)
     }
 
+    private fun maskCodes(text: String): String = Regex("""\b\d{4,8}\b""").replace(text, "[code]")
+
     private fun PhoneNotification.toJson() =
         buildJsonObject {
             put("key", key)
             put("package", packageName)
-            title?.let { put("title", it) }
-            text?.let { put("text", it) }
+            // Digit runs of 4 to 8 are masked: one-time codes arrive this way, and the model must not read them.
+            title?.let { put("title", maskCodes(it)) }
+            text?.let { put("text", maskCodes(it)) }
             put("postedAt", postedAtMillis)
             put("opens", opens)
             put("clearable", clearable)
             if (extras.isNotEmpty()) {
                 put(
                     "extras",
-                    buildJsonObject { extras.forEach { (name, text) -> put(name, text) } },
+                    buildJsonObject { extras.forEach { (name, text) -> put(name, maskCodes(text)) } },
                 )
             }
             if (actions.isNotEmpty()) {

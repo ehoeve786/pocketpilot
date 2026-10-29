@@ -103,6 +103,13 @@ class AndroidAutomationHost(
         arguments: JsonObject,
     ): ToolResult = dispatcher.dispatch(session, tool, arguments)
 
+    /** Set by the runtime: grants what a rule's actions need before they run. */
+    var prepareRun: (suspend (Rule) -> Unit)? = null
+
+    override suspend fun prepare(rule: Rule) {
+        prepareRun?.invoke(rule)
+    }
+
     /**
      * The owner made the rule (or accepted it), so its sensitive tools are confirmed for the run; the raw
      * shell still asks for each new command and destructive tools ask every time. A run that another app or
