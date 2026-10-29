@@ -558,7 +558,8 @@ class MainActivity : ComponentActivity() {
                         onGrantShizuku = shizuku::requestPermission,
                         onAllowNotifications = ::allowNotifications,
                         sharedFolders = sharedFolders.sharedFolders.collectAsStateWithLifecycle().value,
-                        onAddFolder = { folderPicker.launch(null) },
+                        // Sharing a folder gives AI clients its files, so it needs the owner like the shell switch does.
+                        onAddFolder = { withOwner { folderPicker.launch(null) } },
                         onRemoveFolder = { sharedFolders.remove(it.uri) },
                         remoteActions =
                             RemoteActions(
@@ -607,7 +608,7 @@ class MainActivity : ComponentActivity() {
                         shellRemoteEnabled = shellSwitch.remote.collectAsStateWithLifecycle().value,
                         onShellRemoteChange = { on -> if (on) withOwner { shellSwitch.setRemote(true) } else shellSwitch.setRemote(false) },
                         clientsStopped = controlOverlay.clientsStopped.collectAsStateWithLifecycle().value,
-                        onAllowClients = controlOverlay::allowAgain,
+                        onAllowClients = { withOwner { controlOverlay.allowAgain() } },
                         biometricApprovals = biometricGate.enabled.collectAsStateWithLifecycle().value,
                         screenLockMissing = !biometricGate.lockAvailable(),
                         secretsLost = secrets.lost().isNotEmpty(),

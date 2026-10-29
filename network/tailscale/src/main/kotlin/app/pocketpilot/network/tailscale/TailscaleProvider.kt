@@ -89,12 +89,17 @@ class TailscaleProvider(
 
     @Synchronized
     override fun stop() {
-        prefs.edit().putBoolean(KEY_ENABLED, false).apply()
+        // Public access rides on this node, so turning Tailscale off also turns public access off for good.
+        prefs
+            .edit()
+            .putBoolean(KEY_ENABLED, false)
+            .putBoolean(KEY_PUBLIC, false)
+            .apply()
         poller?.cancel()
         poller = null
         scope.launch(Dispatchers.IO) { runCatching { createdNode?.stop() } }
         mutableState.value = NetworkState.Stopped
-        mutablePublic.value = mutablePublic.value.copy(url = null, problem = null)
+        mutablePublic.value = PublicAccessState(enabled = false)
     }
 
     /** Stops the node when the foreground service ends, but keeps it on for the next [resume]. */
