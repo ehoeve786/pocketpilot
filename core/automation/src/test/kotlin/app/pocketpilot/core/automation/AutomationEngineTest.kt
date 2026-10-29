@@ -1153,6 +1153,37 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a send stops instead of sending a placeholder whose value is missing`() =
+        runTest {
+            val host = FakeHost()
+            val send =
+                rule(
+                    listOf(
+                        ActionStep(
+                            "app.start_activity",
+                            mapOf("action" to "android.intent.action.SEND", "extras" to "android.intent.extra.TEXT={screen_read.index:99}"),
+                        ),
+                    ),
+                )
+
+            val record = engine(this, host).run(send, "Test run")
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue(host.calls.none { it.first == "app.start_activity" })
+            assertTrue(record.plain().any { "Not sent: no value for {screen_read.index:99}" in it })
+        }
+
+    @Test
+    fun `a missing placeholder in a step that is not a send is left as written`() =
+        runTest {
+            val host = FakeHost()
+            val record = engine(this, host).run(rule(listOf(ActionStep("notify.post", mapOf("title" to "{missing}")))), "Test run")
+
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertEquals("{missing}", (host.calls.last().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
     fun `event variables reach the agent as untrusted data, with their tags neutralised`() =
         runTest {
             val host = FakeHost()

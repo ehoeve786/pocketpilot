@@ -310,11 +310,13 @@ class AutomationProposeTool(
         val rule = validRule(call.arguments, store.newId(), session.principal, sideload)
         store.upsert(rule)
         onProposed(store.rule(rule.id) ?: rule)
+        val warnings = RuleValidator.variableWarnings(rule, store.data.value.variables.keys)
         return ToolResult.success(
             buildJsonObject {
                 put("id", rule.id)
                 put("status", "pending")
                 put("note", "The owner sees it on the phone and can accept, edit or decline it.")
+                if (warnings.isNotEmpty()) put("warnings", warnings.joinToString("; "))
             }.toString(),
         )
     }

@@ -361,6 +361,13 @@ class AutomationEngine(
         }
         val params =
             RuleValidator.withDefaults(def.fields, step.params).mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
+        // A send whose placeholder found no value would send the placeholder's own text, so it stops instead.
+        if (step.type in SENDS) {
+            val missing = params.values.flatMap { Placeholders.names(it) }.distinct()
+            if (missing.isNotEmpty()) {
+                throw AutomationFailure("Not sent: no value for ${missing.joinToString { "{$it}" }}")
+            }
+        }
         val into = params.p("into")
         val appKeys =
             def.fields
@@ -862,6 +869,9 @@ class AutomationEngine(
          * they hand the AI a task the event wrote.
          */
         private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask", "ai.ask")
+
+        /** Steps that send data out of the phone or to another app, which refuse to send a placeholder's own text. */
+        private val SENDS = SENDS_OUT + setOf("app.start_activity", "app.send_broadcast", "app.open_url")
 
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"
