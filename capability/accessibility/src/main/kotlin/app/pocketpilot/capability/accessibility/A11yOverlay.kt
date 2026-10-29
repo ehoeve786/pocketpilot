@@ -6,6 +6,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -105,11 +106,12 @@ object A11yOverlay {
                         // Below the status bar, clear of the notification shade's pull-down edge.
                         y = dp(TOP_OFFSET_DP)
                     }
-            runCatching { manager.addView(pill, params) }.onSuccess {
-                shown = pill
-                label = message
-                owner = service
-            }
+            runCatching { manager.addView(pill, params) }
+                .onSuccess {
+                    shown = pill
+                    label = message
+                    owner = service
+                }.onFailure { Log.w(TAG, "The status pill could not be shown: ${it.javaClass.simpleName}") }
         }
         return true
     }
@@ -205,10 +207,11 @@ object A11yOverlay {
                         }
                 view.setOnTouchListener(touchListener(manager, view, params, button))
                 view.visibility = if (hiddenByShade) View.INVISIBLE else View.VISIBLE
-                runCatching { manager.addView(view, params) }.onSuccess {
-                    buttonViews += view
-                    shownButtons = buttonViews.size
-                }
+                runCatching { manager.addView(view, params) }
+                    .onSuccess {
+                        buttonViews += view
+                        shownButtons = buttonViews.size
+                    }.onFailure { Log.w(TAG, "A floating button could not be shown: ${it.javaClass.simpleName}") }
             }
         }
         return true
@@ -313,6 +316,7 @@ object A11yOverlay {
         shownButtons = 0
     }
 
+    private const val TAG = "PocketPilot"
     private const val TOP_OFFSET_DP = 40
     private const val STACK_TOP_DP = 200
     private const val STACK_STEP_DP = 64
