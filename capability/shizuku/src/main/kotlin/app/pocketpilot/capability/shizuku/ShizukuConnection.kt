@@ -4,7 +4,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +44,14 @@ class ShizukuConnection(
     @Volatile
     private var service: IPocketPilotPrivileged? = null
 
+    /** True while a bind is outstanding, so repeated refreshes do not start more of them. */
+    private var binding = false
+
+    /** Disconnects in a row, which lengthen the wait before the next bind. */
+    private var disconnects = 0
+
+    private val handler = Handler(Looper.getMainLooper())
+
     private val args =
         Shizuku
             .UserServiceArgs(ComponentName(context.packageName, PrivilegedService::class.java.name))
@@ -58,12 +68,18 @@ class ShizukuConnection(
             ) {
                 if (binder == null || !binder.pingBinder()) return
                 service = IPocketPilotPrivileged.Stub.asInterface(binder)
+                binding = false
+                disconnects = 0
                 mutableState.value = ShizukuState.CONNECTED
             }
 
             override fun onServiceDisconnected(name: ComponentName) {
                 service = null
-                refresh()
+                binding = false
+                disconnects++
+                mutableState.value = ShizukuState.CONNECTING
+                // A service that keeps dying is retried less often, so it cannot loop bind after bind.
+                handler.postDelayed({ refresh() }, minOf(MAX_RETRY_MS, BASE_RETRY_MS shl minOf(disconnects - 1, 6)))
             }
         }
 
@@ -101,6 +117,7 @@ class ShizukuConnection(
         mutableState.value =
             when {
                 !Shizuku.pingBinder() -> {
+                    binding = false
                     ShizukuState.NOT_RUNNING
                 }
 
@@ -117,7 +134,10 @@ class ShizukuConnection(
                 }
 
                 else -> {
-                    Shizuku.bindUserService(args, connection)
+                    if (!binding) {
+                        binding = true
+                        Shizuku.bindUserService(args, connection)
+                    }
                     ShizukuState.CONNECTING
                 }
             }
@@ -125,5 +145,7 @@ class ShizukuConnection(
 
     private companion object {
         const val PERMISSION_REQUEST = 4_201
+        const val BASE_RETRY_MS = 1_000L
+        const val MAX_RETRY_MS = 60_000L
     }
 }

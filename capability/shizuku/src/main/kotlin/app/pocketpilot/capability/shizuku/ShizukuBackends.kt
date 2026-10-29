@@ -128,7 +128,12 @@ class ShizukuScreenReader(
     override suspend fun awaitChange(timeoutMs: Long): Boolean {
         val before = dump().hashCode()
         return withTimeoutOrNull(timeoutMs) {
-            while (dump().hashCode() == before) delay(POLL_MS)
+            var wait = POLL_MS
+            while (dump().hashCode() == before) {
+                delay(wait)
+                // Each poll reads the whole screen, so the wait grows while nothing changes.
+                wait = (wait * 2).coerceAtMost(MAX_POLL_MS)
+            }
             true
         } ?: false
     }
@@ -148,6 +153,7 @@ class ShizukuScreenReader(
 
     private companion object {
         const val POLL_MS = 500L
+        const val MAX_POLL_MS = 2_000L
         const val NOT_IDLE = "could not get idle state"
     }
 }
