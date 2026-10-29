@@ -15,6 +15,8 @@ import javax.crypto.spec.GCMParameterSpec
  * Secrets encrypted with AES-GCM under a key held by the Android Keystore (spec section 9: wrapped
  * blobs under `pp.secret.<name>`). The encrypted blobs live in no-backup storage, so neither they nor
  * the key leave the phone in a backup or device transfer.
+ *
+ * A secret that cannot be decrypted, such as after the Keystore key is lost, reads as missing. The log names it, never its value.
  */
 class KeystoreSecretStore(
     directory: File,

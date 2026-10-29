@@ -38,6 +38,9 @@ sealed interface ServerState {
  * The Streamable HTTP MCP endpoint at `/mcp` and the OAuth endpoints, bound to 127.0.0.1 only (spec
  * section 5) on two ports: one for apps on the phone, and one that only network providers forward
  * remote clients to. [McpAuth] decides what each port accepts.
+ *
+ * Every app on the phone can reach the first port, so any of them can call the registration and sign-in endpoints there.
+ * Those are rate-limited, and MCP calls still need the token. Opening them to the phone's apps is intended.
  */
 class McpHttpServer(
     private val factory: McpServerFactory,
