@@ -116,7 +116,7 @@ class RemoteOAuthTest {
             )
         assertEquals(200, authorize.status, authorize.body)
         val pending = oauth.pending.value.single()
-        assertEquals("Claude", pending.clientName)
+        assertEquals("Unverified: Claude", pending.clientName)
         assertEquals("claude.ai", pending.redirectHost)
         assertEquals(setOf(Scope.DEVICE_READ), pending.requestedScopes)
 
