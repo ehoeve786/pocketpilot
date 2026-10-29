@@ -10,6 +10,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /** The provider families the agent can talk to (spec section 9, Adapters). */
 @Serializable
@@ -80,7 +83,10 @@ class ProfileStore(
 
     /** Adds [profile] at the end, or replaces the one with the same id in its place. */
     fun save(profile: AgentProfile) {
+        require(ID.matches(profile.id)) { "A profile id is letters, digits, - or _, up to 64 characters" }
         write { list ->
+            // Two ids that differ only in case or punctuation would share one stored key, so they may not both exist.
+            require(list.none { it.id != profile.id && it.keyName == profile.keyName }) { "Another profile already uses that key name" }
             if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
         }
     }
@@ -103,10 +109,18 @@ class ProfileStore(
         writeAtomically(file, json.encodeToString(serializer, mutableProfiles.value))
     }
 
+    private companion object {
+        val ID = Regex("[A-Za-z0-9_-]{1,64}")
+    }
+
     private fun load(): List<AgentProfile> =
         try {
             if (file.exists()) json.decodeFromString(serializer, file.readText()) else emptyList()
         } catch (e: IllegalArgumentException) {
+            emptyList()
+        } catch (e: IOException) {
+            // Keep the unreadable file aside, so the next save does not overwrite the owner's profiles.
+            runCatching { file.renameTo(File(file.parentFile, "${file.name}.unreadable")) }
             emptyList()
         }
 }
@@ -114,6 +128,7 @@ class ProfileStore(
 /**
  * Keeps one transcript file per run (spec section 9, Transcript), dropping the oldest beyond [keep].
  * The spec's Room tables come with the database in a later milestone; until then this is the store.
+ * Each step rewrites the whole transcript. That is quadratic over a long run, and acceptable at the sizes runs reach.
  */
 class FileRunStore(
     private val dir: File,
@@ -137,7 +152,8 @@ class FileRunStore(
     /** Removes the stored runs with these ids; ids that are not stored are ignored. */
     fun delete(ids: Collection<String>) {
         synchronized(lock) {
-            ids.forEach { id -> File(dir, "$id.json").delete() }
+            // Only ULID ids name a file here, so an id such as "../x" cannot reach a file outside the directory.
+            ids.filter { ULID.matches(it) }.forEach { id -> File(dir, "$id.json").delete() }
         }
     }
 
@@ -147,6 +163,10 @@ class FileRunStore(
             .orEmpty()
             // Run ids are ULIDs, so names sort by start time.
             .sortedByDescending { it.name }
+
+    private companion object {
+        val ULID = Regex("[0-9A-HJKMNP-TV-Z]{26}")
+    }
 
     private fun read(file: File): RunState? =
         try {
@@ -169,8 +189,10 @@ private fun writeAtomically(
     file.parentFile?.mkdirs()
     val tmp = File(file.parentFile, "${file.name}.tmp")
     tmp.writeText(text)
-    if (!tmp.renameTo(file)) {
-        file.writeText(text)
-        tmp.delete()
+    // Replaces the live file in one step. The fallback is only for a file system without atomic moves.
+    try {
+        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
+        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 }

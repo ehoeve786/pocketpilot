@@ -193,10 +193,11 @@ class AgentRun internal constructor(
                     throw e
                 } catch (e: Exception) {
                     end(RunStatus.FAILED, "The run failed: ${e.message ?: e::class.simpleName}")
-                } finally {
-                    onSessionEnd(session.id)
                 }
             }
+        // Runs once however the job ends, including cancellation before it starts, so the session's pre-approvals
+        // never outlive the run.
+        job?.invokeOnCompletion { onSessionEnd(session.id) }
     }
 
     private suspend fun run() {
@@ -549,6 +550,10 @@ class AgentRun internal constructor(
         }
     }
 
+    /**
+     * The step and cost limits, or null when the run may go on. The cost is checked between steps, so one reply can
+     * take the run over [AgentBudgets.maxCostUsd] by its own cost. That is a soft limit.
+     */
     private fun outOfBudget(): String? {
         val s = state.value
         val cost = s.costUsd
@@ -618,7 +623,8 @@ class AgentRun internal constructor(
     ) {
         if (!state.value.open) return
         mutableState.update { it.copy(status = status, outcome = outcome, endedAtMillis = clock.nowMillis()) }
-        store?.save(state.value)
+        // The status is kept in memory, so the next save writes it if this one fails; a failed save must not stop the end.
+        runCatching { store?.save(state.value) }
     }
 
     private sealed interface Reply {

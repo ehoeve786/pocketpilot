@@ -281,5 +281,5 @@ object ChatCompletionsCodec {
     private fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
 
     private const val SERVER_ERROR_STATUS = 500
-    private const val MAX_MESSAGE = 500
+    private const val MAX_MESSAGE = 200
 }
