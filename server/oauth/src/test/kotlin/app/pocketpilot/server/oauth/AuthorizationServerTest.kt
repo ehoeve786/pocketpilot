@@ -169,16 +169,16 @@ class AuthorizationServerTest {
         )
 
     @Test
-    fun `a client has one prompt at a time and few can wait at once`() {
+    fun `a client has one prompt at a time, and a new sign-in pushes out the oldest rather than being refused`() {
         val claude = server.register("Claude", listOf(redirect))
         val first = begin(claude.id)
         begin(claude.id)
         assertEquals(1, server.pending.value.size)
         assertIs<AuthorizationStatus.Redirect>(server.authorizationStatus(first))
-        begin(server.register("b", listOf(redirect)).id)
-        begin(server.register("c", listOf(redirect)).id)
-        val refused = assertFailsWith<OAuthException> { begin(server.register("d", listOf(redirect)).id) }
-        assertEquals(429, refused.status)
+        repeat(7) { begin(server.register("client$it", listOf(redirect)).id) }
+        assertEquals(8, server.pending.value.size)
+        begin(server.register("owner", listOf(redirect)).id)
+        assertEquals(8, server.pending.value.size)
     }
 
     @Test

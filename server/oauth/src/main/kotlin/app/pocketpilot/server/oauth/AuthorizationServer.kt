@@ -198,8 +198,10 @@ class AuthorizationServer(
         expireStale()
         // One prompt per client: a newer request replaces the older one, so retrying never stacks prompts.
         waiting.filterValues { it.request.clientId == client.id && it.result == AuthorizationStatus.Waiting }.keys.forEach(::deny)
-        if (waiting.values.count { it.result == AuthorizationStatus.Waiting } >= MAX_PENDING) {
-            throw OAuthException("temporarily_unavailable", "Too many sign-ins are waiting for the phone's owner; try again later", 429)
+        val waitingNow = waiting.filterValues { it.result == AuthorizationStatus.Waiting }
+        if (waitingNow.size >= MAX_PENDING) {
+            // The oldest prompt gives way, so a flood of requests from other clients cannot keep the owner's sign-in out.
+            waitingNow.minByOrNull { it.value.request.createdAtMillis }?.key?.let(::deny)
         }
         waiting[id] = PendingAuthorization(request, redirectUri, oauthState, challenge)
         mutablePending.update { it + request }
@@ -252,6 +254,7 @@ class AuthorizationServer(
             )
         update { it.copy(grants = it.grants + grant) }
         val code = "ppac_" + randomToken(TOKEN_BYTES)
+        codes.values.removeAll { it.expiresAtMillis < now }
         codes[code] =
             AuthorizationCode(
                 clientId = pendingAuth.request.clientId,
@@ -298,7 +301,8 @@ class AuthorizationServer(
         if (params["client_id"] != null && params["client_id"] != code.clientId) {
             throw OAuthException("invalid_grant", "The code was issued to another client")
         }
-        if (params["redirect_uri"] != null && params["redirect_uri"] != code.redirectUri) {
+        // The authorization request always named a redirect URI, so the exchange must name the same one.
+        if (params["redirect_uri"] != code.redirectUri) {
             throw OAuthException("invalid_grant", "redirect_uri does not match the authorization request")
         }
         val verifier = params["code_verifier"] ?: throw OAuthException("invalid_request", "code_verifier is required")
@@ -466,7 +470,7 @@ class AuthorizationServer(
         private const val MAX_NAME_LENGTH = 80
 
         /** Sign-ins that may wait for the owner at once, across all clients. */
-        private const val MAX_PENDING = 3
+        private const val MAX_PENDING = 8
         private const val MAX_PAIRING_TRIES = 5
         private const val PAIRING_CODE_LENGTH = 6
         private const val PAIRING_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"

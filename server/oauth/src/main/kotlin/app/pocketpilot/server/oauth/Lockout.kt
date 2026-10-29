@@ -26,6 +26,7 @@ class Lockout(
     @Synchronized
     fun recordFailure(address: String) {
         val now = clock.nowMillis()
+        if (failures.size >= MAX_TRACKED && address !in failures) prune(now)
         val recent = failures.getOrPut(address) { ArrayDeque() }
         while (recent.isNotEmpty() && now - recent.first() > windowMs) recent.removeFirst()
         recent.addLast(now)
@@ -33,5 +34,17 @@ class Lockout(
             blockedUntil[address] = now + blockMs
             failures.remove(address)
         }
+    }
+
+    /** Forgets addresses whose failures have all aged out or whose block has ended, then the oldest if still full. */
+    private fun prune(now: Long) {
+        failures.entries.removeAll { (_, recent) -> recent.isEmpty() || now - recent.last() > windowMs }
+        blockedUntil.entries.removeAll { (_, until) -> until <= now }
+        while (failures.size >= MAX_TRACKED) failures.remove(failures.keys.first())
+    }
+
+    private companion object {
+        /** Client ids are unauthenticated, so the number of tracked keys is capped to bound memory. */
+        const val MAX_TRACKED = 10_000
     }
 }
