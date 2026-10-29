@@ -59,6 +59,7 @@ object RuleValidator {
         }
         if (rule.runAs == RunMode.AGENT) check("The Agent task", Placeholders.names(rule.agentPrompt))
         check("A condition", constraintReads(rule.constraints))
+
         fun walk(list: List<ActionStep>) {
             list.forEach { step ->
                 // A loop runs its body again, so a variable the body sets counts as set for the whole loop.
