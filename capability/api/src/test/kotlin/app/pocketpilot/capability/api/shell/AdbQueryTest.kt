@@ -25,7 +25,6 @@ class AdbQueryTest {
             "settings list secure",
             "pm list packages -3",
             "pm path com.example.app",
-            "cmd wifi status",
             "cmd package list packages",
             "cmd deviceidle whitelist",
             "am get-standby-bucket com.example.app",
@@ -120,6 +119,13 @@ class AdbQueryTest {
         refused("dumpsys deviceidle force-idle")
         refused("dumpsys deviceidle whitelist +com.example.app")
         refused("dumpsys battery reboot")
+        refused("dumpsys battery plug")
+        refused("dumpsys jobscheduler run 1")
+        refused("dumpsys deviceidle tempwhitelist com.example.app")
+        refused("dumpsys statusbar collapse")
+        refused("dumpsys vibrator vibrate")
+        refused("cmd wifi status")
+        refused("dumpsys activity")
         ok("dumpsys deviceidle whitelist")
         ok("dumpsys batterystats --charged")
     }

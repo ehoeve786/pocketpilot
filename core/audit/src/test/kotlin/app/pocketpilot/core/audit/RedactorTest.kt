@@ -4,7 +4,9 @@ import app.pocketpilot.core.model.SessionKind
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import kotlin.test.Test
@@ -31,8 +33,21 @@ class RedactorTest {
 
     @Test
     fun `nested objects are redacted too`() {
-        val redacted = redactor.redact(buildJsonObject { putJsonObject("extras") { put("password", "hunter2") } })
-        assertTrue(Redactor.isRedacted(redacted.getValue("extras").jsonObject.getValue("password")))
+        val redacted = redactor.redact(buildJsonObject { putJsonObject("options") { put("password", "hunter2") } })
+        assertTrue(Redactor.isRedacted(redacted.getValue("options").jsonObject.getValue("password")))
+    }
+
+    @Test
+    fun `a key that contains a secret word is redacted, whatever its case`() {
+        val redacted = redactor.redact(buildJsonObject { put("accessToken", "abc123") })
+        assertTrue(Redactor.isRedacted(redacted.getValue("accessToken")))
+    }
+
+    @Test
+    fun `a short value is shown by its length alone, with no hash that could give it away`() {
+        val summary = redactor.redact(buildJsonObject { put("text", "4821") }).getValue("text").jsonObject
+        assertEquals(4, summary.getValue("length").jsonPrimitive.int)
+        assertFalse(summary.containsKey("sha256"))
     }
 
     @Test

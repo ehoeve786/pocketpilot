@@ -56,7 +56,7 @@ fun interface ControlIndicator {
  * Decides allow, deny or confirm for each call (spec section 8), after the orchestrator has checked
  * scopes and arguments:
  *
- * - rate limit per session;
+ * - rate limit per client;
  * - app policy for tools that read or touch the screen, checked against the app in front before the
  *   call and again after it, so an action that lands in a denied app does not return its screen and
  *   the phone goes back to the home screen;
@@ -108,7 +108,8 @@ class PolicyEngine(
                 "Do not retry. Use another tool, or ask the owner to allow it in PocketPilot's Tools screen.",
             )
         }
-        if (!rateLimiter.tryAcquire(session.id.value)) {
+        // Keyed by the client, not the session: a client that reconnects gets a new session but not a new window.
+        if (!rateLimiter.tryAcquire(session.principal)) {
             return Decision.Deny(
                 ToolErrorCode.RATE_LIMITED,
                 "Too many calls: the limit is $DEFAULT_CALLS_PER_MINUTE a minute per session",
@@ -258,11 +259,10 @@ class PolicyEngine(
         confirmedSensitive.getOrPut(id) { HashSet() } += details.map { confirmationKey(tool, it) }
     }
 
-    /** Forgets a session's confirmations and its rate-limit window when it ends. */
+    /** Forgets a session's confirmations when it ends. Its client's rate-limit window stays, so reconnecting does not reset it. */
     @Synchronized
     fun endSession(id: SessionId) {
         confirmedSensitive.remove(id)
-        rateLimiter.forget(id.value)
     }
 
     @Synchronized

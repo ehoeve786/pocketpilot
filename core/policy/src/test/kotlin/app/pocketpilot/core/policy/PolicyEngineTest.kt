@@ -182,6 +182,17 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `a client that reconnects keeps its rate-limit window`() =
+        runTest {
+            val engine = engine(limiter = RateLimiter(2, Clock { 0 }))
+            engine.before(session, snapshot)
+            engine.before(session, snapshot)
+            engine.endSession(session.id)
+            val reconnected = session.copy(id = SessionId("01JA0000000000000000000009"))
+            assertEquals(ToolErrorCode.RATE_LIMITED, assertIs<Decision.Deny>(engine.before(reconnected, snapshot)).code)
+        }
+
+    @Test
     fun `the overlay shows for actions, not for reading`() =
         runTest {
             val engine = engine()

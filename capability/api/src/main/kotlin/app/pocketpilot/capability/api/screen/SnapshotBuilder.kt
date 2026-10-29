@@ -117,7 +117,8 @@ object SnapshotBuilder {
             parent = parentId,
             role = role,
             text = if (node.password) null else (node.text?.takeIf(String::isNotBlank) ?: node.windowTitle),
-            description = node.description?.takeIf(String::isNotBlank),
+            // A password field's description can hold the value itself, so it is left out too.
+            description = if (node.password) null else node.description?.takeIf(String::isNotBlank),
             resourceId = node.resourceId?.takeIf(String::isNotBlank),
             bounds = node.bounds,
             clickable = node.clickable,
