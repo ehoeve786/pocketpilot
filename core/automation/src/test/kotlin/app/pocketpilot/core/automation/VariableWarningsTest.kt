@@ -78,6 +78,29 @@ class VariableWarningsTest {
     }
 
     @Test
+    fun `a loop that reads what its body sets on an earlier pass is not flagged`() {
+        val warnings =
+            RuleValidator.variableWarnings(
+                rule(
+                    listOf(
+                        ActionStep(
+                            "flow.repeat",
+                            mapOf("count" to "3"),
+                            children =
+                                listOf(
+                                    ActionStep("notify.post", mapOf("title" to "{last}")),
+                                    ActionStep("var.set", mapOf("name" to "last", "value" to "x")),
+                                ),
+                        ),
+                    ),
+                ),
+                globals = emptySet(),
+            )
+
+        assertEquals(emptyList(), warnings)
+    }
+
+    @Test
     fun `a variable set in a branch counts as set for the steps after it`() {
         val warnings =
             RuleValidator.variableWarnings(

@@ -59,11 +59,19 @@ object RuleValidator {
         }
         if (rule.runAs == RunMode.AGENT) check("The Agent task", Placeholders.names(rule.agentPrompt))
         check("A condition", constraintReads(rule.constraints))
-        steps.forEach { step ->
-            val title = AutomationCatalog.action(step.type)?.title ?: step.type
-            check(title, step.params.values.flatMap(Placeholders::names) + constraintReads(step.constraints))
-            known += setNames(step)
+
+        fun walk(list: List<ActionStep>) {
+            list.forEach { step ->
+                // A loop runs its body again, so a variable the body sets counts as set for the whole loop.
+                if (step.type in LOOPS) known += flatten(step.children).flatMap(::setNames)
+                val title = AutomationCatalog.action(step.type)?.title ?: step.type
+                check(title, step.params.values.flatMap(Placeholders::names) + constraintReads(step.constraints))
+                known += setNames(step)
+                walk(step.children)
+                walk(step.elseChildren)
+            }
         }
+        walk(rule.actions)
         return warnings.toList()
     }
 
@@ -93,6 +101,9 @@ object RuleValidator {
         }
 
     private val BUILT_IN = setOf("now", "rule", "trigger")
+
+    /** Steps whose body runs again, so the body can read what it set on an earlier pass. */
+    private val LOOPS = setOf("flow.repeat", "flow.while")
 
     private fun actions(
         steps: List<ActionStep>,
