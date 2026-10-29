@@ -54,6 +54,8 @@ class AgentNotifier(
                 .setContentIntent(open)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
+                // The goal and the steps can name private things, so the lock screen shows only "Contents hidden".
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .addAction(
                     action(
                         if (paused) ACTION_RESUME else ACTION_PAUSE,
@@ -89,6 +91,8 @@ class AgentNotifier(
                 .setStyle(Notification.BigTextStyle().bigText(text))
                 .setContentIntent(open)
                 .setAutoCancel(true)
+                // The chat's answer can name private things, so the lock screen shows only "Contents hidden".
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .build()
         manager.notify(REPLY_NOTIFICATION_ID, notification)
     }

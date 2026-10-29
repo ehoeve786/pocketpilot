@@ -12,6 +12,7 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.service.notification.StatusBarNotification
+import android.util.Log
 import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.notifications.NotificationAction
 import app.pocketpilot.capability.api.notifications.NotificationCommand
@@ -51,7 +52,7 @@ object ListenerNotificationSource : NotificationSource {
     }
 
     private val changes =
-        MutableSharedFlow<NotificationChange>(extraBufferCapacity = CHANGE_BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+        MutableSharedFlow<NotificationChange>(extraBufferCapacity = CHANGE_BUFFER, onBufferOverflow = BufferOverflow.SUSPEND)
 
     /** Notifications as they arrive and go, for automation triggers. Group summaries and empty ones are left out. */
     val events: SharedFlow<NotificationChange> = changes.asSharedFlow()
@@ -65,11 +66,18 @@ object ListenerNotificationSource : NotificationSource {
         removed: Boolean,
     ) {
         if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
-        val notification = runCatching { sbn.toPhoneNotification() }.getOrNull() ?: return
+        val notification =
+            runCatching { sbn.toPhoneNotification() }.getOrElse {
+                Log.w(TAG, "A notification could not be read and is skipped: ${it.javaClass.simpleName}")
+                return
+            }
         if (notification.title == null && notification.text == null) return
-        changes.tryEmit(NotificationChange(notification, removed))
+        if (!changes.tryEmit(NotificationChange(notification, removed))) {
+            Log.w(TAG, "Notification changes are arriving faster than rules read them; this one was dropped")
+        }
     }
 
+    private const val TAG = "PocketPilot"
     private const val CHANGE_BUFFER = 64
     private const val MAX_EXTRA_CHARS = 2_000
 

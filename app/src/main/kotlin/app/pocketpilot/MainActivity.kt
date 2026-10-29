@@ -573,7 +573,8 @@ class MainActivity : ComponentActivity() {
                                     if (url.startsWith("https://")) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 },
                                 signOut = tailscale::logout,
-                                setPublic = tailscale::setPublic,
+                                // Making the phone reachable from the internet needs the owner's confirmation.
+                                setPublic = { on -> if (on) withOwner { tailscale.setPublic(true) } else tailscale.setPublic(false) },
                                 logs = tailscale::logs,
                             ),
                         onRevokeClient = oauth::revokeClient,
