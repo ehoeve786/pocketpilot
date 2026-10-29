@@ -1,6 +1,7 @@
 package app.pocketpilot.agent.providers.openaicompatible
 
 import app.pocketpilot.agent.providers.api.ModelProvider
+import app.pocketpilot.agent.providers.api.cleartextMayBeUsed
 import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import app.pocketpilot.agent.providers.openai.OpenAiProvider
 import io.ktor.client.HttpClient
@@ -16,11 +17,16 @@ data class CompatibleProfile(
     val apiKey: String?,
     val headers: Map<String, String> = emptyMap(),
     val displayName: String = name,
+    /** Set by the owner for a server on the home network reached over plain http. */
+    val allowCleartext: Boolean = false,
 ) {
     init {
         require(name.isNotBlank()) { "A profile needs a name" }
         require(baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) { "Not an http(s) URL: $baseUrl" }
         require(keyMayBeSentTo(baseUrl, apiKey)) { "Use an https address for a key, or leave the key empty for a server on this phone" }
+        require(cleartextMayBeUsed(baseUrl, allowCleartext)) {
+            "Plain http to another computer needs the owner's go-ahead for this profile; use https or allow it in the profile"
+        }
     }
 
     override fun toString(): String = "CompatibleProfile($name, $baseUrl, key=${if (apiKey.isNullOrBlank()) "none" else "set"})"
@@ -66,17 +72,22 @@ object CompatiblePresets {
 
     fun mistral(apiKey: String) = CompatibleProfile("mistral", "https://api.mistral.ai/v1", apiKey, displayName = "Mistral")
 
-    fun ollama(host: String) = CompatibleProfile("ollama", local(host, OLLAMA_PORT), apiKey = null, displayName = "Ollama")
+    fun ollama(
+        host: String,
+        allowCleartext: Boolean = false,
+    ) = CompatibleProfile("ollama", local(host, OLLAMA_PORT), apiKey = null, displayName = "Ollama", allowCleartext = allowCleartext)
 
     fun lmStudio(
         host: String,
         apiKey: String? = null,
-    ) = CompatibleProfile("lmstudio", local(host, LM_STUDIO_PORT), apiKey, displayName = "LM Studio")
+        allowCleartext: Boolean = false,
+    ) = CompatibleProfile("lmstudio", local(host, LM_STUDIO_PORT), apiKey, displayName = "LM Studio", allowCleartext = allowCleartext)
 
     fun llamaCpp(
         host: String,
         apiKey: String? = null,
-    ) = CompatibleProfile("llamacpp", local(host, LLAMA_CPP_PORT), apiKey, displayName = "llama.cpp")
+        allowCleartext: Boolean = false,
+    ) = CompatibleProfile("llamacpp", local(host, LLAMA_CPP_PORT), apiKey, displayName = "llama.cpp", allowCleartext = allowCleartext)
 
     private fun local(
         host: String,

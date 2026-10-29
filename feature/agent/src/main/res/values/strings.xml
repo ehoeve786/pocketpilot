@@ -14,6 +14,7 @@
     <string name="feature_agent_model">Model</string>
     <string name="feature_agent_base_url">Server URL</string>
     <string name="feature_agent_base_url_hint">OpenRouter: https://openrouter.ai/api/v1 · NVIDIA: https://integrate.api.nvidia.com/v1 · Mistral: https://api.mistral.ai/v1 · Ollama: http://&lt;computer address&gt;:11434/v1</string>
+    <string name="feature_agent_allow_cleartext">Allow plain http to this computer. Prompts and answers travel unencrypted on the home network.</string>
     <string name="feature_agent_fallback_order">When a model runs out, a run moves on to the next model in this list.</string>
     <string name="feature_agent_move_up">Move up</string>
     <string name="feature_agent_api_key">API key</string>

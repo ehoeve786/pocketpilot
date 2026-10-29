@@ -43,6 +43,8 @@ data class AgentProfile(
     val baseUrl: String? = null,
     /** Overrides the default cost limit; null uses the default for [kind]. */
     val maxCostUsd: Double? = null,
+    /** The owner allowed plain http to a server on the home network for this profile. */
+    val allowCleartext: Boolean = false,
 ) {
     /** Lowercase letters, digits and `_` only, which every secret store accepts as a file name. */
     val keyName: String get() = "agent_key_" + id.lowercase().replace(Regex("[^a-z0-9]"), "_")
