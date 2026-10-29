@@ -63,6 +63,12 @@ interface AutomationHost {
 
     suspend fun notifications(): List<NotificationInfo>
 
+    /** Asks the owner on the phone to approve. False when declined, timed out, or when this host cannot ask. */
+    suspend fun confirm(
+        title: String,
+        detail: String,
+    ): Boolean = false
+
     /** Runs an [ActionKind.Native] action; returns a value for its `into` variable, if any. */
     suspend fun native(
         type: String,
@@ -664,6 +670,12 @@ class AutomationEngine(
                         ?: throw AutomationFailure("Nothing at ${params.p("path")} in that JSON")
                 save(value)
                 return "{$into} = ${value.take(MAX_NOTE)}"
+            }
+
+            "confirm.ask" -> {
+                val approved = host.confirm(params.p("title"), params.p("detail"))
+                save(if (approved) "yes" else "no")
+                return if (approved) "approved" else "declined"
             }
 
             "address.from_screen" -> {
