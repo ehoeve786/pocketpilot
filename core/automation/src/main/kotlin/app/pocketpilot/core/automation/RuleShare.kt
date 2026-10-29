@@ -73,3 +73,28 @@ fun parseSharedRule(
             proposedBy = SHARED_RULE_PROPOSER,
         )
     }.getOrNull()
+
+/**
+ * A shared rule as the owner sees it before accepting. [problems] stop the import; [warnings] are variables the
+ * rule reads that this phone does not set, and show on the proposal without stopping it.
+ */
+data class SharedRuleCheck(
+    val rule: Rule,
+    val problems: List<String>,
+    val warnings: List<String>,
+)
+
+/** Parses a shared file and checks it against this phone's catalog and [globals]; null when it is not a rule. */
+fun checkSharedRule(
+    json: String,
+    newId: () -> String,
+    sideload: Boolean,
+    globals: Set<String>,
+): SharedRuleCheck? {
+    val rule = parseSharedRule(json, newId) ?: return null
+    return SharedRuleCheck(
+        rule = rule,
+        problems = RuleValidator.problems(rule, sideload),
+        warnings = RuleValidator.variableWarnings(rule, globals),
+    )
+}

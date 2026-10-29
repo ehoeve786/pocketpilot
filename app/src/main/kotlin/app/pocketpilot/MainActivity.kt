@@ -51,8 +51,7 @@ import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleStore
-import app.pocketpilot.core.automation.RuleValidator
-import app.pocketpilot.core.automation.parseSharedRule
+import app.pocketpilot.core.automation.checkSharedRule
 import app.pocketpilot.core.automation.usesShell
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
@@ -216,16 +215,22 @@ class MainActivity : ComponentActivity() {
                 else -> null
             } ?: return
         val json = runCatching { contentResolver.openInputStream(uri)?.use(::readCapped) }.getOrNull()
-        val rule = json?.let { parseSharedRule(it) { ruleStore.newId() } }
-        if (rule == null) {
+        val check =
+            json?.let {
+                checkSharedRule(it, { ruleStore.newId() }, policyProfile.shellExecAvailable, ruleStore.data.value.variables.keys)
+            }
+        if (check == null) {
             Toast.makeText(this, R.string.app_shared_rule_unreadable, Toast.LENGTH_LONG).show()
             return
         }
-        if (RuleValidator.problems(rule, policyProfile.shellExecAvailable).isNotEmpty()) {
+        if (check.problems.isNotEmpty()) {
             Toast.makeText(this, R.string.app_shared_rule_invalid, Toast.LENGTH_LONG).show()
             return
         }
-        ruleStore.addShared(rule)
+        if (check.warnings.isNotEmpty()) {
+            Toast.makeText(this, getString(R.string.app_shared_rule_warnings, check.warnings.joinToString("; ")), Toast.LENGTH_LONG).show()
+        }
+        ruleStore.addShared(check.rule)
         openProposals = true
         openAutomations.intValue++
     }

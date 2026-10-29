@@ -1153,6 +1153,33 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an address from a dasher screen is saved, and a screen without one leaves the variable empty`() =
+        runTest {
+            val screen =
+                mapOf(
+                    "screen.com.doordash.driverapp:id/address_line_1" to "616 Davie St",
+                    "screen.com.doordash.driverapp:id/address_line_2" to "Vancouver, BC V6B 2G5, Canada",
+                )
+            val steps =
+                listOf(
+                    ActionStep("address.from_screen", mapOf("screen" to "screen", "into" to "address")),
+                    ActionStep("notify.post", mapOf("title" to "[{address}]")),
+                )
+            val host = FakeHost()
+
+            val found = engine(this, host).run(rule(steps).copy(variables = screen), "Test")
+
+            assertEquals(RunOutcome.OK, found.outcome)
+            assertEquals("[616 Davie St, Vancouver, BC V6B 2G5, Canada]", (host.calls.last().second["title"] as JsonPrimitive).content)
+
+            val empty = FakeHost()
+            val none = engine(this, empty).run(rule(steps), "Test")
+
+            assertEquals(RunOutcome.OK, none.outcome)
+            assertEquals("[]", (empty.calls.last().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
     fun `a send stops instead of sending a placeholder whose value is missing`() =
         runTest {
             val host = FakeHost()
