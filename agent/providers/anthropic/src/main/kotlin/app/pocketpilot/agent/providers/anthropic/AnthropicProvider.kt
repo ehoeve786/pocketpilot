@@ -68,6 +68,7 @@ class AnthropicProvider(
     override suspend fun listModels(): List<ModelInfo> {
         val models = mutableListOf<ModelInfo>()
         var afterId: String? = null
+        var pages = 0
         do {
             val response =
                 http.get("$baseUrl/v1/models") {
@@ -80,12 +81,13 @@ class AnthropicProvider(
             if (!response.status.isSuccess()) throw IOException("HTTP ${response.status.value}: ${body.take(MAX_ERROR_BODY)}")
             val page = pageOf(body)
             page["data"]?.jsonArray?.forEach { item ->
-                val model = item.jsonObject
+                val model = item as? JsonObject ?: return@forEach
                 val modelId = model.string("id") ?: return@forEach
                 models += ModelInfo(modelId, model.string("display_name") ?: modelId)
             }
             afterId = page.string("last_id").takeIf { (page["has_more"] as? JsonPrimitive)?.booleanOrNull == true }
-        } while (afterId != null)
+            // A server that keeps saying there are more pages must not keep the app in this loop.
+        } while (afterId != null && ++pages < MAX_MODEL_PAGES)
         return models
     }
 
@@ -132,6 +134,7 @@ class AnthropicProvider(
     internal companion object {
         const val API_VERSION = "2023-06-01"
         private const val PAGE_SIZE = 1000
+        private const val MAX_MODEL_PAGES = 50
         private const val MAX_ERROR_BODY = 500
 
         fun requestBody(request: ModelRequest): JsonObject =

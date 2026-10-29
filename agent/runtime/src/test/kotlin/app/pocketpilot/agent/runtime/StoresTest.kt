@@ -65,8 +65,11 @@ class StoresTest {
     fun `run store deletes the chosen runs and ignores ids it does not hold`() =
         runTest {
             val store = FileRunStore(dir.resolve("delete"))
-            for (id in listOf("01A", "01B", "01C")) store.save(RunState(id, "goal $id", "fake", "m", 0))
-            store.delete(listOf("01B", "01Z"))
-            assertEquals(listOf("01C", "01A"), store.list().map(RunState::id))
+
+            // Run ids are ULIDs, so the test uses ids of that shape.
+            fun id(last: Char) = "0".repeat(25) + last
+            for (last in listOf('A', 'B', 'C')) store.save(RunState(id(last), "goal $last", "fake", "m", 0))
+            store.delete(listOf(id('B'), id('Z')))
+            assertEquals(listOf(id('C'), id('A')), store.list().map(RunState::id))
         }
 }

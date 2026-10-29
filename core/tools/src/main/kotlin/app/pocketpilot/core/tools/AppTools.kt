@@ -144,7 +144,11 @@ class AppLaunchTool(
         }
         val exact = all.filter { it.label.equals(label, ignoreCase = true) }
         val partial = all.filter { it.label.contains(label!!, ignoreCase = true) }
-        return exact.singleOrNull() ?: exact.firstOrNull() ?: partial.singleOrNull()
+        // Two apps with the same label are not told apart by name, so the owner must say which one (by package).
+        if (exact.size > 1) {
+            notFound("Several apps are called \"$label\": ${exact.joinToString { "${it.label} (${it.packageName})" }}. Give the package.")
+        }
+        return exact.singleOrNull() ?: partial.singleOrNull()
             ?: if (partial.isEmpty()) {
                 notFound("No launchable app is called \"$label\"")
             } else {

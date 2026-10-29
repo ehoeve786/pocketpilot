@@ -10,6 +10,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /** The provider families the agent can talk to (spec section 9, Adapters). */
 @Serializable
@@ -108,6 +111,10 @@ class ProfileStore(
             if (file.exists()) json.decodeFromString(serializer, file.readText()) else emptyList()
         } catch (e: IllegalArgumentException) {
             emptyList()
+        } catch (e: IOException) {
+            // Keep the unreadable file aside, so the next save does not overwrite the owner's profiles.
+            runCatching { file.renameTo(File(file.parentFile, "${file.name}.unreadable")) }
+            emptyList()
         }
 }
 
@@ -137,7 +144,8 @@ class FileRunStore(
     /** Removes the stored runs with these ids; ids that are not stored are ignored. */
     fun delete(ids: Collection<String>) {
         synchronized(lock) {
-            ids.forEach { id -> File(dir, "$id.json").delete() }
+            // Only ULID ids name a file here, so an id such as "../x" cannot reach a file outside the directory.
+            ids.filter { ULID.matches(it) }.forEach { id -> File(dir, "$id.json").delete() }
         }
     }
 
@@ -147,6 +155,10 @@ class FileRunStore(
             .orEmpty()
             // Run ids are ULIDs, so names sort by start time.
             .sortedByDescending { it.name }
+
+    private companion object {
+        val ULID = Regex("[0-9A-HJKMNP-TV-Z]{26}")
+    }
 
     private fun read(file: File): RunState? =
         try {
@@ -169,8 +181,10 @@ private fun writeAtomically(
     file.parentFile?.mkdirs()
     val tmp = File(file.parentFile, "${file.name}.tmp")
     tmp.writeText(text)
-    if (!tmp.renameTo(file)) {
-        file.writeText(text)
-        tmp.delete()
+    // Replaces the live file in one step. The fallback is only for a file system without atomic moves.
+    try {
+        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
+        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 }

@@ -48,7 +48,8 @@ private fun output(
     maxChars: Int,
     redact: Boolean = false,
 ): ToolResult {
-    val stdout = result.stdout.trimEnd().let { if (redact) LogRedactor.redact(it) else it }
+    // Personal details are masked in every adb output, not only in logs: a dump can show emails and phone numbers.
+    val stdout = LogRedactor.redact(result.stdout.trimEnd())
     val text =
         buildString {
             if (result.timedOut) append("Timed out; partial output.\n")
@@ -237,11 +238,15 @@ internal object LogRedactor {
         Regex("(?i)(bearer|token|authorization|password|passwd|secret|api[_-]?key)([\"']?\\s*[:=]\\s*[\"']?|\\s+)[^\\s\"',;]+")
     private val LONG_SECRET = Regex("\\b[A-Za-z0-9_\\-]{40,}\\b")
 
+    /** A JSON web token: three base64url parts joined by dots, the first two starting with an encoded `{"`. */
+    private val JWT = Regex("eyJ[A-Za-z0-9_\\-]*\\.[A-Za-z0-9_\\-]+\\.[A-Za-z0-9_\\-]*")
+
     fun redact(text: String): String =
         text
             .replace(BEARER) { "${it.groupValues[1]}${it.groupValues[2]}[masked]" }
             .replace(EMAIL, "[email]")
             .replace(PHONE, "[phone]")
+            .replace(JWT, "[masked]")
             .replace(LONG_SECRET, "[masked]")
 }
 

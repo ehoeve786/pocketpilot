@@ -1,11 +1,13 @@
 package app.pocketpilot.agent.runtime
 
 import app.pocketpilot.agent.providers.api.ModelErrorCode
+import app.pocketpilot.agent.providers.api.ModelErrors
 import app.pocketpilot.agent.providers.api.ModelEvent
 import app.pocketpilot.agent.providers.api.ModelInfo
 import app.pocketpilot.agent.providers.api.ModelProvider
 import app.pocketpilot.agent.providers.api.ModelRequest
 import app.pocketpilot.core.common.Clock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.util.concurrent.ConcurrentHashMap
@@ -45,7 +47,23 @@ class KeyRotatingProvider(
 
     override val displayName: String get() = keys.first().displayName
 
-    override suspend fun listModels(): List<ModelInfo> = keys[current.get()].listModels()
+    /** Tries the keys in the same order [stream] does, skipping ones that are cooling down. */
+    override suspend fun listModels(): List<ModelInfo> {
+        val now = clock.nowMillis()
+        val order = keys.indices.map { (current.get() + it) % keys.size }
+        val usable = order.filter { (cooldownUntil[it] ?: 0L) <= now }.ifEmpty { order }
+        var failure: Exception? = null
+        for (index in usable) {
+            try {
+                return keys[index].listModels()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e
+            }
+        }
+        throw failure ?: IllegalStateException("No key is set up")
+    }
 
     override fun stream(request: ModelRequest): Flow<ModelEvent> =
         flow {
@@ -57,8 +75,15 @@ class KeyRotatingProvider(
             for (index in usable) {
                 last = null
                 // A provider emits either a full reply or a single error, so passing events on at once is safe.
-                keys[index].stream(request).collect { event ->
-                    if (event is ModelEvent.Error && event.code in SWITCH_ON) last = event else emit(event)
+                try {
+                    keys[index].stream(request).collect { event ->
+                        if (event is ModelEvent.Error && event.code in SWITCH_ON) last = event else emit(event)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // A provider that throws instead of reporting an error still moves the run on to the next key.
+                    last = ModelErrors.network(e)
                 }
                 val failure = last
                 if (failure == null) {

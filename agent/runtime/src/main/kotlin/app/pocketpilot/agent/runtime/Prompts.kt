@@ -100,7 +100,11 @@ internal object Prompts {
     fun untrusted(
         source: String,
         text: String,
-    ): String = "<untrusted_data source=\"$source\">\n${text.replace(TAG, "untrusted-data")}\n</untrusted_data>"
+    ): String {
+        // The source is a tool or setting name; anything else would let it close the attribute.
+        val safeSource = source.filter { it.isLetterOrDigit() || it == '_' || it == '.' || it == '-' }
+        return "<untrusted_data source=\"$safeSource\">\n${text.replace(TAG, "untrusted-data")}\n</untrusted_data>"
+    }
 
     private val TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)
 }
