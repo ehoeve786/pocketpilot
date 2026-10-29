@@ -41,7 +41,17 @@ class PocketPilotA11yService : AccessibilityService() {
 
     /** The floating buttons step aside while the notification shade is pulled down. */
     private fun hideButtonsWhileShadeIsDown() {
-        A11yOverlay.setButtonsHidden(windows.any { it.title?.toString() == NOTIFICATION_SHADE_TITLE })
+        A11yOverlay.setButtonsHidden(shadeIsDown())
+    }
+
+    /**
+     * The shade is not listed as an accessibility window on the test phones, and system windows have no titles,
+     * so it is found in the System UI tree instead: when System UI is the active window and the shade's views are visible.
+     */
+    private fun shadeIsDown(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        if (root.packageName?.toString() != SYSTEM_UI_PACKAGE) return false
+        return SHADE_VIEW_IDS.any { id -> root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser } }
     }
 
     /** Key presses are only observed, never consumed, so they reach the phone as usual. */
@@ -53,8 +63,10 @@ class PocketPilotA11yService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     private companion object {
-        /** The title of the system window that the notification shade is drawn in. */
-        const val NOTIFICATION_SHADE_TITLE = "NotificationShade"
+        const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+
+        /** Views that only exist on the open notification shade, by their full resource ids. */
+        val SHADE_VIEW_IDS = listOf("$SYSTEM_UI_PACKAGE:id/qs_container", "$SYSTEM_UI_PACKAGE:id/notification_stack_scroller")
 
         /** How often the shade is checked; short enough that the buttons step aside before a finger reaches them. */
         const val SHADE_CHECK_INTERVAL_MS = 250L
