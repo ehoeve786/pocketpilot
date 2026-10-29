@@ -2,6 +2,8 @@ package app.pocketpilot.capability.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 
@@ -10,17 +12,36 @@ import android.view.accessibility.AccessibilityEvent
  * and its events to [A11yBridge], where the READ_UI, INJECT_INPUT and CAPTURE_SCREEN backends find it.
  */
 class PocketPilotA11yService : AccessibilityService() {
+    private val main = Handler(Looper.getMainLooper())
+
+    /**
+     * Pulling the shade down raises no event that reliably reaches us, so the shade is checked on a timer while
+     * the service runs, as well as on each window event.
+     */
+    private val shadeCheck =
+        object : Runnable {
+            override fun run() {
+                hideButtonsWhileShadeIsDown()
+                main.postDelayed(this, SHADE_CHECK_INTERVAL_MS)
+            }
+        }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         A11yBridge.attach(this)
+        main.post(shadeCheck)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         A11yBridge.onEvent(event)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // The floating buttons step aside while the notification shade is pulled down.
-            A11yOverlay.setButtonsHidden(windows.any { it.title?.toString() == NOTIFICATION_SHADE_TITLE })
+            hideButtonsWhileShadeIsDown()
         }
+    }
+
+    /** The floating buttons step aside while the notification shade is pulled down. */
+    private fun hideButtonsWhileShadeIsDown() {
+        A11yOverlay.setButtonsHidden(windows.any { it.title?.toString() == NOTIFICATION_SHADE_TITLE })
     }
 
     /** Key presses are only observed, never consumed, so they reach the phone as usual. */
@@ -34,14 +55,19 @@ class PocketPilotA11yService : AccessibilityService() {
     private companion object {
         /** The title of the system window that the notification shade is drawn in. */
         const val NOTIFICATION_SHADE_TITLE = "NotificationShade"
+
+        /** How often the shade is checked; short enough that the buttons step aside before a finger reaches them. */
+        const val SHADE_CHECK_INTERVAL_MS = 250L
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        main.removeCallbacks(shadeCheck)
         A11yBridge.detach(this)
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(shadeCheck)
         A11yBridge.detach(this)
         super.onDestroy()
     }
