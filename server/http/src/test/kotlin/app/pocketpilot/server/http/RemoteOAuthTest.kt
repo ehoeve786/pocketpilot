@@ -57,7 +57,7 @@ class RemoteOAuthTest {
     @BeforeTest
     fun start() {
         val registry = ToolRegistry(setOf(DeviceInfoTool { deviceInfo }), PolicyProfile.OSS)
-        val factory = McpServerFactory(registry, CallDispatcher(registry, InMemoryAuditSink()), appVersion = "0.1.0-test")
+        val factory = McpServerFactory(registry, CallDispatcher(registry, InMemoryAuditSink(), allowingPolicy()), appVersion = "0.1.0-test")
         server =
             McpHttpServer(
                 factory,

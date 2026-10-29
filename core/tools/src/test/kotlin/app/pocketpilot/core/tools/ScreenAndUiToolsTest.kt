@@ -62,7 +62,7 @@ class ScreenAndUiToolsTest {
             AppLaunchTool(apps, reader),
             AppOpenUrlTool(apps, reader),
         )
-    private val dispatcher = CallDispatcher(ToolRegistry(handlers, PolicyProfile.OSS), InMemoryAuditSink())
+    private val dispatcher = CallDispatcher(ToolRegistry(handlers, PolicyProfile.OSS), InMemoryAuditSink(), allowingPolicy())
 
     private suspend fun call(
         tool: String,

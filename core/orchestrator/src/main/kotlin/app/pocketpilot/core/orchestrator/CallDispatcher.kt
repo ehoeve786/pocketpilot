@@ -30,7 +30,7 @@ import kotlinx.serialization.json.JsonObject
 class CallDispatcher(
     private val registry: ToolRegistry,
     private val auditSink: AuditSink,
-    private val policy: PolicyEngine? = null,
+    private val policy: PolicyEngine,
     private val clock: Clock = Clock.System,
     private val ids: UlidGenerator = UlidGenerator(clock),
     private val redactor: Redactor = Redactor(),
@@ -117,10 +117,9 @@ class CallDispatcher(
             } catch (e: ToolException) {
                 null
             }
-        policy?.before(session, handler.spec, handler.confirmationDetail(call), target)?.let { decision ->
-            if (decision is Decision.Deny) {
-                return refused(ToolResult.error(decision.code, decision.message, decision.hint))
-            }
+        val decision = policy.before(session, handler.spec, handler.confirmationDetail(call), target)
+        if (decision is Decision.Deny) {
+            return refused(ToolResult.error(decision.code, decision.message, decision.hint))
         }
 
         val result =
@@ -140,7 +139,7 @@ class CallDispatcher(
                 ToolResult.error(ToolErrorCode.INTERNAL_ERROR, "${call.tool} failed: ${e.message ?: e::class.simpleName}")
             }
         // The call has run by now, so the audit records it as allowed and says its result was withheld.
-        val after = policy?.after(handler.spec)
+        val after = policy.after(handler.spec)
         if (after is Decision.Deny) {
             return Settled(ToolResult.error(after.code, after.message, after.hint), AuditDecision.ALLOW, withheld = true)
         }

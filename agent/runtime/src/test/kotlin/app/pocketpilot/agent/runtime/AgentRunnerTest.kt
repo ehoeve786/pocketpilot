@@ -132,7 +132,7 @@ class AgentRunnerTest {
         val registry = ToolRegistry(setOf(info, snapshot, capture, tap, broken, shell), PolicyProfile.OSS)
         return AgentRunner(
             registry,
-            CallDispatcher(registry, InMemoryAuditSink(), clock = clock),
+            CallDispatcher(registry, InMemoryAuditSink(), allowingPolicy(), clock = clock),
             SessionFactory(clock),
             clock = clock,
             beforeScreenWork = beforeScreenWork,
@@ -371,7 +371,7 @@ class AgentRunnerTest {
             val clock = Clock { testScheduler.currentTime }
             val registry = ToolRegistry(setOf(info, snapshot), PolicyProfile.OSS)
             val audit = InMemoryAuditSink()
-            val dispatcher = CallDispatcher(registry, audit, clock = clock)
+            val dispatcher = CallDispatcher(registry, audit, allowingPolicy(), clock = clock)
             val runner = AgentRunner(registry, dispatcher, SessionFactory(clock), clock = clock, onSessionEnd = { ended += it.value })
             val run = runner.start(AgentTask("Check", scopes), RunModel(provider, "fake-1"), AgentBudgets(), backgroundScope)
             run.finished()
@@ -389,7 +389,7 @@ class AgentRunnerTest {
             val runner =
                 AgentRunner(
                     registry,
-                    CallDispatcher(registry, InMemoryAuditSink(), clock = clock),
+                    CallDispatcher(registry, InMemoryAuditSink(), allowingPolicy(), clock = clock),
                     SessionFactory(clock),
                     clock = clock,
                     preConfirm = { id, tools -> confirmed += id.value to tools },
