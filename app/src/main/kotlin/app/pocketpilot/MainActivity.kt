@@ -192,16 +192,19 @@ class MainActivity : ComponentActivity() {
         handleOpen(intent)
     }
 
-    /** Runs [onAccepted] once the owner confirms, when the rule runs shell commands; other rules need no check. */
+    /**
+     * Runs [onAccepted] once the owner confirms, when the rule runs shell commands or changes an existing rule;
+     * other new rules need no check.
+     */
     private fun acceptGated(
         rule: Rule?,
         onAccepted: () -> Unit,
     ) {
-        if (rule?.usesShell() != true) return onAccepted()
+        if (rule == null || (!rule.usesShell() && rule.replaces == null)) return onAccepted()
         biometricGate.authenticate(
             this,
             getString(R.string.approvals_biometric_title),
-            getString(R.string.automation_accept_shell),
+            getString(if (rule.usesShell()) R.string.automation_accept_shell else R.string.automation_accept_change),
             onAccepted,
         )
     }

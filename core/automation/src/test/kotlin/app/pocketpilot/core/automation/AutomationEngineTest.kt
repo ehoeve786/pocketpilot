@@ -776,11 +776,11 @@ class AutomationEngineTest {
     fun `an update changes the rule in place and keeps its switch, pin and id`() =
         runTest {
             val store = RuleStore(MemoryPersistence(), clock)
-            store.upsert(Rule("r1", "Old", enabled = false, pinned = true, triggers = listOf(TriggerSpec("wifi.connected"))))
+            store.upsert(Rule("r1", "Old", enabled = false, pinned = true, triggers = listOf(TriggerSpec("wifi.connected", office))))
             var changed: Rule? = null
             val tool = AutomationUpdateTool(store, sideload = true, onChanged = { rule, _ -> changed = rule }, onProposed = {})
             val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
-            val result = tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "New", "setting.dnd")), session)
+            val result = tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "New", "var.set")), session)
             assertFalse(result.isError)
             val saved = store.rules.single()
             assertEquals("r1", saved.id)
@@ -789,6 +789,34 @@ class AutomationEngineTest {
             assertTrue(saved.pinned)
             assertEquals(null, saved.proposedBy)
             assertEquals(saved, changed)
+        }
+
+    @Test
+    fun `an update that changes a trigger waits as a proposal, and its confirmation shows the new rule`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(Rule("r1", "Old", enabled = true, triggers = listOf(TriggerSpec("wifi.connected"))))
+            val tool = AutomationUpdateTool(store, sideload = true, onChanged = { _, _ -> error("not in place") }, onProposed = {})
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            val call = ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "New", "var.set"))
+
+            val detail = tool.confirmationDetail(call).orEmpty()
+            assertTrue(detail.contains("When: ") && detail.contains("Then: "), detail)
+
+            tool.execute(call, session)
+            assertEquals("r1", store.rules.single { it.pending }.replaces)
+            assertEquals("Old", store.rule("r1")?.name)
+        }
+
+    @Test
+    fun `an update that adds a sensitive step waits as a proposal`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(Rule("r1", "Old", enabled = true, triggers = listOf(TriggerSpec("wifi.connected", office))))
+            val tool = AutomationUpdateTool(store, sideload = true, onChanged = { _, _ -> error("not in place") }, onProposed = {})
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "New", "setting.dnd")), session)
+            assertEquals("r1", store.rules.single { it.pending }.replaces)
         }
 
     @Test
@@ -831,6 +859,8 @@ class AutomationEngineTest {
         assertTrue(rule.pinned)
     }
 
+    private val office = mapOf("ssid" to "Office")
+
     private fun updateArgs(
         id: String,
         name: String,
@@ -839,7 +869,12 @@ class AutomationEngineTest {
         put("id", id)
         put("name", name)
         put("triggers", AutomationJson.json.parseToJsonElement("""[{"type":"wifi.connected","params":{"ssid":"Office"}}]"""))
-        val params = if (action == "shell.exec") """{"command":"echo hi"}""" else """{"value":"on"}"""
+        val params =
+            when (action) {
+                "shell.exec" -> """{"command":"echo hi"}"""
+                "var.set" -> """{"name":"x","value":"on"}"""
+                else -> """{"value":"on"}"""
+            }
         put("actions", AutomationJson.json.parseToJsonElement("""[{"type":"$action","params":$params}]"""))
     }
 

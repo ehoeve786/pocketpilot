@@ -324,9 +324,10 @@ class AutomationProposeTool(
 
 /**
  * `automation.update`: an AI app changes one of the owner's rules in place, so the owner does not accept a
- * copy and delete the old one. It is confirmed like any sensitive tool (or allowed in its tool mode). A change
- * that adds or alters shell commands still waits as a proposal, since accepting those needs the owner's
- * fingerprint; accepting it updates the rule in place.
+ * copy and delete the old one. It is confirmed like any sensitive tool (or allowed in its tool mode), and the
+ * confirmation shows the whole new rule. A change to a trigger, to shell commands, or that adds or alters a
+ * sensitive or destructive step waits as a proposal, since accepting those needs the owner's fingerprint;
+ * accepting it updates the rule in place.
  */
 class AutomationUpdateTool(
     private val store: RuleStore,
@@ -341,15 +342,25 @@ class AutomationUpdateTool(
             "automation.update",
             "Change an automation",
             "Changes one of the owner's automations in place: give its id (from automation.list) and the whole new " +
-                "rule, shaped as for automation.propose. Its on/off switch, pin and history stay. A change to shell " +
-                "commands waits for the owner as a proposal instead.",
+                "rule, shaped as for automation.propose. Its on/off switch, pin and history stay. A change to its " +
+                "triggers, to shell commands, or a new sensitive step waits for the owner as a proposal instead.",
             """{"type":"object","properties":{"id":{"type":"string"},$RULE_PROPERTIES},"required":["id","name","triggers"],
             "additionalProperties":false}""",
             RiskTier.SENSITIVE,
         )
 
-    override suspend fun confirmationDetail(call: ToolCall): String? =
-        (call.arguments["id"] as? JsonPrimitive)?.contentOrNull?.let { id -> store.rule(id)?.name ?: id }
+    /** The whole new rule, so the owner sees its triggers and steps rather than only its name. */
+    override suspend fun confirmationDetail(call: ToolCall): String? {
+        val id = (call.arguments["id"] as? JsonPrimitive)?.contentOrNull ?: return null
+        val current = store.rule(id) ?: return id
+        val changed = runCatching { validRule(JsonObject(call.arguments - "id"), id, "", sideload) }.getOrNull() ?: return current.name
+        return buildString {
+            appendLine("${current.name} -> ${changed.name}")
+            changed.triggers.forEach { appendLine("When: ${Describe.trigger(it)}") }
+            if (!changed.constraints.isEmpty) appendLine("If: ${Describe.group(changed.constraints)}")
+            changed.actions.forEach { appendLine("Then: ${Describe.action(it)}") }
+        }.trimEnd()
+    }
 
     override suspend fun execute(
         call: ToolCall,
@@ -360,7 +371,8 @@ class AutomationUpdateTool(
             store.rule(id) ?: throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "No automation $id", "Call automation.list for the ids.")
         val changed = validRule(JsonObject(call.arguments - "id"), id, session.principal, sideload)
         val shellChanged = changed.usesShell() && changed.shellCommands() != current.shellCommands()
-        if (current.pending || !shellChanged) {
+        val reviewed = shellChanged || changed.triggers != current.triggers || needsReview(current, changed)
+        if (current.pending || !reviewed) {
             store.change(id, changed.copy(proposedBy = current.proposedBy))
             val saved = store.rule(id) ?: changed
             if (!current.pending) onChanged(saved, session.principal)
@@ -378,11 +390,32 @@ class AutomationUpdateTool(
             buildJsonObject {
                 put("id", proposal.id)
                 put("status", "pending")
-                put("note", "It changes shell commands, so the owner accepts it on the phone; then it updates $id in place.")
+                put(
+                    "note",
+                    "It changes a trigger, shell commands or a sensitive step, so the owner accepts it on the phone; " +
+                        "then it updates $id in place.",
+                )
             }.toString(),
         )
     }
+
+    /** True when [changed] adds a step, or alters one, whose tier is sensitive or destructive (this includes tool.call). */
+    private fun needsReview(
+        current: Rule,
+        changed: Rule,
+    ): Boolean {
+        val known = current.allSteps().toSet()
+        return changed.allSteps().any { step ->
+            step !in known && (AutomationCatalog.action(step.type)?.tier?.let { it > RiskTier.INTERACT } ?: true)
+        }
+    }
 }
+
+/** Every step of the rule, including the steps inside flow steps. */
+private fun Rule.allSteps(): List<ActionStep> = actions.flatMap { it.flatSteps() }
+
+private fun ActionStep.flatSteps(): List<ActionStep> =
+    listOf(this) + children.flatMap { it.flatSteps() } + elseChildren.flatMap { it.flatSteps() }
 
 /** Parses and checks a rule in the propose shape, or fails with what is wrong. */
 private fun validRule(
