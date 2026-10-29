@@ -23,15 +23,27 @@ class ScreenAddressTest {
     }
 
     @Test
-    fun `an uber screen gives the address, and the point of interest first only when it is a number`() {
+    fun `an uber screen gives its address, and a business name in the point of interest is not added to it`() {
         val uber = mapOf("com.ubercab.driver:id/ub__nav_address_view_address_text" to "1668 Davie St, Vancouver")
         assertEquals("1668 Davie St, Vancouver", ScreenAddress.find { uber[it] })
 
-        val numbered = uber + ("com.ubercab.driver:id/ub__nav_address_view_poi_text" to "2 Main Kitchen")
-        assertEquals("2 Main Kitchen, 1668 Davie St, Vancouver", ScreenAddress.find { numbered[it] })
+        val numbered = uber + ("com.ubercab.driver:id/ub__nav_address_view_poi_text" to "7-Eleven (1668 Davie Street)")
+        assertEquals("1668 Davie St, Vancouver", ScreenAddress.find { numbered[it] })
+    }
 
-        val named = uber + ("com.ubercab.driver:id/ub__nav_address_view_poi_text" to "Basil Pasta Bar")
-        assertEquals("1668 Davie St, Vancouver", ScreenAddress.find { named[it] })
+    @Test
+    fun `a dasher city line that starts with the unit gives the city without it`() {
+        val withUnit =
+            mapOf(
+                "com.doordash.driverapp:id/address_line_1" to "666 1300- Burrard St",
+                "com.doordash.driverapp:id/address_line_2" to "# 1300, Vancouver, BC V6C 2X8, Canada",
+            )
+        assertEquals("666 Burrard St, Vancouver, BC V6C 2X8, Canada", ScreenAddress.find { withUnit[it] })
+    }
+
+    @Test
+    fun `an address range is not taken for a unit`() {
+        assertEquals("100 12-14 Street", ScreenAddress.clean("100 12-14 Street"))
     }
 
     @Test

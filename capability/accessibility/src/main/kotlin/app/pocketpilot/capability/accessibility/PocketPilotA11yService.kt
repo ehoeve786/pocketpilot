@@ -2,10 +2,12 @@ package app.pocketpilot.capability.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * The Accessibility service the owner turns on in system settings. It holds no logic: it hands itself
@@ -21,7 +23,8 @@ class PocketPilotA11yService : AccessibilityService() {
     private val shadeCheck =
         object : Runnable {
             override fun run() {
-                hideButtonsWhileShadeIsDown()
+                // Looking for the shade costs system calls, so it is only done while floating buttons are on screen.
+                if (A11yOverlay.buttonsShown() > 0) hideButtonsWhileShadeIsDown()
                 main.postDelayed(this, SHADE_CHECK_INTERVAL_MS)
             }
         }
@@ -50,8 +53,25 @@ class PocketPilotA11yService : AccessibilityService() {
      */
     private fun shadeIsDown(): Boolean {
         val root = rootInActiveWindow ?: return false
-        if (root.packageName?.toString() != SYSTEM_UI_PACKAGE) return false
-        return SHADE_VIEW_IDS.any { id -> root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser } }
+        try {
+            if (root.packageName?.toString() != SYSTEM_UI_PACKAGE) return false
+            return SHADE_VIEW_IDS.any { id -> anyVisible(root.findAccessibilityNodeInfosByViewId(id)) }
+        } finally {
+            recycle(root)
+        }
+    }
+
+    /** True when any of [nodes] is on screen. Every node is handed back to the system. */
+    private fun anyVisible(nodes: List<AccessibilityNodeInfo>): Boolean {
+        val visible = nodes.any { it.isVisibleToUser }
+        nodes.forEach { recycle(it) }
+        return visible
+    }
+
+    /** Hands a node back to the system. Before Android 13 nodes are pooled and must be recycled; later versions do it themselves. */
+    @Suppress("DEPRECATION")
+    private fun recycle(node: AccessibilityNodeInfo) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) node.recycle()
     }
 
     /** Key presses are only observed, never consumed, so they reach the phone as usual. */
