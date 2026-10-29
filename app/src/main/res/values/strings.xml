@@ -3,6 +3,7 @@
     <string name="app_name">PocketPilot</string>
     <string name="app_shared_rule_unreadable">That file is not a PocketPilot automation.</string>
     <string name="app_shared_rule_invalid">That shared automation does not work on this phone.</string>
+    <string name="app_shared_rule_warnings">Variables this automation reads that this phone does not set: %1$s. Check them before it runs.</string>
     <string name="tab_home">Home</string>
     <string name="tab_ai">AI</string>
     <string name="tab_settings">Settings</string>
