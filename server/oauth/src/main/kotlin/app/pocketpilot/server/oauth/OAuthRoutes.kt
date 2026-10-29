@@ -124,7 +124,7 @@ fun Route.oauthRoutes(
         val form = call.receiveParameters()
         val requestId = form["request"].orEmpty()
         if (server.pair(requestId, form["code"].orEmpty())) {
-            call.respondRedirect("/authorize/wait?request=$requestId", permanent = false)
+            call.respondRedirect("/authorize/wait?request=${java.net.URLEncoder.encode(requestId, "UTF-8")}", permanent = false)
         } else {
             call.respondWaitingOrRedirect(server, requestId, wrongCode = true)
         }
@@ -239,7 +239,12 @@ private suspend fun ApplicationCall.respondOAuthError(e: OAuthException) =
 private suspend fun ApplicationCall.respondHtml(
     html: String,
     status: HttpStatusCode = HttpStatusCode.OK,
-) = respondText(html, ContentType.Text.Html.withParameter("charset", "utf-8"), status)
+) {
+    // The pages need only their own style and a form back to this server. Nothing may frame them (clickjacking).
+    response.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+    response.header("X-Frame-Options", "DENY")
+    respondText(html, ContentType.Text.Html.withParameter("charset", "utf-8"), status)
+}
 
 private fun page(
     title: String,
@@ -280,7 +285,7 @@ private fun waitingPage(
     }
     return page(
         title = "Approve on your phone",
-        head = """<meta http-equiv="refresh" content="2;url=/authorize/wait?request=$id">""",
+        head = """<meta http-equiv="refresh" content="2;url=/authorize/wait?request=${java.net.URLEncoder.encode(id, "UTF-8")}">""",
         body =
             "<h1>Approve on your phone</h1>" +
                 "<p>PocketPilot is asking the phone's owner to approve this connection. Open the notification on the phone, " +

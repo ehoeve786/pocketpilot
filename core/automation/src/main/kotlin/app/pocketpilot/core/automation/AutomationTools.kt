@@ -44,6 +44,9 @@ private fun automationSpec(
     availability = Availability(Phase.P1),
 )
 
+/** Proposals the owner has not answered yet, most any client can make; more than this are refused. */
+private const val MAX_PENDING_PROPOSALS = 20
+
 private fun invalid(message: String): Nothing =
     throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, message, "Call automation.catalog for the types and their settings.")
 
@@ -307,6 +310,13 @@ class AutomationProposeTool(
         call: ToolCall,
         session: Session,
     ): ToolResult {
+        if (store.rules.count { it.pending } >= MAX_PENDING_PROPOSALS) {
+            throw ToolException(
+                ToolErrorCode.RATE_LIMITED,
+                "There are already $MAX_PENDING_PROPOSALS proposals waiting for the owner",
+                "Wait for the owner to accept or decline some before proposing more.",
+            )
+        }
         val rule = validRule(call.arguments, store.newId(), session.principal, sideload)
         store.upsert(rule)
         onProposed(store.rule(rule.id) ?: rule)

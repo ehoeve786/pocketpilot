@@ -89,7 +89,8 @@ class RuleStore(
         val target = proposal.replaces?.let(::rule)
         if (target == null) return upsert(accepted)
         update { data ->
-            val updated = target.changedTo(accepted).copy(enabled = true)
+            // The owner's on or off switch for the rule being replaced stays as it was.
+            val updated = target.changedTo(accepted)
             data.copy(rules = data.rules.filterNot { it.id == proposal.id }.map { if (it.id == target.id) updated else it })
         }
     }

@@ -21,6 +21,9 @@ import kotlinx.serialization.json.longOrNull
  * null when the arguments are acceptable.
  */
 object ArgumentValidator {
+    /** A string argument longer than this is refused before it reaches a tool. */
+    private const val MAX_STRING_LENGTH = 100_000
+
     fun validate(
         schema: JsonObject,
         arguments: JsonObject,
@@ -137,6 +140,13 @@ object ArgumentValidator {
         schema: JsonObject,
         value: JsonElement,
     ): String? {
+        if (value is JsonPrimitive && value.isString && value.content.length > MAX_STRING_LENGTH) {
+            return "Argument '$name' is longer than $MAX_STRING_LENGTH characters"
+        }
+        // An object with its own properties is checked against them too, so an unexpected key inside it is refused.
+        if (value is JsonObject && schema["properties"] != null) {
+            return validate(schema, value)?.let { "'$name': $it" }
+        }
         val types =
             when (val type = schema["type"]) {
                 null -> emptyList()

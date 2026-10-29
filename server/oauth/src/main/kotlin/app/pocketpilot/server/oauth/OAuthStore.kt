@@ -78,7 +78,15 @@ class FileOAuthStore(
 
     override fun load(): OAuthState =
         runCatching { json.decodeFromString(OAuthState.serializer(), file.readText()) }
-            .getOrDefault(OAuthState())
+            .getOrElse {
+                // Every grant is lost until the owner signs clients in again. Say so, rather than resetting quietly.
+                if (file.exists()) {
+                    java.util.logging.Logger
+                        .getLogger("PocketPilot")
+                        .warning("The OAuth store could not be read, so it was reset: $it")
+                }
+                OAuthState()
+            }
 
     override fun save(state: OAuthState) {
         file.parentFile?.mkdirs()

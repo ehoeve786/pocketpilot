@@ -566,7 +566,7 @@ internal object Actions {
                     category = ui,
                     title = "Take a screenshot",
                     description = "Saves the screen as a PNG in Pictures/PocketPilot. Password fields are blacked out.",
-                    tier = RiskTier.READ,
+                    tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Native,
                 ),
                 ActionDef(
@@ -1014,7 +1014,7 @@ internal object Actions {
                     title = "Turn a rule on or off",
                     description = "Enables or disables a rule.",
                     fields = listOf(FieldDef("rule", "Rule", FieldKind.RULE), choiceField("state", "Turn", ON_OFF)),
-                    tier = RiskTier.READ,
+                    tier = RiskTier.INTERACT,
                     kind = ActionKind.Engine,
                     sentence = { p -> "Turn a rule ${p.p("state")}" },
                 ),

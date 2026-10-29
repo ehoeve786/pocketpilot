@@ -206,7 +206,7 @@ class NotifyPostTool(
                     """{"type":"object","properties":{"title":{"type":"string"},"text":{"type":"string"},
                     "tag":{"type":"string"}},"required":["title"],"additionalProperties":false}""",
                 ),
-            riskTier = RiskTier.READ,
+            riskTier = RiskTier.SENSITIVE,
             requiredScopes = setOf(Scope.NOTIFY_ACT),
             availability = Availability(Phase.P1),
         )

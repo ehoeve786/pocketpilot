@@ -40,5 +40,5 @@ object ModelErrors {
     fun network(e: Throwable): ModelEvent.Error =
         ModelEvent.Error(ModelErrorCode.NETWORK, e.message ?: e::class.simpleName ?: "network error")
 
-    private const val MAX_MESSAGE = 500
+    private const val MAX_MESSAGE = 200
 }

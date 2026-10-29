@@ -306,6 +306,6 @@ class PolicyEngine(
         private val SCREEN_SCOPES = setOf(Scope.SCREEN_READ, Scope.UI_INTERACT, Scope.APPS_CONTROL)
 
         /** Ways out of a denied app, allowed even while it is in front. */
-        private val LEAVING_TOOLS = setOf("ui.global_action", "app.launch", "app.open_url")
+        private val LEAVING_TOOLS = setOf("ui.global_action", "app.launch")
     }
 }
