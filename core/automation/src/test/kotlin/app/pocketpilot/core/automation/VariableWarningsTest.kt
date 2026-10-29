@@ -62,7 +62,10 @@ class VariableWarningsTest {
                             items =
                                 listOf(
                                     ConstraintNode.Check(
-                                        ConstraintSpec("variable.compare", mapOf("name" to "run_found", "op" to "equals", "value" to "yes")),
+                                        ConstraintSpec(
+                                            "variable.compare",
+                                            mapOf("name" to "run_found", "op" to "equals", "value" to "yes"),
+                                        ),
                                     ),
                                 ),
                         ),
