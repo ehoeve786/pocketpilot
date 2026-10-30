@@ -194,8 +194,11 @@ private fun ProfileForm(
         when (kind) {
             ProviderKind.OPENAI_COMPATIBLE -> {
                 baseUrl.trim().let { url ->
+                    // Saved keys go only to the kind and host they were saved for, not to a server typed in now.
+                    val sameServer = existing != null && existing.kind == kind && hostOf(existing.baseUrl) == hostOf(url)
+                    val sendSaved = keptKeys > 0 && sameServer
                     (url.startsWith("http://") || url.startsWith("https://")) &&
-                        keyMayBeSentTo(url, if (key.isNotBlank() || keptKeys > 0) key.ifBlank { "saved" } else null) &&
+                        keyMayBeSentTo(url, if (key.isNotBlank() || sendSaved) key.ifBlank { "saved" } else null) &&
                         cleartextMayBeUsed(url, allowCleartext)
                 }
             }
@@ -507,3 +510,5 @@ private const val STEPS_SHOWN = 30
 
 /** The clipboard label for a copied transcript. */
 private const val TRANSCRIPT_LABEL = "PocketPilot transcript"
+
+private fun hostOf(url: String?): String? = url?.let { runCatching { java.net.URI(it.trim()).host }.getOrNull() }

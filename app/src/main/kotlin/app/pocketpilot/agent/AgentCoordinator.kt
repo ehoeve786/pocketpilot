@@ -228,6 +228,15 @@ class AgentCoordinator(
 
     private fun hostOf(url: String?): String? = url?.let { runCatching { java.net.URI(it).host }.getOrNull() }
 
+    /**
+     * The saved keys for [profile] while it still has the kind and host they were saved for. Once the owner has
+     * edited either, the saved keys are not sent anywhere, so listing models cannot leak them to the new host.
+     */
+    private fun keysFor(profile: AgentProfile): List<String> {
+        val saved = profiles.profiles.value.firstOrNull { it.id == profile.id } ?: return emptyList()
+        return if (saved.kind == profile.kind && hostOf(saved.baseUrl) == hostOf(profile.baseUrl)) keys(profile) else emptyList()
+    }
+
     /** A profile's API keys, kept as one secret with one key per line. */
     private fun keys(profile: AgentProfile): List<String> =
         secrets
@@ -246,7 +255,7 @@ class AgentCoordinator(
         scope.launch {
             val result =
                 try {
-                    val models = provider(profile, apiKey ?: keys(profile).firstOrNull()).listModels()
+                    val models = provider(profile, apiKey ?: keysFor(profile).firstOrNull()).listModels()
                     ModelList.Loaded(models.map { ModelOption(it.id, it.displayName) }.sortedBy { it.label.lowercase() })
                 } catch (e: CancellationException) {
                     throw e
