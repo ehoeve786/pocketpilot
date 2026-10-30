@@ -65,6 +65,12 @@ class McpHttpServer(
         if (engine != null) return
         try {
             val chosenRemote = if (remotePort == 0) freePort() else remotePort
+            // A port another app or a second install holds would make the engine fail on a background thread, where the
+            // error cannot be caught here. Checking first reports the problem as the server's state instead.
+            if (!portsFree(port, chosenRemote)) {
+                state.value = ServerState.Failed("Port $port or $chosenRemote is in use. Close the other PocketPilot or app and try again.")
+                return
+            }
             val server =
                 embeddedServer(
                     CIO,
@@ -121,6 +127,17 @@ class McpHttpServer(
         kotlinx.coroutines.runBlocking { engine.resolvedConnectors().map { it.port } }
 
     private fun freePort(): Int = java.net.ServerSocket(0, 1, java.net.InetAddress.getByName(LOOPBACK)).use { it.localPort }
+
+    /** Whether each loopback port can be bound now. Port 0 asks the system for any port, so it always passes. */
+    private fun portsFree(vararg ports: Int): Boolean =
+        ports.all { port ->
+            port == 0 ||
+                runCatching {
+                    java.net.ServerSocket().use { socket ->
+                        socket.bind(java.net.InetSocketAddress(java.net.InetAddress.getByName(LOOPBACK), port))
+                    }
+                }.isSuccess
+        }
 
     companion object {
         const val DEFAULT_PORT = 8765
