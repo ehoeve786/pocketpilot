@@ -186,6 +186,7 @@ class MainActivity : ComponentActivity() {
 
     /** Counts requests from reply notifications to show the Chat tab. */
     private val openChat = mutableIntStateOf(0)
+    private val remoteAccessRequests = mutableIntStateOf(0)
 
     /** A proposal notification asked for the Proposals list. */
     private var openProposals by mutableStateOf(false)
@@ -518,6 +519,7 @@ class MainActivity : ComponentActivity() {
                         openRemoteAccess = {
                             homeOnSettings = true
                             onboarding.setFinished(true)
+                            remoteAccessRequests.intValue++
                         },
                         copyClaudeCodeCommand = {
                             val url = (serverState as? ServerState.Running)?.url ?: DEFAULT_LOCAL_URL
@@ -676,6 +678,7 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         openChat = openChat.intValue,
+                        remoteAccessRequest = remoteAccessRequests.intValue,
                     )
                 }
             }

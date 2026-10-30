@@ -123,6 +123,8 @@ fun HomeScreen(
     onAllowNotifications: () -> Unit = {},
     /** Opens on Settings, for setup's remote access step. */
     startOnSettings: Boolean = false,
+    /** Counts up when a setup step asks for remote access, which opens Settings at that card. */
+    remoteAccessRequest: Int = 0,
     /** The setup steps, which Doctor re-checks with a fix for each. */
     setupSteps: List<SetupStep> = emptyList(),
     onOpenSetup: () -> Unit = {},
@@ -176,6 +178,7 @@ fun HomeScreen(
     LaunchedEffect(openChat) { if (openChat > 0) destination = Destination.CHAT }
     var activityTab by rememberSaveable { mutableIntStateOf(0) }
     var settingsOpen by rememberSaveable { mutableStateOf(startOnSettings) }
+    LaunchedEffect(remoteAccessRequest) { if (remoteAccessRequest > 0) settingsOpen = true }
     var confirmKill by rememberSaveable { mutableStateOf(false) }
     val tiers = remember(tools) { tools.associate { it.name to it.riskTier } }
 
@@ -222,6 +225,7 @@ fun HomeScreen(
             onBack = { settingsOpen = false },
             modifier = modifier,
             ownNetworkCard = ownNetworkCard,
+            remoteAccessRequest = remoteAccessRequest,
         )
         return
     }
