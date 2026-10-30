@@ -25,13 +25,18 @@ class AppPolicy(
     /** True for PocketPilot's own packages, whose screens (such as the confirmation) are not the owner's apps. */
     fun isOwn(packageName: String): Boolean = packageName in ownPackages
 
+    /** PocketPilot's own packages are denied whatever an override says: its approval screens must not be driven. */
     fun modeFor(packageName: String): AppMode =
-        overrides()[packageName]
-            ?: when {
-                packageName in ownPackages -> AppMode.DENY
-                packageName in DEFAULT_DENY -> AppMode.DENY
-                else -> AppMode.ALLOW
+        when {
+            packageName in ownPackages -> {
+                AppMode.DENY
             }
+
+            else -> {
+                overrides()[packageName]
+                    ?: if (packageName in DEFAULT_DENY) AppMode.DENY else AppMode.ALLOW
+            }
+        }
 
     companion object {
         /**

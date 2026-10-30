@@ -14,7 +14,8 @@ data class RelayTarget(
 
     private companion object {
         val DOMAIN = Regex("[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+")
-        val IPV4 = Regex("(\\d{1,3}\\.){3}\\d{1,3}")
+        private const val OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)"
+        val IPV4 = Regex("$OCTET(\\.$OCTET){3}")
         const val MAX_PORT = 65535
     }
 }
