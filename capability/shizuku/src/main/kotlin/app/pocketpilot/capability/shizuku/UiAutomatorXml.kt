@@ -8,7 +8,8 @@ import app.pocketpilot.capability.api.screen.RawNode
  * and machine-written, so a small tag scanner is enough and keeps this testable without Android.
  */
 internal object UiAutomatorXml {
-    private val TAG = Regex("""<(/?)(node|hierarchy)\b([^>]*?)(/?)>""")
+    // Attribute values are quoted, so a ">" inside one does not end the tag.
+    private val TAG = Regex("""<(/?)(node|hierarchy)\b((?:[^>"]|"[^"]*")*?)(/?)>""")
     private val ATTRIBUTE = Regex("""([\w-]+)="([^"]*)"""")
     private val BOUNDS = Regex("""\[(-?\d+),(-?\d+)]\[(-?\d+),(-?\d+)]""")
 
@@ -83,10 +84,12 @@ internal object UiAutomatorXml {
                 }
 
                 else -> {
-                    entity
-                        .removePrefix("#")
-                        .let { if (it.startsWith("x")) it.drop(1).toInt(16) else it.toInt() }
-                        .let { String(Character.toChars(it)) }
+                    // A number outside the Unicode range, or too big to read, is left as written rather than thrown.
+                    val code =
+                        entity
+                            .removePrefix("#")
+                            .let { if (it.startsWith("x")) it.drop(1).toIntOrNull(16) else it.toIntOrNull() }
+                    if (code != null && Character.isValidCodePoint(code)) String(Character.toChars(code)) else match.value
                 }
             }
         }

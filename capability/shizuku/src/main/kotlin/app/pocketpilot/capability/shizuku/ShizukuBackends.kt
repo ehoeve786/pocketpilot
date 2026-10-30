@@ -115,14 +115,22 @@ class ShizukuScreenReader(
         return ForegroundApp(component.substringBefore('/'), component.substringAfter('/'))
     }
 
-    /** No event stream here: a short fixed pause stands in for "the screen went quiet". */
+    /** Waits until the UI dump is the same across a [quietMs] pause, which is what "the screen went quiet" means here. */
     override suspend fun awaitIdle(
         quietMs: Long,
         timeoutMs: Long,
-    ): Boolean {
-        delay(quietMs.coerceAtMost(timeoutMs))
-        return true
-    }
+    ): Boolean =
+        withTimeoutOrNull(timeoutMs) {
+            var last = dump().hashCode()
+            var stable = false
+            while (!stable) {
+                delay(quietMs.coerceAtLeast(1L))
+                val now = dump().hashCode()
+                stable = now == last
+                last = now
+            }
+            true
+        } ?: false
 
     /** Polls the UI dump until it differs from the one at the start. */
     override suspend fun awaitChange(timeoutMs: Long): Boolean {
@@ -164,7 +172,7 @@ class ShizukuInputController(
     private val reader: ShizukuScreenReader,
     scope: CoroutineScope,
     /** The screen in pixels, so a tap or swipe off the edge is refused rather than sent. */
-    private val screen: () -> ScreenSize = { ScreenSize(Int.MAX_VALUE, Int.MAX_VALUE) },
+    private val screen: () -> ScreenSize,
 ) : InputController {
     override val backendId: String = BackendIds.SHIZUKU
     override val available: StateFlow<Boolean> = shizuku.availability(scope)
@@ -225,10 +233,18 @@ class ShizukuInputController(
         }
         if (target != null) {
             val existing = reader.element(target).text?.length ?: 0
+            // Refused up front: deleting only part of a longer field would keep its tail and still type the new text.
+            if (existing > MAX_DELETE) {
+                throw ToolException(
+                    ToolErrorCode.INVALID_ARGUMENTS,
+                    "That field holds $existing characters; Shizuku can replace up to $MAX_DELETE",
+                    "Clear it in smaller steps, or turn on PocketPilot's Accessibility service, which replaces any length",
+                )
+            }
             tap(target)
             delay(FOCUS_SETTLE_MS)
             if (existing > 0) {
-                val deletes = IntArray(existing.coerceAtMost(MAX_DELETE)) { KEYCODE_DEL }
+                val deletes = IntArray(existing) { KEYCODE_DEL }
                 shizuku.call { it.keyEvents(intArrayOf(KEYCODE_MOVE_END) + deletes) }
             }
         }
@@ -316,6 +332,18 @@ class ShizukuScreenCapturer(
 /** LAUNCH_APPS second backend: `monkey` and `am start` as the shell user, allowed from the background. */
 private val OPEN_URL_SCHEMES = setOf("http", "https", "mailto", "tel")
 
+/** How much of an `am` reply to quote back in an error. */
+private const val MAX_AM_REPLY = 200
+
+/**
+ * Whether `dumpsys package` output has the package's own header. The header starts its line, with the name in
+ * brackets, so a longer or shorter package name cannot match it.
+ */
+private fun isInstalledIn(
+    dump: String,
+    packageName: String,
+): Boolean = Regex("(?m)^\\s*Package \\[${Regex.escape(packageName)}]").containsMatchIn(dump)
+
 class ShizukuAppController(
     private val shizuku: ShizukuConnection,
     scope: CoroutineScope,
@@ -343,10 +371,11 @@ class ShizukuAppController(
             )
         }
         val result = shizuku.call { it.openUrl(url, packageName.orEmpty()) }
-        if (result.contains("unable to resolve Intent") || result.startsWith("Error")) {
+        // am prints "Starting: Intent {...}" when it launches; any other wording, such as an error, is a failure.
+        if (!result.lineSequence().any { it.trimStart().startsWith("Starting: Intent") }) {
             throw ToolException(
                 ToolErrorCode.ELEMENT_NOT_FOUND,
-                "${packageName ?: "No app"} cannot open that link",
+                "${packageName ?: "No app"} cannot open that link: ${result.trim().take(MAX_AM_REPLY)}",
                 "Check the package with app.list, or leave package out to use the default browser",
             )
         }
@@ -388,7 +417,7 @@ class ShizukuAppAdmin(
     override suspend fun permissions(packageName: String): AppPermissions {
         AppAdminArgs.checkPackage(packageName)
         val dump = shizuku.call { it.dumpPackage(packageName) }
-        if (!dump.contains("Package [$packageName]")) {
+        if (!isInstalledIn(dump, packageName)) {
             throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "$packageName is not installed", "Find the package with app.list")
         }
         val ops = shizuku.call { it.appOps(packageName) }
@@ -434,7 +463,7 @@ class ShizukuAppAdmin(
     override suspend fun activities(packageName: String): List<ActivityEntry> {
         AppAdminArgs.checkPackage(packageName)
         val dump = shizuku.call { it.dumpPackage(packageName) }
-        if (!dump.contains("Package [$packageName]")) {
+        if (!isInstalledIn(dump, packageName)) {
             throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "$packageName is not installed", "Find the package with app.list")
         }
         return AppAdminParsers.activities(dump, packageName)

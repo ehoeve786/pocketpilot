@@ -61,4 +61,13 @@ class ParsersTest {
         assertEquals("com.android.settings/com.android.settings.SubSettings", ForegroundParser.parse(dump))
         assertNull(ForegroundParser.parse("nothing here"))
     }
+
+    @Test
+    fun `a greater-than sign inside a quoted attribute does not end the tag, and a bad entity is kept as written`() {
+        val xml =
+            """<hierarchy><node text="a > b &#x110000; &#99999999999;" class="android.widget.TextView" bounds="[0,0][10,10]" /></hierarchy>"""
+        val nodes = UiAutomatorXml.parse(xml)
+        assertEquals(1, nodes.size)
+        assertEquals("a > b &#x110000; &#99999999999;", nodes[0].text)
+    }
 }
