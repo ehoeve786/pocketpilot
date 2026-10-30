@@ -66,6 +66,7 @@ import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
 import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.core.automation.byCategory
+import app.pocketpilot.core.automation.withoutCredentialParams
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.core.designsystem.R as DsR
 
@@ -128,7 +129,8 @@ class AutomationsActions(
 
 private val RuleSaver =
     Saver<Rule?, String>(
-        save = { rule -> rule?.let { AutomationJson.json.encodeToString(Rule.serializer(), it) } ?: "" },
+        // Saved state can be written to disk by the system, so typed credential values are left out of it.
+        save = { rule -> rule?.let { AutomationJson.json.encodeToString(Rule.serializer(), it.withoutCredentialParams()) } ?: "" },
         restore = { text -> text.takeIf { it.isNotEmpty() }?.let { AutomationJson.json.decodeFromString(Rule.serializer(), it) } },
     )
 

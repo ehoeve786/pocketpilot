@@ -20,6 +20,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.view.KeyEvent
 import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
+import app.pocketpilot.agent.providers.api.cleartextMayBeUsed
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.accessibility.A11yOverlay
 import app.pocketpilot.capability.api.files.FileStore
@@ -56,6 +57,8 @@ import app.pocketpilot.core.policy.Confirmer
 import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
@@ -93,9 +96,13 @@ class AndroidAutomationHost(
     private val imagePipeline: ImagePipeline,
     private val confirmer: Confirmer,
     override val sideload: Boolean,
+    private val clock: Clock = Clock.System,
 ) : AutomationHost {
-    private val ids = UlidGenerator(Clock.System)
+    private val ids = UlidGenerator(clock)
     private var tts: TextToSpeech? = null
+
+    /** One speech at a time: a second speak step waits for the first, so each one gets its own listener and finishes. */
+    private val speechLock = Mutex()
 
     override suspend fun callTool(
         session: Session,
@@ -127,7 +134,7 @@ class AndroidAutomationHost(
                 kind = SessionKind.AUTOMATION,
                 principal = "Automation: ${rule.name}",
                 grantedScopes = Scope.KNOWN - setOf(Scope.TERMUX_RUN) - if (shellOn()) emptySet() else setOf(Scope.SHELL_EXEC),
-                createdAtMillis = System.currentTimeMillis(),
+                createdAtMillis = clock.nowMillis(),
             )
         // An outside event can fire the rule from any sender, so nothing the owner approved with the rule is
         // pre-approved for it: its fixed shell commands ask like everything else.
@@ -293,7 +300,9 @@ class AndroidAutomationHost(
      */
     private suspend fun readScreen(): Map<String, String> {
         val snapshot = screen.snapshot(SnapshotOptions(appOnly = true))
-        if (snapshot.packageName == null) throw AutomationFailure("No app is in front to read")
+        val packageName = snapshot.packageName ?: throw AutomationFailure("No app is in front to read")
+        // As the other screen steps do: nothing is read from a hidden app, such as a bank.
+        if (hidden(packageName)) throw AutomationFailure("The app in front is kept out of rules")
         val values = LinkedHashMap<String, String>()
         snapshot.elements.forEachIndexed { index, element ->
             if (element.role == Role.WINDOW) return@forEachIndexed
@@ -358,8 +367,8 @@ class AndroidAutomationHost(
         text: String,
         stream: String,
         volume: String?,
-    ) {
-        if (text.isBlank()) return
+    ) = speechLock.withLock {
+        if (text.isBlank()) return@withLock
         // The utterance's volume scales within the stream's own level, so it can lower the speech but not raise it.
         val level = (volume?.toFloatOrNull() ?: SPEAK_FULL_VOLUME).coerceIn(0f, SPEAK_FULL_VOLUME) / SPEAK_FULL_VOLUME
         val engine = tts ?: startTts().also { tts = it }
@@ -477,6 +486,8 @@ class AndroidAutomationHost(
         withContext(Dispatchers.IO) {
             val url = params["url"].orEmpty().trim()
             if (!url.startsWith("https://") && !url.startsWith("http://")) throw AutomationFailure("The URL must start with https://")
+            // Plain http is only for this phone, or the owner's own profiles; a rule's request would send its data in the clear.
+            if (!cleartextMayBeUsed(url, allowedByOwner = false)) throw AutomationFailure("Use https for $url; plain http is refused")
             val connection = URL(url).openConnection() as HttpURLConnection
             try {
                 connection.requestMethod = params["method"].orEmpty().ifBlank { "GET" }.uppercase()

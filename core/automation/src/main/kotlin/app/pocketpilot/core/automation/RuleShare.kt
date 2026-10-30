@@ -62,6 +62,9 @@ private fun withoutCredentials(steps: List<ActionStep>): List<ActionStep> =
         )
     }
 
+/** The rule with every credential-named setting removed, for places that save a rule outside the store. */
+fun Rule.withoutCredentialParams(): Rule = copy(actions = withoutCredentials(actions))
+
 /**
  * The rule in a shared file's [json], as a disabled proposal from [SHARED_RULE_PROPOSER] with the id from
  * [newId]. Returns null when the file is not a rule.

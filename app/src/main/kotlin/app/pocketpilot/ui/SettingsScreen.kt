@@ -280,6 +280,7 @@ private fun TokenCard(
     onRotateToken: () -> Unit,
 ) {
     var visible by rememberSaveable { mutableStateOf(false) }
+    var confirmRotate by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -294,12 +295,29 @@ private fun TokenCard(
                     Text(stringResource(if (visible) R.string.token_hide else R.string.token_show))
                 }
                 TextButton(onClick = { copySecret(context, token) }) { Text(stringResource(R.string.token_copy)) }
-                TextButton(onClick = onRotateToken) { Text(stringResource(R.string.token_rotate)) }
+                TextButton(onClick = { confirmRotate = true }) { Text(stringResource(R.string.token_rotate)) }
             }
             Text(stringResource(R.string.event_key_title), style = MaterialTheme.typography.titleSmall)
             Text(stringResource(R.string.event_key_explainer), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { copySecret(context, eventKey) }) { Text(stringResource(R.string.event_key_copy)) }
         }
+    }
+    if (confirmRotate) {
+        // Every app that uses the token stops connecting until it is given the new one.
+        AlertDialog(
+            onDismissRequest = { confirmRotate = false },
+            title = { Text(stringResource(R.string.token_rotate_title)) },
+            text = { Text(stringResource(R.string.token_rotate_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRotate = false
+                    onRotateToken()
+                }) { Text(stringResource(R.string.token_rotate), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRotate = false }) { Text(stringResource(R.string.nav_cancel)) }
+            },
+        )
     }
 }
 

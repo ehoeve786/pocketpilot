@@ -106,8 +106,10 @@ class GeminiProvider(
         flow {
             val events =
                 try {
+                    val model = request.model.removePrefix("models/")
+                    require(MODEL_NAME.matches(model)) { "Not a Gemini model name: $model" }
                     val response =
-                        http.post("$baseUrl/v1beta/models/${request.model.removePrefix("models/")}:generateContent") {
+                        http.post("$baseUrl/v1beta/models/$model:generateContent") {
                             expectSuccess = false
                             header(API_KEY_HEADER, apiKey)
                             setBody(TextContent(requestBody(request).toString(), ContentType.Application.Json))
@@ -284,6 +286,9 @@ class GeminiProvider(
 
     private companion object {
         const val API_KEY_HEADER = "x-goog-api-key"
+
+        // A model name is one path segment, so a "/" or "?" in it cannot change the URL.
+        val MODEL_NAME = Regex("[A-Za-z0-9._-]+")
         const val PAGE_SIZE = 1000
         const val MAX_MODEL_PAGES = 50
         const val MAX_ERROR_BODY = 500
