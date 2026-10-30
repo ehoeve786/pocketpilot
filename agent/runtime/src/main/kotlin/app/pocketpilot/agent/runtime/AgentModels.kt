@@ -58,6 +58,8 @@ data class AgentTask(
      * ending. Automations run one-shot tasks.
      */
     val conversation: Boolean = false,
+    /** Lines written into the run's log before its first step, such as a fallback model that was left out. */
+    val notes: List<String> = emptyList(),
 )
 
 @Serializable

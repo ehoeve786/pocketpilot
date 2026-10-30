@@ -194,6 +194,16 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `notes given with a task are written into the run log before its first step`() =
+        runTest {
+            val provider = ScriptedProvider(say("Done"))
+            val task = AgentTask("Hello", scopes, notes = listOf("Skipped the fallback Groq: its settings cannot be used."))
+            val end = runner().start(task, RunModel(provider, "fake-1"), AgentBudgets(), backgroundScope).finished()
+
+            assertEquals("Skipped the fallback Groq: its settings cannot be used.", end.steps.first().note)
+        }
+
+    @Test
     fun `a call the provider refuses for an unloaded tool makes the model load it and ask again`() =
         runTest {
             val refused =

@@ -201,6 +201,7 @@ class AgentRun internal constructor(
     }
 
     private suspend fun run() {
+        task.notes.forEach(::note)
         messages += Message(Role.USER, firstParts(task.goal))
         while (true) {
             val (status, outcome) = turn()

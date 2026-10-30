@@ -217,8 +217,11 @@ class AndroidAutomationHost(
             ),
         ) == ConfirmationAnswer.APPROVED
 
-    override suspend fun askAgent(prompt: String): AgentOutcome {
-        val run = agent().runForAutomation(prompt) ?: return AgentOutcome(NO_AGENT, costUsd = 0.0, ok = false)
+    override suspend fun askAgent(
+        prompt: String,
+        fromOutside: Boolean,
+    ): AgentOutcome {
+        val run = agent().runForAutomation(prompt, fromOutside) ?: return AgentOutcome(NO_AGENT, costUsd = 0.0, ok = false)
         return AgentOutcome(
             summary = run.outcome ?: run.status.name.lowercase(),
             costUsd = run.costUsd,
