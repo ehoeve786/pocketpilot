@@ -143,8 +143,8 @@ object ArgumentValidator {
         if (value is JsonPrimitive && value.isString && value.content.length > MAX_STRING_LENGTH) {
             return "Argument '$name' is longer than $MAX_STRING_LENGTH characters"
         }
-        // An object with its own properties is checked against them too, so an unexpected key inside it is refused.
-        if (value is JsonObject && schema["properties"] != null) {
+        // An object with its own properties, or one that refuses extra keys, is checked here, so an unexpected key inside it is refused.
+        if (value is JsonObject && (schema["properties"] != null || schema["additionalProperties"] == JsonPrimitive(false))) {
             return validate(schema, value)?.let { "'$name': $it" }
         }
         val types =

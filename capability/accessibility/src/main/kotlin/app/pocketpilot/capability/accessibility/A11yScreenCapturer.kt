@@ -14,6 +14,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 /** CAPTURE_SCREEN, third backend in spec section 6: the Accessibility screenshot API (Android 11+). */
 class A11yScreenCapturer : ScreenCapturer {
@@ -69,10 +70,14 @@ class A11yScreenCapturer : ScreenCapturer {
                                 val hardware = Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace)
                                 val software = hardware?.copy(Bitmap.Config.ARGB_8888, false)
                                 hardware?.recycle()
-                                software?.let { bitmap ->
+                                software?.let { full ->
+                                    // Scaled down before the pixels are copied out, so the long-lived array is the small one.
+                                    val bitmap = fitWithin(full, MAX_EDGE_PX)
                                     val pixels = IntArray(bitmap.width * bitmap.height)
                                     bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-                                    Frame(bitmap.width, bitmap.height, pixels).also { bitmap.recycle() }
+                                    if (bitmap !== full) bitmap.recycle()
+                                    full.recycle()
+                                    Frame(bitmap.width, bitmap.height, pixels)
                                 }
                             }
                         continuation.resume(frame?.let(Shot::Taken) ?: Shot.Failed(-1))
@@ -83,8 +88,25 @@ class A11yScreenCapturer : ScreenCapturer {
             )
         }
 
+    /** The bitmap scaled so its longer edge is at most [maxEdge] pixels; the same bitmap when it already fits. */
+    private fun fitWithin(
+        bitmap: Bitmap,
+        maxEdge: Int,
+    ): Bitmap {
+        val longer = maxOf(bitmap.width, bitmap.height)
+        if (longer <= maxEdge) return bitmap
+        val scale = maxEdge.toFloat() / longer
+        return Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).roundToInt().coerceAtLeast(1),
+            (bitmap.height * scale).roundToInt().coerceAtLeast(1),
+            true,
+        )
+    }
+
     private companion object {
         const val RETRY_DELAY_MS = 400L
+        const val MAX_EDGE_PX = 1_600
 
         // One shared thread: every capturer, and every screenshot, runs in order instead of each leaving a thread behind.
         val screenshotExecutor: Executor = Executors.newSingleThreadExecutor()

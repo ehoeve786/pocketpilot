@@ -357,7 +357,8 @@ class MainActivity : ComponentActivity() {
             OwnNetworkActions(
                 saveCertificate = certificates::configure,
                 requestCertificate = certificates::request,
-                setFollowRelay = certificates::setFollowRelay,
+                // Following the DNS record changes how the phone is reached, so turning it on needs the owner.
+                setFollowRelay = { on -> if (on) withOwner { certificates.setFollowRelay(true) } else certificates.setFollowRelay(false) },
                 configureWireGuard = wireGuard::configure,
                 setWireGuard = { on -> if (on) startNetwork(wireGuard::start) else wireGuard.stop() },
                 forgetWireGuard = wireGuard::logout,
