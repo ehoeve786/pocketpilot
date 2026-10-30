@@ -60,6 +60,9 @@ class WireGuardProvider(
 
     private var poller: Job? = null
 
+    /** The stop of the tunnel that [pause] began; a start waits for it, so the two cannot interleave. */
+    private var stopping: Job? = null
+
     init {
         // Deriving the public key loads the Go library, so it stays off the thread that builds this.
         scope.launch(Dispatchers.IO) {
@@ -96,6 +99,7 @@ class WireGuardProvider(
         mutableState.value = NetworkState.Connecting
         poller =
             scope.launch(Dispatchers.IO) {
+                stopping?.join()
                 try {
                     tunnel().start(config)
                 } catch (e: Throwable) {
@@ -129,7 +133,7 @@ class WireGuardProvider(
     fun pause() {
         poller?.cancel()
         poller = null
-        scope.launch(Dispatchers.IO) { runCatching { createdTunnel?.stop() } }
+        stopping = scope.launch(Dispatchers.IO) { runCatching { createdTunnel?.stop() } }
         mutableState.value = NetworkState.Stopped
     }
 

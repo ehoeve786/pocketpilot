@@ -37,7 +37,7 @@ object Templates {
             ),
             Rule(
                 id = "template-read-aloud",
-                name = "Read messages aloud in the car",
+                name = "Read messages aloud in the car (speaks their text out loud)",
                 triggers = listOf(TriggerSpec("notification.posted", mapOf("apps" to "com.whatsapp,com.google.android.apps.messaging"))),
                 constraints = ConstraintGroup.of(ConstraintSpec("bluetooth.connected", mapOf("name" to "Car"))),
                 actions = listOf(ActionStep("speak", mapOf("text" to "{trigger.title} says {trigger.text}"))),

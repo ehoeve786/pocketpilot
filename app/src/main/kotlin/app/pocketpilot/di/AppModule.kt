@@ -295,7 +295,8 @@ object AppModule {
     @Singleton
     fun screenshotLock(
         @ApplicationContext context: Context,
-    ): ScreenshotLock = ScreenshotLock(context)
+        secrets: SecretStore,
+    ): ScreenshotLock = ScreenshotLock(context, secrets)
 
     /**
      * Permissions, app ops, package state, intents and read-only adb commands through fixed Shizuku

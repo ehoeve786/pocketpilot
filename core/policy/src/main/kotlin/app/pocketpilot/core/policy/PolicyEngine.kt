@@ -239,7 +239,9 @@ class PolicyEngine(
     /**
      * Treats [tools] as already confirmed for session [id] whatever their detail, for sessions the owner
      * started on the phone itself. Only sensitive tools are affected; destructive ones are confirmed on
-     * every call regardless.
+     * every call regardless. The approval covers every detail, including a path or address that a rule's
+     * placeholder fills in at run time: a rule that deletes a placeholder path has every path approved for the
+     * session. Use [preConfirmDetails] to approve only the exact details a rule names.
      */
     @Synchronized
     fun preConfirm(

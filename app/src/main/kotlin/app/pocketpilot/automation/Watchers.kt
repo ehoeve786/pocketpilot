@@ -318,10 +318,16 @@ class LogWatcher(
                 while (isActive) {
                     delay(POLL_MS)
                     if (!reader.available.value) continue
+                    // Only the buffers the rules need: the system buffer holds most of the phone's personal log text.
+                    val buffers = listOfNotNull("main".takeIf { texts.isNotEmpty() }, "crash".takeIf { this@LogWatcher.crashes })
                     val result =
                         runCatching {
                             val start = String.format(Locale.ROOT, "%.3f", since / 1000.0)
-                            reader.read(listOf("logcat", "-d", "-v", "epoch", "-T", start, "-b", "main,system,crash"), filter(), TIMEOUT_MS)
+                            reader.read(
+                                listOf("logcat", "-d", "-v", "epoch", "-T", start, "-b", buffers.joinToString(",")),
+                                filter(),
+                                TIMEOUT_MS,
+                            )
                         }.getOrNull() ?: continue
                     result.stdout.lineSequence().forEach { line ->
                         val parsed = LINE.find(line) ?: return@forEach

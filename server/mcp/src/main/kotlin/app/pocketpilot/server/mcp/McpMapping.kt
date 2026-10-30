@@ -1,6 +1,7 @@
 package app.pocketpilot.server.mcp
 
 import app.pocketpilot.core.model.ContentPart
+import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
@@ -28,7 +29,7 @@ internal fun ToolSpec.toMcpTool(): Tool =
             ToolAnnotations(
                 title = title,
                 readOnlyHint = annotations.readOnly,
-                destructiveHint = annotations.destructive,
+                destructiveHint = annotations.destructive || riskTier == RiskTier.DESTRUCTIVE,
                 idempotentHint = annotations.idempotent,
                 openWorldHint = annotations.openWorld,
             ),

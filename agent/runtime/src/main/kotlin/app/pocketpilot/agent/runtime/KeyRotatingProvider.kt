@@ -97,7 +97,11 @@ class KeyRotatingProvider(
             last?.let { emit(it) }
         }
 
-    /** Leaves [index] alone for as long as its error calls for. */
+    /**
+     * Leaves [index] alone for as long as its error calls for. A key refused for authentication stays refused until
+     * the provider is rebuilt, which happens when the owner saves the key again; a key that was only briefly
+     * invalid does not come back on its own.
+     */
     private fun cool(
         index: Int,
         failure: ModelEvent.Error,
