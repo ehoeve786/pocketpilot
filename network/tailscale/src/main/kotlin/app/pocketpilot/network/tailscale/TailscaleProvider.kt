@@ -65,7 +65,10 @@ class TailscaleProvider(
     @Synchronized
     override fun start() {
         prefs.edit().putBoolean(KEY_ENABLED, true).apply()
-        if (poller?.isActive == true) return
+        // The poller outlives a node that stopped, so it only keeps a start that is already connecting or connected.
+        val starting = state.value.let { it is NetworkState.Connecting || it is NetworkState.Connected || it is NetworkState.NeedsAuth }
+        if (poller?.isActive == true && starting) return
+        poller?.cancel()
         autoOff.restart(System.currentTimeMillis())
         mutableState.value = NetworkState.Connecting
         poller =

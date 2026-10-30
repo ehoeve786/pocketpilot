@@ -26,11 +26,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -51,6 +51,8 @@ import app.pocketpilot.feature.clients.ClientsCard
 import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlin.math.roundToInt
 import app.pocketpilot.core.designsystem.R as DsR
 
@@ -108,9 +110,13 @@ internal fun SettingsScreen(
     remoteAccessRequest: Int = 0,
 ) {
     val scroll = rememberScrollState()
-    var remoteCardTop by remember { mutableFloatStateOf(0f) }
+    // Null until the card has been laid out, so a request made as Settings opens waits for the measured position.
+    var remoteCardTop by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(remoteAccessRequest) {
-        if (remoteAccessRequest > 0) scroll.animateScrollTo(remoteCardTop.roundToInt())
+        if (remoteAccessRequest > 0) {
+            val top = snapshotFlow { remoteCardTop }.filterNotNull().first()
+            scroll.animateScrollTo(top.roundToInt())
+        }
     }
     Scaffold(
         modifier = modifier.fillMaxSize(),
