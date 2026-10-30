@@ -1,6 +1,7 @@
 package app.pocketpilot.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,12 +24,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -45,6 +51,7 @@ import app.pocketpilot.feature.clients.ClientsCard
 import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
+import kotlin.math.roundToInt
 import app.pocketpilot.core.designsystem.R as DsR
 
 /** What the Settings screen shows. */
@@ -97,7 +104,14 @@ internal fun SettingsScreen(
     modifier: Modifier = Modifier,
     /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
+    /** Counts up each time a setup step asks for remote access; the screen scrolls to that card. */
+    remoteAccessRequest: Int = 0,
 ) {
+    val scroll = rememberScrollState()
+    var remoteCardTop by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(remoteAccessRequest) {
+        if (remoteAccessRequest > 0) scroll.animateScrollTo(remoteCardTop.roundToInt())
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -118,7 +132,7 @@ internal fun SettingsScreen(
             modifier =
                 Modifier
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -126,16 +140,18 @@ internal fun SettingsScreen(
                 Text(stringResource(R.string.settings_secrets_lost), style = MaterialTheme.typography.bodyMedium)
             }
             AccessibilityCard(state.accessibilityOn, actions.onOpenAccessibilitySettings, actions.onOpenAppInfo)
-            RemoteAccessCard(
-                state = state.remoteState,
-                public = state.publicState,
-                onTurnOn = actions.remoteActions.turnOn,
-                onTurnOff = actions.remoteActions.turnOff,
-                onSignIn = actions.remoteActions.signIn,
-                onSignOut = actions.remoteActions.signOut,
-                onPublicChange = actions.remoteActions.setPublic,
-                logs = actions.remoteActions.logs,
-            )
+            Box(Modifier.onGloballyPositioned { remoteCardTop = it.positionInParent().y }) {
+                RemoteAccessCard(
+                    state = state.remoteState,
+                    public = state.publicState,
+                    onTurnOn = actions.remoteActions.turnOn,
+                    onTurnOff = actions.remoteActions.turnOff,
+                    onSignIn = actions.remoteActions.signIn,
+                    onSignOut = actions.remoteActions.signOut,
+                    onPublicChange = actions.remoteActions.setPublic,
+                    logs = actions.remoteActions.logs,
+                )
+            }
             ownNetworkCard()
             // Revokes every client and stops the tunnel, so it asks first, as the Home screen's kill switch does.
             var confirmKill by rememberSaveable { mutableStateOf(false) }

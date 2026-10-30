@@ -97,6 +97,18 @@ class McpHttpServerTest {
     }
 
     @Test
+    fun `a port another app holds is reported as a failed start, not a crash`() {
+        val registry = ToolRegistry(setOf(DeviceInfoTool { deviceInfo }), PolicyProfile.OSS)
+        val factory = McpServerFactory(registry, CallDispatcher(registry, audit, allowingPolicy()), appVersion = "0.1.0-test")
+        val second = McpHttpServer(factory, SessionFactory(), localToken = { token })
+        java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1")).use { busy ->
+            second.start(port = busy.localPort, remotePort = 0)
+        }
+        assertIs<ServerState.Failed>(second.serverState.value)
+        second.stop()
+    }
+
+    @Test
     fun `binds to loopback only`() {
         assertTrue(url.startsWith("http://127.0.0.1:"))
     }
