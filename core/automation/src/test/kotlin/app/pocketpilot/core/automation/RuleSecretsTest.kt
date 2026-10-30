@@ -86,6 +86,54 @@ class RuleSecretsTest {
     }
 
     @Test
+    fun `a secret-named variable is kept in the vault, not the rules file`() {
+        val disk = Disk()
+        val vault = Vault()
+        val store = RuleStore(disk, secrets = vault)
+        store.setVariable("apiToken", "tok-987")
+        assertFalse(disk.text!!.contains("tok-987"))
+        assertEquals("tok-987", store.data.value.variables["apiToken"])
+        assertEquals("tok-987", RuleStore(disk, secrets = vault).data.value.variables["apiToken"])
+        store.setVariable("apiToken", null)
+        assertTrue(vault.values.isEmpty())
+    }
+
+    @Test
+    fun `a secret-named variable of a rule is kept in the vault too`() {
+        val disk = Disk()
+        val store = RuleStore(disk, secrets = Vault())
+        store.upsert(rule("Accept: text/plain").copy(variables = mapOf("password" to "pw-555", "city" to "Oslo")))
+        assertFalse(disk.text!!.contains("pw-555"))
+        assertTrue(disk.text!!.contains("Oslo"))
+        assertEquals("pw-555", store.rule("r1")!!.variables["password"])
+    }
+
+    @Test
+    fun `run history keeps no secret-named variable`() {
+        val disk = Disk()
+        val store = RuleStore(disk, secrets = Vault())
+        store.addRun(
+            RunRecord(
+                id = "run1",
+                ruleId = "r1",
+                ruleName = "Send",
+                reason = "Test run",
+                startedAtMillis = 1L,
+                endedAtMillis = 2L,
+                outcome = RunOutcome.OK,
+                variables = mapOf("authToken" to "tok-111", "count" to "3"),
+            ),
+        )
+        assertEquals(
+            mapOf("count" to "3"),
+            store.data.value.runs
+                .single()
+                .variables,
+        )
+        assertFalse(disk.text!!.contains("tok-111"))
+    }
+
+    @Test
     fun `without a vault the value stays in the file, as a plain store keeps it`() {
         val disk = Disk()
         RuleStore(disk).upsert(rule("Authorization: Bearer abc123"))

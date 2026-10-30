@@ -22,7 +22,8 @@ fun Rule.shareText(): String =
         if (runAs == RunMode.AGENT) {
             appendLine("- Agent task: $agentPrompt")
         } else {
-            actions.forEachIndexed { i, step -> appendLine("${i + 1}. ${Describe.action(step)}") }
+            // The message goes to whichever app the owner picks, so credential values are left out of it too.
+            withoutCredentials(actions).forEachIndexed { i, step -> appendLine("${i + 1}. ${Describe.action(step)}") }
         }
     }.trimEnd()
 
