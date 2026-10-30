@@ -43,7 +43,8 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
           test -n "$KEYSTORE_BASE64" || { echo "::error::RELEASE_KEYSTORE_BASE64 is not set"; exit 1; }
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # Pasting from a phone can add line breaks or spaces, which base64 rejects.
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks"
 
       - name: Assemble the release APK
         env:
