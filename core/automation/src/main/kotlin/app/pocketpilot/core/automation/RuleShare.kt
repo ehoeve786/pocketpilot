@@ -63,6 +63,20 @@ private fun withoutCredentials(steps: List<ActionStep>): List<ActionStep> =
         )
     }
 
+/** The rule with each credential value replaced by a mask, for showing on screen. */
+fun Rule.withMaskedCredentials(): Rule = copy(actions = masked(actions))
+
+private fun masked(steps: List<ActionStep>): List<ActionStep> =
+    steps.map { step ->
+        step.copy(
+            params = step.params.mapValues { (key, value) -> if (isCredentialKey(key) && value.isNotBlank()) MASK else value },
+            children = masked(step.children),
+            elseChildren = masked(step.elseChildren),
+        )
+    }
+
+private const val MASK = "••••••"
+
 /** The rule with every credential-named setting removed, for places that save a rule outside the store. */
 fun Rule.withoutCredentialParams(): Rule = copy(actions = withoutCredentials(actions))
 

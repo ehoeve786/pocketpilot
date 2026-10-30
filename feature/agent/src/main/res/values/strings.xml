@@ -34,6 +34,7 @@
     <string name="feature_agent_models_none">Connected, but the server lists no models.</string>
     <string name="feature_agent_models_failed">Could not get the models: %1$s</string>
     <string name="feature_agent_models_retry">Try again</string>
+    <string name="feature_agent_models_load">Load the models</string>
     <string name="feature_agent_models_need_key">Enter the API key (or the server URL) to load the available models.</string>
     <string name="feature_agent_run_title">Current run</string>
     <string name="feature_agent_pause">Take over</string>

@@ -204,17 +204,24 @@ class RuleStore(
             data.rules.map { rule ->
                 rule
                     .mapCredentials { path, key, value ->
-                        protectValue(store, "rule_${rule.id}_${path}_$key".sanitized(), value)
+                        protectValue(store, "rule_${rule.id}_${path}_$key".secretKey(), value)
                     }.copy(
                         variables =
                             rule.variables.mapValues { (name, value) ->
-                                if (isSecretVariable(name)) protectValue(store, "rule_${rule.id}_var_${name.hex()}", value) else value
+                                if (isSecretVariable(
+                                        name,
+                                    )
+                                ) {
+                                    protectValue(store, "rule_${rule.id}_var_${name.hex()}".secretKey(), value)
+                                } else {
+                                    value
+                                }
                             },
                     )
             }
         val variables =
             data.variables.mapValues { (name, value) ->
-                if (isSecretVariable(name)) protectValue(store, "variable_${name.hex()}", value) else value
+                if (isSecretVariable(name)) protectValue(store, "variable_${name.hex()}".secretKey(), value) else value
             }
         val runs = data.runs.map { run -> run.copy(variables = run.variables.filterKeys { !isSecretVariable(it) }) }
         val result = data.copy(rules = rules, variables = variables, runs = runs)
@@ -258,8 +265,11 @@ class RuleStore(
             .map { it.removePrefix(SECRET_REF) }
             .toSet()
 
-    /** A name made of letters, digits and underscores only, so it can be a key of the secret store. */
-    private fun String.sanitized(): String = replace(Regex("[^A-Za-z0-9_]"), "_")
+    /**
+     * A lowercase name of letters, digits and underscores only, the form the secret store accepts. Rule ids are ULIDs,
+     * which are uppercase, so they are lowercased here.
+     */
+    private fun String.secretKey(): String = lowercase().replace(Regex("[^a-z0-9_]"), "_")
 
     /** Hex digits of the name's bytes: unique for each name, and safe in a secret store key. */
     private fun String.hex(): String = encodeToByteArray().joinToString("") { "%02x".format(it) }

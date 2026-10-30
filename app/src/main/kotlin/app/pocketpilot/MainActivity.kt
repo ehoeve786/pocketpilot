@@ -3,6 +3,7 @@ package app.pocketpilot
 import android.Manifest
 import android.app.NotificationManager
 import android.content.ComponentName
+import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -227,7 +228,7 @@ class MainActivity : ComponentActivity() {
                 Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                 Intent.ACTION_VIEW -> intent.data
                 else -> null
-            } ?: return
+            }?.takeIf { it.scheme == ContentResolver.SCHEME_CONTENT } ?: return
         val json = runCatching { contentResolver.openInputStream(uri)?.use(::readCapped) }.getOrNull()
         val check =
             json?.let {
@@ -360,7 +361,7 @@ class MainActivity : ComponentActivity() {
                 // Following the DNS record changes how the phone is reached, so turning it on needs the owner.
                 setFollowRelay = { on -> if (on) withOwner { certificates.setFollowRelay(true) } else certificates.setFollowRelay(false) },
                 configureWireGuard = wireGuard::configure,
-                setWireGuard = { on -> if (on) startNetwork(wireGuard::start) else wireGuard.stop() },
+                setWireGuard = { on -> if (on) withOwner { startNetwork(wireGuard::start) } else wireGuard.stop() },
                 forgetWireGuard = wireGuard::logout,
                 wireGuardLog = { wireGuard.logs() + "\n\n--- Certificate ---\n" + certificates.logs() },
             )
@@ -424,8 +425,13 @@ class MainActivity : ComponentActivity() {
                 listDirectory = automations::listDirectory,
                 setHomeAssistant = { url, token ->
                     val settings = automations.store.data.value.settings
-                    automations.store.setSettings(settings.copy(homeAssistantUrl = url.ifBlank { null }))
-                    if (token.isNotBlank()) homeAssistant.saveToken(token)
+                    val newUrl = url.ifBlank { null }
+                    automations.store.setSettings(settings.copy(homeAssistantUrl = newUrl))
+                    // A token belongs to the address it was typed for, so a new address drops the saved token unless one is typed.
+                    when {
+                        token.isNotBlank() -> homeAssistant.saveToken(token)
+                        settings.homeAssistantUrl != newUrl -> homeAssistant.saveToken("")
+                    }
                     homeAssistantToken.value = homeAssistant.hasToken
                     homeAssistant.reconnect()
                 },
@@ -576,8 +582,10 @@ class MainActivity : ComponentActivity() {
                         remoteActions =
                             RemoteActions(
                                 turnOn = {
-                                    tailscale.start()
-                                    PocketPilotService.start(this)
+                                    withOwner {
+                                        tailscale.start()
+                                        PocketPilotService.start(this)
+                                    }
                                 },
                                 turnOff = tailscale::stop,
                                 // Only the https sign-in page is opened, never another scheme the library reports.
@@ -732,17 +740,20 @@ class MainActivity : ComponentActivity() {
 
     /** Exempts PocketPilot from battery optimization through Shizuku, or opens the system list. */
     private fun unrestrictBattery() =
-        viaShizukuOr("cmd deviceidle whitelist +$packageName", Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        withOwner {
+            viaShizukuOr("cmd deviceidle whitelist +$packageName", Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
 
     /** Adds PocketPilot's Accessibility service to the enabled list through Shizuku, or opens Accessibility settings. */
-    private fun turnOnAccessibility() {
-        val service = ComponentName(this, PocketPilotA11yService::class.java).flattenToString()
-        val command =
-            "list=\$(settings get secure enabled_accessibility_services); " +
-                "case \"\$list\" in *$service*) ;; null|'') list=$service ;; *) list=\"\$list:$service\" ;; esac; " +
-                "settings put secure enabled_accessibility_services \"\$list\" && settings put secure accessibility_enabled 1"
-        viaShizukuOr(command, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    }
+    private fun turnOnAccessibility() =
+        withOwner {
+            val service = ComponentName(this, PocketPilotA11yService::class.java).flattenToString()
+            val command =
+                "list=\$(settings get secure enabled_accessibility_services); " +
+                    "case \"\$list\" in *$service*) ;; null|'') list=$service ;; *) list=\"\$list:$service\" ;; esac; " +
+                    "settings put secure enabled_accessibility_services \"\$list\" && settings put secure accessibility_enabled 1"
+            viaShizukuOr(command, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
 
     /** Asks Shizuku for permission when it runs, else opens the Shizuku app or its download page. */
     private fun setUpShizuku(state: ShizukuState) {
@@ -767,10 +778,11 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Allows the notification listener through Shizuku, or opens the system page where the owner allows it. */
-    private fun allowNotifications() {
-        val component = ListenerNotificationSource.component(this).flattenToString()
-        viaShizukuOr("cmd notification allow_listener $component", Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-    }
+    private fun allowNotifications() =
+        withOwner {
+            val component = ListenerNotificationSource.component(this).flattenToString()
+            viaShizukuOr("cmd notification allow_listener $component", Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
 
     /** Runs [action] once the owner passes the biometric lock. */
     private fun withOwner(action: () -> Unit) =

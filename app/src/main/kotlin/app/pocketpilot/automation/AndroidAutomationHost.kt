@@ -323,6 +323,10 @@ class AndroidAutomationHost(
         val snapshot = screen.snapshot()
         if (hidden(snapshot.packageName.orEmpty())) throw AutomationFailure("The app in front is kept out of rules")
         val frame = screenCapturer.capture()
+        // If the app in front changed while the picture was taken, the regions no longer match the frame.
+        if (screen.foreground()?.packageName.orEmpty() != snapshot.packageName.orEmpty()) {
+            throw AutomationFailure("Not saved: the screen changed while the picture was taken; try again")
+        }
         val passwords = snapshot.elements.filter { it.password }.map { it.bounds } + snapshot.hidden
         val image =
             imagePipeline.process(

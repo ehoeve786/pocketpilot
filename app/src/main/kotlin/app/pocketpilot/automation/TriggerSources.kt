@@ -78,6 +78,7 @@ class TriggerSources(
     private var callReceiver: BroadcastReceiver? = null
     private var smsReceiver: BroadcastReceiver? = null
     private var actionReceiver: Pair<Set<String>, BroadcastReceiver>? = null
+    private val lastActionFire = HashMap<String, Long>()
     private var mediaWatch: MediaWatch? = null
     private var screenText: Pair<Set<String>, Job>? = null
 
@@ -341,6 +342,10 @@ class TriggerSources(
                     intent: Intent,
                 ) {
                     val action = intent.action ?: return
+                    // Any app can send these, so one action fires its rules at most once per interval.
+                    val now = SystemClock.elapsedRealtime()
+                    if (lastActionFire[action]?.let { now - it < WATCH_ACTION_INTERVAL_MS } == true) return
+                    lastActionFire[action] = now
                     val extras = intent.extras
                     val data =
                         extras
@@ -837,5 +842,6 @@ class TriggerSources(
         const val SCREEN_SETTLE_MS = 1_000L
         const val MAX_EXTRAS = 20
         const val MAX_EXTRA_VALUE = 2_000
+        const val WATCH_ACTION_INTERVAL_MS = 5_000L
     }
 }

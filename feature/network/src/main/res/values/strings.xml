@@ -23,6 +23,10 @@
     <string name="feature_network_wg_save">Save config</string>
     <string name="feature_network_wg_replace">Replace config</string>
     <string name="feature_network_wg_forget">Forget</string>
+    <string name="feature_network_wg_forget_title">Forget this WireGuard setup?</string>
+    <string name="feature_network_wg_forget_text">Its private key is deleted and cannot be recovered. The config has to be pasted or imported again.</string>
+    <string name="feature_network_wg_forget_confirm">Forget</string>
+    <string name="feature_network_cancel">Cancel</string>
     <string name="feature_network_public_key">This phone\'s public key: %1$s</string>
     <string name="feature_network_copy_key">Copy key</string>
 

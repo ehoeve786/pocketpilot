@@ -133,6 +133,40 @@ class RuleSecretsTest {
         assertFalse(disk.text!!.contains("tok-111"))
     }
 
+    /** A vault that takes only the names the Keystore-backed store accepts. */
+    private class StrictVault : RuleSecrets {
+        private val inner = Vault()
+        private val name = Regex("[a-z0-9_]+")
+
+        override fun get(name: String): String? = inner.get(name)
+
+        override fun put(
+            name: String,
+            value: String,
+        ) {
+            require(this.name.matches(name)) { "Bad secret name: $name" }
+            inner.put(name, value)
+        }
+
+        override fun remove(name: String) = inner.remove(name)
+    }
+
+    @Test
+    fun `secret names of rules with uppercase ULID ids are accepted by a strict vault`() {
+        val store = RuleStore(Disk(), secrets = StrictVault())
+        store.upsert(
+            Rule(
+                id = "01HXK3M9Q2ABCDEFGHJKMNPQRS",
+                name = "Send",
+                triggers = listOf(TriggerSpec("manual")),
+                actions = listOf(ActionStep("http.request", mapOf("headers" to "Authorization: Bearer abc123"))),
+            ).copy(variables = mapOf("password" to "pw-555")),
+        )
+        store.setVariable("apiToken", "tok-987")
+        assertEquals("pw-555", store.rule("01HXK3M9Q2ABCDEFGHJKMNPQRS")!!.variables["password"])
+        assertEquals("tok-987", store.data.value.variables["apiToken"])
+    }
+
     @Test
     fun `without a vault the value stays in the file, as a plain store keeps it`() {
         val disk = Disk()

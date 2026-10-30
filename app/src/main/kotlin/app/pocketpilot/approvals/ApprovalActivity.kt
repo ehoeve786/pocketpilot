@@ -83,7 +83,10 @@ class ApprovalActivity : ComponentActivity() {
         onConfirmed: () -> Unit,
     ) = gate.authenticate(this, getString(R.string.approvals_biometric_title), subtitle, onConfirmed)
 
-    /** Requested scopes start ticked; when the client asked for none, everything grantable does. */
+    /**
+     * Requested read scopes start ticked; a requested scope that changes things on the phone is left for the owner to tick.
+     * When the client asked for none, reading only does.
+     */
     private fun ApprovalItem.Consent.toUi(): ConsentUi {
         val requested = request.requestedScopes.map { it.value }.toSet()
         return ConsentUi(
@@ -95,12 +98,37 @@ class ApprovalActivity : ComponentActivity() {
                 AuthorizationServer.GRANTABLE
                     .map { it.value }
                     .sorted()
-                    .map { ScopeOption(it, preselected = if (requested.isEmpty()) it in DEFAULT_SCOPES else it in requested) },
+                    .map {
+                        ScopeOption(
+                            it,
+                            preselected =
+                                if (requested.isEmpty()) {
+                                    it in DEFAULT_SCOPES
+                                } else {
+                                    it in requested &&
+                                        it !in ACTING_SCOPES
+                                },
+                        )
+                    },
         )
     }
 
     private companion object {
         /** What a client that names no scopes gets preselected: reading only. Acting on the phone is the owner's choice. */
         val DEFAULT_SCOPES = setOf("screen:read", "apps:read", "device:read")
+
+        /** Scopes that act on the phone or change its settings and files, which the owner ticks by hand. */
+        val ACTING_SCOPES =
+            setOf(
+                "ui:interact",
+                "apps:control",
+                "clipboard:rw",
+                "notify:act",
+                "settings:write",
+                "files:write",
+                "task:run",
+                "shell:exec",
+                "termux:run",
+            )
     }
 }

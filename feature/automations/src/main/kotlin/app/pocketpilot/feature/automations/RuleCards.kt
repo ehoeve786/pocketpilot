@@ -40,6 +40,7 @@ import app.pocketpilot.core.automation.AutomationCatalog
 import app.pocketpilot.core.automation.Describe
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunMode
+import app.pocketpilot.core.automation.withMaskedCredentials
 import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
@@ -202,7 +203,8 @@ fun AutomationRuleCard(
 /** A rule as three short sections, shared by the rule card and the proposal card. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun RuleSummary(rule: Rule) {
+internal fun RuleSummary(shown: Rule) {
+    val rule = shown.withMaskedCredentials()
     val packages = LocalContext.current.packageManager
     val appName: (String) -> String = { packages.appLabel(it) }
     Section(stringResource(R.string.feature_automations_when)) {
@@ -271,7 +273,10 @@ internal fun ProposalCard(
                 color = MaterialTheme.colorScheme.tertiary,
             )
             if (replaces != null) {
-                val before = (replaces.triggers.map { Describe.trigger(it) } + replaces.actions.map { Describe.action(it) })
+                val before = (
+                    replaces.triggers.map { Describe.trigger(it) } +
+                        replaces.withMaskedCredentials().actions.map { Describe.action(it) }
+                )
                 Text(
                     stringResource(R.string.feature_automations_proposal_replaces, replaces.name),
                     style = MaterialTheme.typography.bodySmall,

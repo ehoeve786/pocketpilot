@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import app.pocketpilot.R
+import app.pocketpilot.automation.shownClientName
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.policy.ConfirmationAnswer
 import app.pocketpilot.core.policy.ConfirmationRequest
@@ -116,8 +117,17 @@ class ApprovalCenter(
             )
         val text =
             when (first) {
-                is ApprovalItem.Consent -> context.getString(R.string.approvals_consent_text, first.request.clientName)
-                is ApprovalItem.Confirm -> context.getString(R.string.approvals_confirm_text, first.request.principal, first.request.tool)
+                is ApprovalItem.Consent -> {
+                    context.getString(R.string.approvals_consent_text, shownClientName(first.request.clientName))
+                }
+
+                is ApprovalItem.Confirm -> {
+                    context.getString(
+                        R.string.approvals_confirm_text,
+                        shownClientName(first.request.principal),
+                        first.request.tool,
+                    )
+                }
             }
         val notification =
             Notification
