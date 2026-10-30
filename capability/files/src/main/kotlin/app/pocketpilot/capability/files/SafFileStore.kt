@@ -145,9 +145,20 @@ class SafFileStore(
         val name = segments.last()
         val parent = resolve(parentPath)
         if (!parent.folder) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$parentPath is not a folder")
-        val existing = children(parent).firstOrNull { it.name == name }
+        val siblings = children(parent)
+        val existing = siblings.firstOrNull { it.name == name }
         return when {
             existing == null -> {
+                // Some stores match names regardless of case, so a case-variant of a file here is that file. Refuse it
+                // before creating anything: creating it would hand back the existing file, and the rename check below
+                // would then delete it.
+                siblings.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let {
+                    throw ToolException(
+                        ToolErrorCode.INVALID_ARGUMENTS,
+                        "$path clashes with ${it.name}",
+                        "Pick a name nothing else in that folder uses",
+                    )
+                }
                 val created =
                     DocumentsContract.createDocument(resolver, parent.uri, mimeFor(name), name)
                         ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not create $path")

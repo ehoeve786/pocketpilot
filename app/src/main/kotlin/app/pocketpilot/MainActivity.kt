@@ -52,6 +52,8 @@ import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.core.automation.checkSharedRule
+import app.pocketpilot.core.automation.needsAcceptCheck
+import app.pocketpilot.core.automation.sensitiveTools
 import app.pocketpilot.core.automation.usesShell
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
@@ -200,11 +202,20 @@ class MainActivity : ComponentActivity() {
         rule: Rule?,
         onAccepted: () -> Unit,
     ) {
-        if (rule == null || (!rule.usesShell() && rule.replaces == null)) return onAccepted()
+        val riskOf = { name: String -> registry.handler(name)?.spec?.riskTier }
+        if (rule == null || !rule.needsAcceptCheck(riskOf)) return onAccepted()
+        // Say what the owner is approving: the shell, the change, and each sensitive tool the rule may then call.
+        val reasons =
+            buildList {
+                if (rule.usesShell()) add(getString(R.string.automation_accept_shell))
+                if (rule.replaces != null) add(getString(R.string.automation_accept_change))
+                val sensitive = rule.sensitiveTools(riskOf)
+                if (sensitive.isNotEmpty()) add(getString(R.string.automation_accept_sensitive, sensitive.joinToString()))
+            }
         biometricGate.authenticate(
             this,
             getString(R.string.approvals_biometric_title),
-            getString(if (rule.usesShell()) R.string.automation_accept_shell else R.string.automation_accept_change),
+            reasons.joinToString(" "),
             onAccepted,
         )
     }
