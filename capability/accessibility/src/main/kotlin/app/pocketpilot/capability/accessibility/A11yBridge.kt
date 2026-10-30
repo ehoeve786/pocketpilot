@@ -60,24 +60,37 @@ object A11yBridge {
      */
     fun frontWindowText(maxNodes: Int = MAX_TEXT_NODES): Pair<String, List<String>>? {
         val root = current.value?.rootInActiveWindow ?: return null
-        val pkg = root.packageName?.toString() ?: return null
+        val pkg = root.packageName?.toString()
+        if (pkg == null) {
+            root.releasePooled()
+            return null
+        }
         val texts = mutableListOf<String>()
         val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
-        var visited = 0
-        while (queue.isNotEmpty() && visited < maxNodes) {
-            val node = queue.removeFirst()
-            visited++
-            if (!node.isPassword) {
-                node.text
-                    ?.toString()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let(texts::add)
-                node.contentDescription
-                    ?.toString()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let(texts::add)
+        try {
+            var visited = 0
+            while (queue.isNotEmpty() && visited < maxNodes) {
+                val node = queue.removeFirst()
+                visited++
+                try {
+                    if (!node.isPassword) {
+                        node.text
+                            ?.toString()
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let(texts::add)
+                        node.contentDescription
+                            ?.toString()
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let(texts::add)
+                    }
+                    for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
+                } finally {
+                    node.releasePooled()
+                }
             }
-            for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
+        } finally {
+            // Nodes left in the queue when the walk stopped early were fetched but never read.
+            queue.forEach { it.releasePooled() }
         }
         return pkg to texts
     }
@@ -161,4 +174,13 @@ object A11yBridge {
         awaitIdle(quietMs, (deadline - SystemClock.uptimeMillis()).coerceAtLeast(1))
         return true
     }
+}
+
+/**
+ * Hands a node back to the pool. Before Android 13 nodes come from a shared pool and must be recycled once read;
+ * later versions manage them themselves. Only for nodes this code fetched and no longer needs.
+ */
+@Suppress("DEPRECATION")
+internal fun AccessibilityNodeInfo.releasePooled() {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) recycle()
 }

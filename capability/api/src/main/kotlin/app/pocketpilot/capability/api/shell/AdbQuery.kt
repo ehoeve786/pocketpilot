@@ -209,6 +209,10 @@ object AdbQuery {
             "dumpsys" -> {
                 val service = args.firstOrNull() ?: refuse("Name a service, for example dumpsys battery; dumpsys -l lists them")
                 if (service != "-l") checkService(service)
+                // Each app's permissions and install history; pm list packages, which app.list uses, stays allowed.
+                require(service != "package") {
+                    "dumpsys package holds every app's permissions and history; it can only be read with shell.exec, which the owner confirms"
+                }
                 // Services take their own words after the name; only read-only options and plain words pass.
                 args.drop(1).forEach { option ->
                     val plainWord =

@@ -63,4 +63,16 @@ class ArgumentValidatorTest {
                 ).jsonObject
         assertEquals(expected, ArgumentValidator.coerce(nested, sent))
     }
+
+    @Test
+    fun `an object that refuses extra keys refuses them even without declared properties`() {
+        val schema =
+            Json
+                .parseToJsonElement(
+                    """{"type":"object","properties":{"opts":{"type":"object","additionalProperties":false}}}""",
+                ).jsonObject
+        val extra = buildJsonObject { put("opts", buildJsonObject { put("surprise", "x") }) }
+        assertEquals("'opts': Unknown argument 'surprise'", ArgumentValidator.validate(schema, extra))
+        assertNull(ArgumentValidator.validate(schema, buildJsonObject { put("opts", buildJsonObject {}) }))
+    }
 }

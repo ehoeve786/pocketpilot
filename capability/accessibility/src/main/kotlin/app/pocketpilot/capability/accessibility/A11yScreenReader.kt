@@ -86,7 +86,15 @@ class A11yScreenReader(
     override suspend fun hasSelectionBarOf(label: String): Boolean =
         withContext(Dispatchers.Default) {
             val service = A11yBridge.require()
-            orderedWindows(service).any { window -> window.root?.let { hasBarUnder(it, label) } == true }
+            orderedWindows(service).any { window ->
+                window.root?.let { root ->
+                    try {
+                        hasBarUnder(root, label)
+                    } finally {
+                        root.releasePooled()
+                    }
+                } == true
+            }
         }
 
     /**
@@ -100,17 +108,32 @@ class A11yScreenReader(
         if (node.contentDescription?.toString() == label) {
             val tab = Rect().also(node::getBoundsInScreen)
             val row = node.parent ?: return false
-            return (0 until row.childCount).any { i ->
-                val sibling = row.getChild(i) ?: return@any false
-                val bar = Rect().also(sibling::getBoundsInScreen)
-                sibling.text == null &&
-                    bar.left == tab.left &&
-                    bar.right == tab.right &&
-                    bar.bottom == tab.bottom &&
-                    bar.height() in 1..SELECTION_BAR_MAX_HEIGHT
+            try {
+                return (0 until row.childCount).any { i ->
+                    val sibling = row.getChild(i) ?: return@any false
+                    try {
+                        val bar = Rect().also(sibling::getBoundsInScreen)
+                        sibling.text == null &&
+                            bar.left == tab.left &&
+                            bar.right == tab.right &&
+                            bar.bottom == tab.bottom &&
+                            bar.height() in 1..SELECTION_BAR_MAX_HEIGHT
+                    } finally {
+                        sibling.releasePooled()
+                    }
+                }
+            } finally {
+                row.releasePooled()
             }
         }
-        return (0 until node.childCount).any { i -> node.getChild(i)?.let { hasBarUnder(it, label) } == true }
+        return (0 until node.childCount).any { i ->
+            val child = node.getChild(i) ?: return@any false
+            try {
+                hasBarUnder(child, label)
+            } finally {
+                child.releasePooled()
+            }
+        }
     }
 
     override fun bounds(target: Target.OnElement): Bounds = recent.element(target).bounds
