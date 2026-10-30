@@ -27,7 +27,8 @@ class AudioControlTool(
                     ["mic_mute","mic_unmute","speaker_on","speaker_off","volume_up","volume_down"]}},
                     "required":["action"],"additionalProperties":false}""",
                 ),
-            riskTier = RiskTier.INTERACT,
+            // Muting the microphone can hide a rule's own recording from the owner, so it asks first.
+            riskTier = RiskTier.SENSITIVE,
             requiredScopes = setOf(Scope.SETTINGS_WRITE),
             availability = Availability(Phase.P0),
         )

@@ -74,6 +74,7 @@ class PocketPilotService : Service() {
                 stopSelf()
             }
         }
+        // Sticky, so Android restarts the server after it kills the service. Stop uses START_NOT_STICKY, so a stopped server stays stopped.
         return START_STICKY
     }
 

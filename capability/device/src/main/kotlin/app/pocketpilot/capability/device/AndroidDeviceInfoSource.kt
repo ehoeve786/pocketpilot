@@ -27,7 +27,7 @@ class AndroidDeviceInfoSource(
         )
 
     private fun screen(): DeviceInfo.Screen {
-        val bounds = context.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
+        val bounds = context.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
         return DeviceInfo.Screen(
             widthPx = bounds.width(),
             heightPx = bounds.height(),

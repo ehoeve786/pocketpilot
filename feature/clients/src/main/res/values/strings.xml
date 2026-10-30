@@ -4,6 +4,9 @@
     <string name="feature_clients_none">No remote apps yet. When an app such as Claude connects, you approve it on this phone.</string>
     <string name="feature_clients_last_used">Last used %1$s</string>
     <string name="feature_clients_remove">Remove</string>
+    <string name="feature_clients_remove_title">Remove %1$s?</string>
+    <string name="feature_clients_remove_text">It loses access at once. Pair it again to give it access.</string>
+    <string name="feature_clients_keep">Keep</string>
     <string name="feature_clients_kill_switch">Disconnect everything</string>
     <string name="feature_clients_kill_switch_explainer">Removes every connected app and turns public access off at once.</string>
 </resources>

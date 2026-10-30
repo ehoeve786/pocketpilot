@@ -167,6 +167,8 @@ private fun WireGuardSection(
             onValueChange = { config = it },
             label = { Text(stringResource(R.string.feature_network_wg_paste)) },
             textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            // The config holds the tunnel's private key, so it is masked as the API key fields are.
+            visualTransformation = PasswordVisualTransformation(),
             minLines = 4,
             modifier = Modifier.fillMaxWidth(),
         )

@@ -19,3 +19,6 @@ interface RuleSecrets {
 internal val CREDENTIAL_WORDS = listOf("header", "auth", "token", "secret", "password", "cookie", "apikey", "api_key")
 
 internal fun isCredentialKey(key: String): Boolean = CREDENTIAL_WORDS.any { key.lowercase().contains(it) }
+
+/** Whether a variable's name says it holds a secret, so its value is shown masked. */
+fun isSecretVariable(name: String): Boolean = isCredentialKey(name)

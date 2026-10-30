@@ -727,7 +727,7 @@ class MainActivity : ComponentActivity() {
     ) {
         val before = ToolModes.effectiveMode(toolModes, spec)
         val after = mode?.takeIf { it in ToolModes.allowedModes(spec) } ?: ToolModes.defaultMode(spec)
-        if (after.ordinal < before.ordinal) withOwner { toolModes.set(spec.name, mode) } else toolModes.set(spec.name, mode)
+        if (after.ordinal < before.ordinal) withOwner { toolModes.set(spec.name, after) } else toolModes.set(spec.name, after)
     }
 
     /** Exempts PocketPilot from battery optimization through Shizuku, or opens the system list. */

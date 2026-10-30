@@ -94,7 +94,8 @@ fun AgentChat(
     var viewingId by rememberSaveable { mutableStateOf<String?>(null) }
     var profileId by rememberSaveable { mutableStateOf<String?>(null) }
     var allowSettings by rememberSaveable { mutableStateOf(false) }
-    var useFallbacks by rememberSaveable { mutableStateOf(true) }
+    // Off by default: a run that moves to another vendor's model sends its goal and screen content there too.
+    var useFallbacks by rememberSaveable { mutableStateOf(false) }
 
     val earlier = history.filter { it.conversation && it.id != current?.id }.take(EARLIER_SHOWN)
     val viewing = viewingId?.let { id -> earlier.firstOrNull { it.id == id } }

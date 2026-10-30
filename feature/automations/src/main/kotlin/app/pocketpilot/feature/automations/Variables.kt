@@ -30,6 +30,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.VariableType
+import app.pocketpilot.core.automation.isSecretVariable
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
 /** One variable being added or changed. [oldName] is null for a new variable. */
@@ -123,7 +124,11 @@ internal fun VariableRow(
                 if (typeLabel != null) {
                     Text(typeLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
-                Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (isSecretVariable(name)) MASKED_VALUE else value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(
@@ -205,3 +210,6 @@ internal fun VariableDialog(
         },
     )
 }
+
+/** Shown in place of a variable's value when its name says it holds a secret. */
+private const val MASKED_VALUE = "••••••••"

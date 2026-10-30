@@ -6,11 +6,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -39,6 +44,7 @@ fun ClientsCard(
     onKillSwitch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var removing by remember { mutableStateOf<ClientRow?>(null) }
     LiquidGlassBentoCard(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.feature_clients_title), style = MaterialTheme.typography.titleMedium)
@@ -57,11 +63,27 @@ fun ClientsCard(
                             )
                         }
                     }
-                    TextButton(onClick = { onRevoke(client.id) }) { Text(stringResource(R.string.feature_clients_remove)) }
+                    TextButton(onClick = { removing = client }) { Text(stringResource(R.string.feature_clients_remove)) }
                 }
             }
             OutlinedButton(onClick = onKillSwitch) { Text(stringResource(R.string.feature_clients_kill_switch)) }
             Text(stringResource(R.string.feature_clients_kill_switch_explainer), style = MaterialTheme.typography.bodySmall)
+        }
+        removing?.let { client ->
+            AlertDialog(
+                onDismissRequest = { removing = null },
+                title = { Text(stringResource(R.string.feature_clients_remove_title, client.name)) },
+                text = { Text(stringResource(R.string.feature_clients_remove_text)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        removing = null
+                        onRevoke(client.id)
+                    }) { Text(stringResource(R.string.feature_clients_remove)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { removing = null }) { Text(stringResource(R.string.feature_clients_keep)) }
+                },
+            )
         }
     }
 }

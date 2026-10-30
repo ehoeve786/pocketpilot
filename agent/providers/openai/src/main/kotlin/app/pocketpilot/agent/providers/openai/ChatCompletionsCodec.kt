@@ -103,7 +103,9 @@ object ChatCompletionsCodec {
 
     /** The model ids in a `GET /models` reply. */
     fun decodeModels(body: String): List<ModelInfo> {
-        val data = json.parseToJsonElement(body).jsonObject["data"] as? JsonArray ?: return emptyList()
+        val data =
+            json.parseToJsonElement(body).jsonObject["data"] as? JsonArray
+                ?: throw IllegalStateException("The provider's model list was not in the expected form")
         return data.mapNotNull { (it as? JsonObject)?.string("id")?.let(::ModelInfo) }
     }
 

@@ -309,6 +309,8 @@ class PhoneState(
         name: String,
     ): String? {
         if (table !in setOf("system", "secure", "global") || !SETTING_NAME.matches(name)) return null
+        // Secure settings include the device id and enabled accessibility services, so a rule reads only the short list.
+        if (table == "secure" && name !in SECURE_READABLE) return null
         val resolver = context.contentResolver
         val direct =
             runCatching {
@@ -482,6 +484,8 @@ class PhoneState(
         private val VOICE_REG_STATE = Regex("""mVoiceRegState\s*=\s*(\d)""")
         private val INPUT_SHOWN = Regex("""mInputShown\s*=\s*true""")
         private val SETTING_NAME = Regex("""[A-Za-z0-9_.\-]{1,100}""")
+        private val SECURE_READABLE =
+            setOf("sleep_timeout", "doze_enabled", "screensaver_enabled", "long_press_timeout", "show_rotation_suggestions")
         private val PACKAGE_NAME = Regex("""[A-Za-z0-9_.]{1,200}""")
         private const val SENSOR_TIMEOUT_MS = 2_000L
         private const val MAX_BRIGHTNESS = 255

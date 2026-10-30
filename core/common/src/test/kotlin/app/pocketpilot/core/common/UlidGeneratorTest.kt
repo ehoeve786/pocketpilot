@@ -30,4 +30,12 @@ class UlidGeneratorTest {
         val second = generator.next()
         assertTrue(first < second)
     }
+
+    @Test
+    fun `ids made within one millisecond still sort in the order they were made`() {
+        val generator = UlidGenerator(clock = { 5_000L }, random = Random(7))
+        val ids = List(1_000) { generator.next() }
+        assertEquals(ids.sorted(), ids)
+        assertEquals(ids.size, ids.toSet().size)
+    }
 }
