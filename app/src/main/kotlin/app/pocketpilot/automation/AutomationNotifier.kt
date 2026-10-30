@@ -32,7 +32,7 @@ class AutomationNotifier(
             CHANNEL_PROPOSALS,
             R.string.automation_channel_proposals,
             "proposal:${rule.id}",
-            context.getString(R.string.automation_proposal_title, rule.proposedBy.orEmpty()),
+            context.getString(R.string.automation_proposal_title, shownClientName(rule.proposedBy)),
             rule.name,
             openIntent(MainActivity.OPEN_PROPOSALS),
         )
@@ -47,7 +47,7 @@ class AutomationNotifier(
             CHANNEL_PROPOSALS,
             R.string.automation_channel_proposals,
             "changed:${rule.id}",
-            context.getString(R.string.automation_changed_title, by),
+            context.getString(R.string.automation_changed_title, shownClientName(by)),
             rule.name,
             openIntent(MainActivity.OPEN_AUTOMATIONS),
         )
@@ -103,3 +103,17 @@ class AutomationNotifier(
         const val NOTIFICATION_ID = 7
     }
 }
+
+/**
+ * A name an AI client chose for itself, as it may appear in a notification: control characters out, and a short cap, so a
+ * long or crafted name cannot take over the notification. An unnamed client shows as "an app".
+ */
+internal fun shownClientName(name: String?): String =
+    name
+        .orEmpty()
+        .filterNot { it.isISOControl() }
+        .trim()
+        .take(MAX_CLIENT_NAME_CHARS)
+        .ifBlank { "an app" }
+
+private const val MAX_CLIENT_NAME_CHARS = 40

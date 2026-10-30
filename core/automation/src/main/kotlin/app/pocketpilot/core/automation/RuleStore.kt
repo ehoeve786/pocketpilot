@@ -191,7 +191,10 @@ class RuleStore(
         change: (Rule) -> Rule,
     ) = update { data -> data.copy(rules = data.rules.map { if (it.id == id) change(it) else it }) }
 
-    /** The data with each credential value stored in [secrets] and replaced by a reference; secrets no rule uses are removed. */
+    /**
+     * The data with each credential value, and each secret-named variable, stored in [secrets] and replaced by a
+     * reference; secrets no rule or variable uses are removed. Run history keeps no secret-named variable.
+     */
     private fun protect(
         data: AutomationData,
         before: AutomationData,
@@ -199,46 +202,77 @@ class RuleStore(
         val store = secrets ?: return data
         val rules =
             data.rules.map { rule ->
-                rule.mapCredentials { path, key, value ->
-                    if (value.isBlank() || value.startsWith(SECRET_REF)) {
-                        value
-                    } else {
-                        val name = secretName(rule.id, path, key)
-                        store.put(name, value)
-                        SECRET_REF + name
-                    }
-                }
+                rule
+                    .mapCredentials { path, key, value ->
+                        protectValue(store, "rule_${rule.id}_${path}_$key".secretKey(), value)
+                    }.copy(
+                        variables =
+                            rule.variables.mapValues { (name, value) ->
+                                if (isSecretVariable(
+                                        name,
+                                    )
+                                ) {
+                                    protectValue(store, "rule_${rule.id}_var_${name.hex()}".secretKey(), value)
+                                } else {
+                                    value
+                                }
+                            },
+                    )
             }
-        val kept = referencesIn(AutomationData(rules = rules))
+        val variables =
+            data.variables.mapValues { (name, value) ->
+                if (isSecretVariable(name)) protectValue(store, "variable_${name.hex()}".secretKey(), value) else value
+            }
+        val runs = data.runs.map { run -> run.copy(variables = run.variables.filterKeys { !isSecretVariable(it) }) }
+        val result = data.copy(rules = rules, variables = variables, runs = runs)
+        val kept = referencesIn(result)
         referencesIn(before).filterNot { it in kept }.forEach(store::remove)
-        return data.copy(rules = rules)
+        return result
     }
+
+    private fun protectValue(
+        store: RuleSecrets,
+        name: String,
+        value: String,
+    ): String =
+        if (value.isBlank() || value.startsWith(SECRET_REF)) {
+            value
+        } else {
+            store.put(name, value)
+            SECRET_REF + name
+        }
 
     /** The data with each reference replaced by its value, so the rest of the app never sees a reference. */
     private fun open(data: AutomationData): AutomationData {
         val store = secrets ?: return data
+
+        fun resolve(value: String): String =
+            if (value.startsWith(SECRET_REF)) store.get(value.removePrefix(SECRET_REF)).orEmpty() else value
         return data.copy(
             rules =
                 data.rules.map { rule ->
-                    rule.mapCredentials { _, _, value ->
-                        if (value.startsWith(SECRET_REF)) store.get(value.removePrefix(SECRET_REF)).orEmpty() else value
-                    }
+                    rule
+                        .mapCredentials { _, _, value -> resolve(value) }
+                        .copy(variables = rule.variables.mapValues { (_, value) -> resolve(value) })
                 },
+            variables = data.variables.mapValues { (_, value) -> resolve(value) },
         )
     }
 
     private fun referencesIn(data: AutomationData): Set<String> =
-        data.rules
-            .flatMap { rule -> rule.paramValues() }
+        (data.rules.flatMap { rule -> rule.paramValues() + rule.variables.values } + data.variables.values)
             .filter { it.startsWith(SECRET_REF) }
             .map { it.removePrefix(SECRET_REF) }
             .toSet()
 
-    private fun secretName(
-        ruleId: String,
-        path: String,
-        key: String,
-    ): String = "rule_${ruleId}_${path}_$key".replace(Regex("[^A-Za-z0-9_]"), "_")
+    /**
+     * A lowercase name of letters, digits and underscores only, the form the secret store accepts. Rule ids are ULIDs,
+     * which are uppercase, so they are lowercased here.
+     */
+    private fun String.secretKey(): String = lowercase().replace(Regex("[^a-z0-9_]"), "_")
+
+    /** Hex digits of the name's bytes: unique for each name, and safe in a secret store key. */
+    private fun String.hex(): String = encodeToByteArray().joinToString("") { "%02x".format(it) }
 
     private fun load(): AutomationData =
         persistence

@@ -312,19 +312,22 @@ class AndroidAutomationHost(
         return values
     }
 
-    /** Saves the screen as a PNG in Pictures/PocketPilot, with password fields blacked out as the screenshot tool does. */
+    /** Saves the screen as a PNG in Pictures/PocketPilot, with password fields and hidden apps' regions blacked out. */
     private suspend fun saveScreenshot() {
         // Without the screen reader the password fields cannot be found, so the picture is not taken at all.
         if (!screen.available.value) {
             throw AutomationFailure("Not saved: the screen reader is off, so password fields could not be hidden")
         }
+        // The snapshot is taken first, so its regions match the frame taken after it. Nothing is saved from a hidden app,
+        // and the regions of hidden apps are blacked out as the screenshot tool does.
+        val snapshot = screen.snapshot()
+        if (hidden(snapshot.packageName.orEmpty())) throw AutomationFailure("The app in front is kept out of rules")
         val frame = screenCapturer.capture()
-        val passwords =
-            screen
-                .snapshot()
-                .elements
-                .filter { it.password }
-                .map { it.bounds }
+        // If the app in front changed while the picture was taken, the regions no longer match the frame.
+        if (screen.foreground()?.packageName.orEmpty() != snapshot.packageName.orEmpty()) {
+            throw AutomationFailure("Not saved: the screen changed while the picture was taken; try again")
+        }
+        val passwords = snapshot.elements.filter { it.password }.map { it.bounds } + snapshot.hidden
         val image =
             imagePipeline.process(
                 frame,
@@ -486,9 +489,7 @@ class AndroidAutomationHost(
         withContext(Dispatchers.IO) {
             val url = params["url"].orEmpty().trim()
             if (!url.startsWith("https://") && !url.startsWith("http://")) throw AutomationFailure("The URL must start with https://")
-            // Plain http is only for this phone, or the owner's own profiles; a rule's request would send its data in the clear.
-            if (!cleartextMayBeUsed(url, allowedByOwner = false)) throw AutomationFailure("Use https for $url; plain http is refused")
-            val connection = URL(url).openConnection() as HttpURLConnection
+            val connection = openRequest(url)
             try {
                 connection.requestMethod = params["method"].orEmpty().ifBlank { "GET" }.uppercase()
                 connection.connectTimeout = HTTP_TIMEOUT_MS
@@ -503,6 +504,7 @@ class AndroidAutomationHost(
                     connection.outputStream.use { it.write(body.toByteArray()) }
                 }
                 val status = connection.responseCode
+                refuseRedirect(status)
                 val stream = if (status >= HTTP_ERROR) connection.errorStream else connection.inputStream
                 val reply = stream?.bufferedReader()?.use { it.readText().take(MAX_REPLY_CHARS) }.orEmpty()
                 if (status >= HTTP_ERROR) throw AutomationFailure("HTTP $status: ${reply.take(MAX_ERROR_CHARS)}")
@@ -512,6 +514,20 @@ class AndroidAutomationHost(
             }
         }
 
+    /**
+     * A connection for a rule's request. Plain http is only for this phone or the owner's own profiles, since a rule's
+     * request would send its data in the clear. Redirects are not followed: a redirect would send the request's headers,
+     * such as a token, to another host, or drop to plain http.
+     */
+    private fun openRequest(url: String): HttpURLConnection {
+        if (!cleartextMayBeUsed(url, allowedByOwner = false)) throw AutomationFailure("Use https for $url; plain http is refused")
+        return (URL(url).openConnection() as HttpURLConnection).apply { instanceFollowRedirects = false }
+    }
+
+    private fun refuseRedirect(status: Int) {
+        if (status in HTTP_REDIRECT..HTTP_REDIRECT_LAST) throw AutomationFailure("HTTP $status: the address moved; use its final address")
+    }
+
     /** Saves a web address to a new file in a shared folder; returns the file's path. */
     private suspend fun download(params: Map<String, String>): String {
         val url = params.p("url")
@@ -519,11 +535,12 @@ class AndroidAutomationHost(
         val path = params.p("path").ifBlank { throw AutomationFailure("Give the path to save to") }
         val bytes =
             withContext(Dispatchers.IO) {
-                val connection = URL(url).openConnection() as HttpURLConnection
+                val connection = openRequest(url)
                 try {
                     connection.connectTimeout = HTTP_TIMEOUT_MS
                     connection.readTimeout = HTTP_TIMEOUT_MS
                     val status = connection.responseCode
+                    refuseRedirect(status)
                     if (status >= HTTP_ERROR) throw AutomationFailure("HTTP $status")
                     if (connection.contentLengthLong > MAX_DOWNLOAD_BYTES) throw AutomationFailure("The file is over 50 MB")
                     connection.inputStream.use { input ->
@@ -600,6 +617,8 @@ class AndroidAutomationHost(
         const val MAX_VIBRATE_MS = 10_000L
         const val HTTP_TIMEOUT_MS = 30_000
         const val HTTP_ERROR = 400
+        const val HTTP_REDIRECT = 300
+        const val HTTP_REDIRECT_LAST = 399
         const val MAX_REPLY_CHARS = 100_000
         const val MAX_ERROR_CHARS = 200
         const val MAX_DOWNLOAD_BYTES = 50L * 1024 * 1024

@@ -8,6 +8,8 @@ import android.graphics.drawable.Icon
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import app.pocketpilot.core.automation.TriggerEvent
+import app.pocketpilot.security.KeystoreSecretStore
+import java.security.MessageDigest
 import java.util.UUID
 import app.pocketpilot.core.designsystem.R as DsR
 
@@ -21,7 +23,7 @@ class HomeScreenIconActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val name = intent.getStringExtra(EXTRA_NAME)
         val token = intent.getStringExtra(EXTRA_TOKEN)
-        val expected = name?.let { getSharedPreferences(ICON_PREFS, MODE_PRIVATE).getString(it, null) }
+        val expected = name?.let { KeystoreSecretStore(noBackupFilesDir).get(iconTokenName(it)) }
         if (name != null && token != null && token == expected) {
             automations().onEvent(TriggerEvent("shortcut", mapOf("name" to name)))
         }
@@ -31,7 +33,10 @@ class HomeScreenIconActivity : ComponentActivity() {
     companion object {
         const val EXTRA_NAME = "app.pocketpilot.automation.ICON_NAME"
         const val EXTRA_TOKEN = "app.pocketpilot.automation.ICON_TOKEN"
-        const val ICON_PREFS = "home_screen_icons"
+
+        /** The secret store's name for an icon's token: a hash of the icon's name, which the store accepts as a name. */
+        fun iconTokenName(name: String): String =
+            "home_icon_" + MessageDigest.getInstance("SHA-256").digest(name.encodeToByteArray()).joinToString("") { "%02x".format(it) }
     }
 }
 
@@ -43,7 +48,7 @@ fun Context.requestHomeScreenIcon(name: String): Boolean {
     val manager = getSystemService(ShortcutManager::class.java)
     if (!manager.isRequestPinShortcutSupported) return false
     val token = UUID.randomUUID().toString()
-    getSharedPreferences(HomeScreenIconActivity.ICON_PREFS, Context.MODE_PRIVATE).edit().putString(name, token).apply()
+    KeystoreSecretStore(noBackupFilesDir).put(HomeScreenIconActivity.iconTokenName(name), token)
     val info =
         ShortcutInfo
             .Builder(this, "icon:$name")

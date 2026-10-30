@@ -27,6 +27,25 @@ android {
         }
     }
 
+    // Release builds are signed with a key kept outside the repository: its file and passwords come from the environment.
+    // Without them a release build stays unsigned.
+    val releaseStore = System.getenv("POCKETPILOT_RELEASE_STORE_FILE")
+    if (releaseStore != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("POCKETPILOT_RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("POCKETPILOT_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("POCKETPILOT_RELEASE_KEY_PASSWORD")
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+
     packaging {
         resources {
             // Duplicate metadata from the Ktor and MCP SDK jars.

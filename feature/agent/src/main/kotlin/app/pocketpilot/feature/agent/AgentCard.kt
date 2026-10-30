@@ -169,7 +169,8 @@ private fun ProfileForm(
     var model by rememberSaveable { mutableStateOf(existing?.model ?: defaultModel(kind)) }
     var baseUrl by rememberSaveable { mutableStateOf(existing?.baseUrl ?: "") }
     var allowCleartext by rememberSaveable { mutableStateOf(existing?.allowCleartext ?: false) }
-    var keys by rememberSaveable { mutableStateOf(listOf("")) }
+    // Typed keys stay out of saved state, which the system can write to disk.
+    var keys by remember { mutableStateOf(listOf("")) }
     var clearSaved by rememberSaveable { mutableStateOf(false) }
     val keptKeys = if (clearSaved) 0 else savedKeys
     val key = keys.firstOrNull { it.isNotBlank() }.orEmpty()
@@ -220,10 +221,11 @@ private fun ProfileForm(
         }
     }
 
-    // Fetch the list as soon as the provider can be reached, once typing pauses.
+    // The known providers' lists are fetched once typing pauses. A server typed by hand is asked only on request, so a
+    // half-typed address never receives the key.
     LaunchedEffect(kind, key, baseUrl, canList) {
         models = null
-        if (canList) {
+        if (canList && kind != ProviderKind.OPENAI_COMPATIBLE) {
             delay(LIST_DEBOUNCE_MS)
             load()
         } else {
@@ -308,6 +310,7 @@ private fun ProfileForm(
             onPickerOpen = { pickerOpen = it },
             onRetry = ::load,
             canList = canList,
+            onLoad = if (kind == ProviderKind.OPENAI_COMPATIBLE) ::load else null,
         )
         OutlinedTextField(
             cost,
@@ -353,6 +356,8 @@ private fun ModelField(
     onPickerOpen: (Boolean) -> Unit,
     onRetry: () -> Unit,
     canList: Boolean,
+    /** Set for a server typed by hand, whose list is fetched only when the owner asks. */
+    onLoad: (() -> Unit)?,
 ) {
     val offered = (models as? ModelList.Loaded)?.models.orEmpty()
     Box {
@@ -418,6 +423,9 @@ private fun ModelField(
     status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     if (models is ModelList.Failed) {
         TextButton(onClick = onRetry) { Text(stringResource(R.string.feature_agent_models_retry)) }
+    }
+    if (onLoad != null && canList && models == null && !loading) {
+        TextButton(onClick = onLoad) { Text(stringResource(R.string.feature_agent_models_load)) }
     }
 }
 

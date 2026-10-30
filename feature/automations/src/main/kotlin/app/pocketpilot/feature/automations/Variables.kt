@@ -28,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.core.automation.isSecretVariable
@@ -153,6 +155,8 @@ internal fun VariableDialog(
     onDelete: (String) -> Unit,
 ) {
     var current by remember(edit) { mutableStateOf(edit) }
+    // Masked while the name, which the owner may still be typing, says it holds a secret.
+    val secretValue = isSecretVariable(current.name)
     val problem = runCatching { current.type.normalize(current.value) }.exceptionOrNull()?.message
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -185,6 +189,7 @@ internal fun VariableDialog(
                     value = current.value,
                     onValueChange = { current = current.copy(value = it) },
                     label = { Text(stringResource(R.string.feature_automations_variable_value)) },
+                    visualTransformation = secretValue.transformation(),
                     isError = problem != null,
                     supportingText = { problem?.let { Text(it) } },
                 )
@@ -213,3 +218,5 @@ internal fun VariableDialog(
 
 /** Shown in place of a variable's value when its name says it holds a secret. */
 private const val MASKED_VALUE = "••••••••"
+
+private fun Boolean.transformation(): VisualTransformation = if (this) PasswordVisualTransformation() else VisualTransformation.None

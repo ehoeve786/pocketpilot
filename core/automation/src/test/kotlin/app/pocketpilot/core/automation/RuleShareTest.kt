@@ -36,6 +36,25 @@ class RuleShareTest {
     }
 
     @Test
+    fun `the message text carries no credential value`() {
+        val withHeader =
+            rule.copy(
+                actions =
+                    listOf(
+                        ActionStep(
+                            "http.request",
+                            mapOf(
+                                "url" to "https://example.com",
+                                "headers" to "Authorization: Bearer abc123",
+                            ),
+                        ),
+                    ),
+            )
+        assertFalse(withHeader.shareText().contains("abc123"))
+        assertFalse(withHeader.shareFileJson().contains("abc123"))
+    }
+
+    @Test
     fun `run history and the rule id are not shared`() {
         val withHistory = rule.copy(lastRun = RunSummary(atMillis = 1, outcome = RunOutcome.OK, actions = 1))
 

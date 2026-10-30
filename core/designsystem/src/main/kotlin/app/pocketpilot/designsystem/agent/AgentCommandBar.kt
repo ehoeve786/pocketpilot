@@ -25,7 +25,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,7 +55,8 @@ fun AgentCommandBar(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    var text by rememberSaveable { mutableStateOf("") }
+    // Not saved state: a secret typed into the prompt would otherwise be written to disk.
+    var text by remember { mutableStateOf("") }
     var focused by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     val pressSource = remember { MutableInteractionSource() }

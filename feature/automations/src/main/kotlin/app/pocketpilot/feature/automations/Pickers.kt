@@ -49,6 +49,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.Category
@@ -58,6 +60,7 @@ import app.pocketpilot.core.automation.FieldKind
 import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
+import app.pocketpilot.core.automation.isCredentialKey
 import app.pocketpilot.core.model.RiskTier
 import kotlin.math.roundToInt
 
@@ -468,6 +471,8 @@ private fun FieldEditor(
                 value = value,
                 onValueChange = onChange,
                 label = { Text(label) },
+                // A credential such as an Authorization header is masked while it is typed, as the token fields are.
+                visualTransformation = if (isCredentialKey(field.key)) PasswordVisualTransformation() else VisualTransformation.None,
                 placeholder = (field.hint ?: if (field.kind == FieldKind.TIME) "HH:mm" else null)?.let { hint -> { Text(hint) } },
                 singleLine = field.kind != FieldKind.MULTILINE && field.kind != FieldKind.JSON,
                 minLines = if (field.kind == FieldKind.MULTILINE || field.kind == FieldKind.JSON) 3 else 1,

@@ -48,7 +48,12 @@ internal object Prompts {
                 appendLine()
                 appendLine(
                     "More tools. Before you call one, load its full definition with ${AgentTools.LOAD}, passing its name " +
-                        "in names, such as [\"device.battery_usage\"]. Calling a tool that is not loaded fails.",
+                        "in names, such as [\"device.battery_usage\"]. " +
+                        if (toolMode == ToolMode.NATIVE) {
+                            "Calling a tool that is not loaded fails."
+                        } else {
+                            "Naming a tool that is not loaded still runs it, but load it first to see its arguments."
+                        },
                 )
                 appendLine(catalog)
             }

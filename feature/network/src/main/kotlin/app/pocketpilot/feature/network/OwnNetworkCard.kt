@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
+import app.pocketpilot.designsystem.copySensitive
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.certificates.CertificateState
 import app.pocketpilot.network.publicaccess.RelayConfig
@@ -151,6 +153,7 @@ private fun WireGuardSection(
     var editing by rememberSaveable(setup.configured) { mutableStateOf(!setup.configured) }
     var config by remember { mutableStateOf("") }
     var problem by remember { mutableStateOf<String?>(null) }
+    var confirmForget by remember { mutableStateOf(false) }
     val importer =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             uri ?: return@rememberLauncherForActivityResult
@@ -203,16 +206,34 @@ private fun WireGuardSection(
             TextButton(onClick = { clipboard.setText(AnnotatedString(key)) }) { Text(stringResource(R.string.feature_network_copy_key)) }
         }
         TextButton(onClick = { editing = true }) { Text(stringResource(R.string.feature_network_wg_replace)) }
-        TextButton(onClick = {
-            clipboard.setText(AnnotatedString(actions.wireGuardLog()))
-        }) { Text(stringResource(R.string.feature_network_copy_log)) }
-        TextButton(onClick = actions.forgetWireGuard) { Text(stringResource(R.string.feature_network_wg_forget)) }
+        TextButton(onClick = { copySensitive(context, WIREGUARD_LOG_LABEL, actions.wireGuardLog()) }) {
+            Text(stringResource(R.string.feature_network_copy_log))
+        }
+        TextButton(onClick = { confirmForget = true }) { Text(stringResource(R.string.feature_network_wg_forget)) }
+    }
+    if (confirmForget) {
+        AlertDialog(
+            onDismissRequest = { confirmForget = false },
+            title = { Text(stringResource(R.string.feature_network_wg_forget_title)) },
+            text = { Text(stringResource(R.string.feature_network_wg_forget_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmForget = false
+                    actions.forgetWireGuard()
+                }) { Text(stringResource(R.string.feature_network_wg_forget_confirm), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmForget = false }) { Text(stringResource(R.string.feature_network_cancel)) }
+            },
+        )
     }
 }
 
+private const val WIREGUARD_LOG_LABEL = "PocketPilot WireGuard log"
+
 @Composable
 private fun StateLine(state: NetworkState) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     when (state) {
         NetworkState.Stopped -> {
             Text(stringResource(R.string.feature_network_off), style = MaterialTheme.typography.bodySmall)
@@ -230,7 +251,7 @@ private fun StateLine(state: NetworkState) {
             Text(stringResource(R.string.feature_network_error, state.reason), color = MaterialTheme.colorScheme.error)
             state.details?.let { details ->
                 TextButton(
-                    onClick = { clipboard.setText(AnnotatedString(details)) },
+                    onClick = { copySensitive(context, WIREGUARD_LOG_LABEL, details) },
                 ) { Text(stringResource(R.string.feature_network_copy_details)) }
             }
         }

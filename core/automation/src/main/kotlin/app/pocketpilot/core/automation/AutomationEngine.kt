@@ -274,10 +274,10 @@ class AutomationEngine(
         return shown.take(MAX_VARIABLE_CHARS)
     }
 
-    /** The variables a run set, kept short so the history stays small. */
+    /** The variables a run set, kept short so the history stays small. Secret-named ones are left out. */
     private fun localVariables(vars: Map<String, String>): Map<String, String> =
         vars
-            .filterKeys { !it.startsWith("trigger.") && it != "loop.index" }
+            .filterKeys { !it.startsWith("trigger.") && it != "loop.index" && !isSecretVariable(it) }
             .mapValues { (_, value) -> value.take(MAX_VARIABLE_CHARS) }
 
     /** True when [group] holds for [rule] right now, for the builder's preview. */

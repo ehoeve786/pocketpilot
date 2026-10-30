@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,11 +48,9 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -68,6 +67,7 @@ import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.core.automation.byCategory
 import app.pocketpilot.core.automation.withoutCredentialParams
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
+import app.pocketpilot.designsystem.copySensitive
 import app.pocketpilot.core.designsystem.R as DsR
 
 /** An installed app, for the app picker. */
@@ -398,7 +398,8 @@ private fun HomeAssistantSettings(
     actions: AutomationsActions,
 ) {
     var url by rememberSaveable(state.settings.homeAssistantUrl) { mutableStateOf(state.settings.homeAssistantUrl.orEmpty()) }
-    var token by rememberSaveable { mutableStateOf("") }
+    // The token stays out of saved state, which the system can write to disk.
+    var token by remember { mutableStateOf("") }
     Text(stringResource(R.string.feature_automations_ha), style = MaterialTheme.typography.titleMedium)
     Text(stringResource(R.string.feature_automations_ha_text), style = MaterialTheme.typography.bodyMedium)
     OutlinedTextField(
@@ -504,6 +505,9 @@ private fun RunLogLine(line: String) {
     }
 }
 
+/** The clipboard label for a copied run log. */
+private const val RUN_LOG_LABEL = "PocketPilot run log"
+
 /** A log line that starts with its HH:mm:ss:SSS time stamp. Older runs have none and show as they were. */
 private val LOG_STAMP = Regex("""^(\d{2}:\d{2}:\d{2}:\d{3}) (.*)$""")
 private val LOG_STAMP_WIDTH = 84.dp
@@ -512,7 +516,6 @@ private val LOG_STAMP_WIDTH = 84.dp
 private fun RunCard(run: RunRecord) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
     val outcome = outcomeLabel(run.outcome)
     val failed = run.outcome == RunOutcome.FAILED
     LiquidGlassBentoCard(
@@ -530,7 +533,7 @@ private fun RunCard(run: RunRecord) {
                     color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                 )
                 // Copy stays in the header so it is one tap away while the card is collapsed.
-                IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context, outcome))) }) {
+                IconButton(onClick = { copySensitive(context, RUN_LOG_LABEL, runLogText(run, context, outcome)) }) {
                     Icon(
                         painterResource(DsR.drawable.core_designsystem_ic_copy),
                         contentDescription = stringResource(R.string.feature_automations_copy_log),

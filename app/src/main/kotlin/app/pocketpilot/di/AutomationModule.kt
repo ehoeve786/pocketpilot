@@ -27,6 +27,7 @@ import app.pocketpilot.core.automation.AutomationUpdateTool
 import app.pocketpilot.core.automation.FilePersistence
 import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.core.imaging.ImagePipeline
+import app.pocketpilot.core.model.Flavor
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.ToolHandler
@@ -136,7 +137,8 @@ object AutomationModule {
                 screenCapturer = capturer,
                 imagePipeline = imaging,
                 confirmer = approvals,
-                sideload = profile.shellExecAvailable,
+                // Sideload-only triggers and conditions follow the distribution, not the shell capability.
+                sideload = profile.flavor != Flavor.PLAY,
             )
         return AutomationRuntime(
             context,
