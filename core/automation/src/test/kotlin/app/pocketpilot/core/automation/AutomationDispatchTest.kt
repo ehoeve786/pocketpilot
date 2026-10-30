@@ -89,7 +89,10 @@ class AutomationDispatchTest {
             params: Map<String, String>,
         ): String? = null
 
-        override suspend fun askAgent(prompt: String) = AgentOutcome("", 0.0)
+        override suspend fun askAgent(
+            prompt: String,
+            fromOutside: Boolean,
+        ) = AgentOutcome("", 0.0)
 
         override val sideload = true
     }

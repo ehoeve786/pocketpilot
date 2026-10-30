@@ -116,14 +116,17 @@ class AgentCoordinator(
                 }
             }
             try {
+                val skipped = mutableListOf<AgentProfile>()
+                val model = chainedModel(chain, skipped)
                 runner.start(
                     AgentTask(
                         goal,
                         AGENT_SCOPES + extraScopes(),
                         preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet(),
                         conversation = conversation,
+                        notes = skippedNotes(skipped),
                     ),
-                    chainedModel(chain),
+                    model,
                     // The tightest cost limit in the chain holds for the whole run.
                     profile.budgets().copy(maxCostUsd = chain.mapNotNull { it.budgets().maxCostUsd }.minOrNull()),
                     scope,
@@ -140,14 +143,21 @@ class AgentCoordinator(
      * Runs [goal] for an automation with the owner's first usable model, falling back to the others, and
      * waits for it to end. Null when no model is set up or another run is in progress.
      */
-    suspend fun runForAutomation(goal: String): RunState? {
+    suspend fun runForAutomation(
+        goal: String,
+        fromOutside: Boolean,
+    ): RunState? {
         val chain = profiles.profiles.value.filter(::usable)
         if (chain.isEmpty() || current.value?.active == true) return null
+        // A run another app or an outside event started gets no extra scopes: the owner's switches are for the owner's runs.
+        val scopes = if (fromOutside) AGENT_SCOPES else AGENT_SCOPES + extraScopes()
         val run =
             try {
+                val skipped = mutableListOf<AgentProfile>()
+                val model = chainedModel(chain, skipped)
                 runner.start(
-                    AgentTask(goal, AGENT_SCOPES + extraScopes()),
-                    chainedModel(chain),
+                    AgentTask(goal, scopes, notes = skippedNotes(skipped)),
+                    model,
                     chain.first().budgets().copy(maxCostUsd = chain.mapNotNull { it.budgets().maxCostUsd }.minOrNull()),
                     scope,
                 )
@@ -164,7 +174,7 @@ class AgentCoordinator(
         val chain = profiles.profiles.value.filter(::usable)
         if (chain.isEmpty()) return null
         return try {
-            TextAsk.ask(chainedModel(chain), prompt)
+            TextAsk.ask(chainedModel(chain, mutableListOf()), prompt)
         } catch (e: IllegalArgumentException) {
             TextAnswer(null, costUsd = null, problem = e.message ?: "The model is not set up right")
         }
@@ -288,19 +298,29 @@ class AgentCoordinator(
     /** Needs a key unless it is a local or self-hosted server. */
     private fun usable(profile: AgentProfile): Boolean = profile.kind == ProviderKind.OPENAI_COMPATIBLE || keys(profile).isNotEmpty()
 
-    /** The first profile's model, falling back to the others in order. A fallback that cannot be built is left out. */
-    private fun chainedModel(chain: List<AgentProfile>): RunModel {
+    /**
+     * The first profile's model, falling back to the others in order. A fallback that cannot be built is left out and
+     * added to [skipped], so the run log can say so.
+     */
+    private fun chainedModel(
+        chain: List<AgentProfile>,
+        skipped: MutableList<AgentProfile>,
+    ): RunModel {
         var next: RunModel? = null
         for (p in chain.drop(1).asReversed()) {
             next =
                 try {
                     runModel(p, next)
                 } catch (e: IllegalArgumentException) {
+                    skipped += p
                     next
                 }
         }
         return runModel(chain.first(), next)
     }
+
+    private fun skippedNotes(skipped: List<AgentProfile>): List<String> =
+        skipped.map { "Skipped the fallback ${it.name}: its settings cannot be used. Check its address and key in Agent mode." }
 
     private fun runModel(
         profile: AgentProfile,

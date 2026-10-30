@@ -22,6 +22,7 @@ abstract class AndroidApplicationConventionPlugin : Plugin<Project> {
                 buildTypes.getByName("release").apply {
                     isMinifyEnabled = true
                     isShrinkResources = true
+                    proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
                 }
                 lint.apply {
                     warningsAsErrors = false

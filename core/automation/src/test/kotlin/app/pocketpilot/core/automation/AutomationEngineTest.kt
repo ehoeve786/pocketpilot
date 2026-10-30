@@ -49,6 +49,7 @@ class AutomationEngineTest {
         val opened = mutableListOf<Set<String>>()
         val outside = mutableListOf<Boolean>()
         val prompts = mutableListOf<String>()
+        val agentOutside = mutableListOf<Boolean>()
         val textPrompts = mutableListOf<String>()
         var askTextReply = "22 East Cordova Street, Vancouver, BC"
         var closed = 0
@@ -129,8 +130,12 @@ class AutomationEngineTest {
             return approve
         }
 
-        override suspend fun askAgent(prompt: String): AgentOutcome {
+        override suspend fun askAgent(
+            prompt: String,
+            fromOutside: Boolean,
+        ): AgentOutcome {
             prompts += prompt
+            agentOutside += fromOutside
             return AgentOutcome("Did it", 0.01)
         }
 
@@ -1364,6 +1369,22 @@ class AutomationEngineTest {
 
             assertEquals(RunOutcome.OK, record.outcome)
             assertEquals("{missing}", (host.calls.last().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `an agent run started from outside is told so, and the host gives it no extra scopes`() =
+        runTest {
+            val host = FakeHost()
+            val agentRule =
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "unused"))),
+                    triggers = listOf(TriggerSpec("manual")),
+                ).copy(runAs = RunMode.AGENT, agentPrompt = "Tidy up")
+
+            engine(this, host).run(agentRule, "Intent", fromOutside = true)
+            engine(this, host).run(agentRule, "Run button")
+
+            assertEquals(listOf(true, false), host.agentOutside)
         }
 
     @Test
