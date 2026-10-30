@@ -1,5 +1,6 @@
 package app.pocketpilot.core.automation
 
+import app.pocketpilot.core.model.RiskTier
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -239,6 +240,22 @@ fun Rule.shellCommands(): List<String> = shellSteps().map { it.params["command"]
 
 /** True when any step runs a shell command, fixed or built from a placeholder. */
 fun Rule.usesShell(): Boolean = shellSteps().isNotEmpty()
+
+/**
+ * The tools this rule may call that are SENSITIVE or stronger, sorted. A tool [riskOf] does not know counts as
+ * sensitive, so an unknown tool is never accepted without the owner's biometric check.
+ */
+fun Rule.sensitiveTools(riskOf: (String) -> RiskTier?): List<String> =
+    AutomationEngine
+        .toolsOf(this)
+        .filter { (riskOf(it) ?: RiskTier.DESTRUCTIVE) >= RiskTier.SENSITIVE }
+        .sorted()
+
+/**
+ * Whether accepting this proposal, or a change to an existing rule, needs the owner's biometric check: it runs
+ * shell commands, replaces a rule that runs on its own, or may call a sensitive tool such as one that sends data.
+ */
+fun Rule.needsAcceptCheck(riskOf: (String) -> RiskTier?): Boolean = usesShell() || replaces != null || sensitiveTools(riskOf).isNotEmpty()
 
 private fun Rule.shellSteps(): List<ActionStep> {
     fun ActionStep.all(): List<ActionStep> = listOf(this) + children.flatMap { it.all() } + elseChildren.flatMap { it.all() }
