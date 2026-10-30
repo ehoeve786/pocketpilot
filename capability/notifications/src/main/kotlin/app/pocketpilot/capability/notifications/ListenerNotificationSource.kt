@@ -66,6 +66,8 @@ object ListenerNotificationSource : NotificationSource {
         removed: Boolean,
     ) {
         if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        // Nothing listens for changes, so there is no point reading every extra of the notification.
+        if (changes.subscriptionCount.value == 0) return
         val notification =
             runCatching { sbn.toPhoneNotification() }.getOrElse {
                 Log.w(TAG, "A notification could not be read and is skipped: ${it.javaClass.simpleName}")
