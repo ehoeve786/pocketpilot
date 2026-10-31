@@ -195,7 +195,9 @@ class TailscaleProvider(
                 else -> {
                     // Temporary: shows the backend state on screen, since the app has no log view.
                     Log.i(TAG, "DEBUG status: $status")
-                    NetworkState.Error("DEBUG backend=$backend dns=$dnsName ips=${ips?.length()} authUrl=${status.optString("authUrl").isNotEmpty()}")
+                    NetworkState.Error(
+                        "DEBUG backend=$backend dns=$dnsName ips=${ips?.length()} authUrl=${status.optString("authUrl").isNotEmpty()}",
+                    )
                 }
             }
         val public = status.optBoolean("public")
