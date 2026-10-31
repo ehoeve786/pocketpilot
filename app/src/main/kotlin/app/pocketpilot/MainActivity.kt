@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -584,8 +585,11 @@ class MainActivity : ComponentActivity() {
                         remoteActions =
                             RemoteActions(
                                 turnOn = {
+                                    Log.i("PPTailscaleDebug", "turnOn tapped")
                                     withOwner {
+                                        Log.i("PPTailscaleDebug", "owner passed, calling start")
                                         tailscale.start()
+                                        Log.i("PPTailscaleDebug", "start returned")
                                         PocketPilotService.start(this)
                                     }
                                 },

@@ -67,6 +67,7 @@ class TailscaleProvider(
         prefs.edit().putBoolean(KEY_ENABLED, true).apply()
         // The poller outlives a node that stopped, so it only keeps a start that is already connecting or connected.
         val starting = state.value.let { it is NetworkState.Connecting || it is NetworkState.Connected || it is NetworkState.NeedsAuth }
+        Log.i(TAG, "DEBUG start: state=${state.value} pollerActive=${poller?.isActive} starting=$starting")
         if (poller?.isActive == true && starting) return
         poller?.cancel()
         autoOff.restart(System.currentTimeMillis())
@@ -74,9 +75,12 @@ class TailscaleProvider(
         poller =
             scope.launch(Dispatchers.IO) {
                 try {
+                    Log.i(TAG, "DEBUG poller: creating node")
                     val node = node()
                     node.setPublic(mutablePublic.value.enabled)
+                    Log.i(TAG, "DEBUG poller: node.start")
                     node.start("")
+                    Log.i(TAG, "DEBUG poller: node.start returned")
                 } catch (e: Throwable) {
                     // Errors too: a missing native library is an UnsatisfiedLinkError. The stack trace goes to logcat only.
                     Log.e(TAG, "Tailscale failed to start", e)
