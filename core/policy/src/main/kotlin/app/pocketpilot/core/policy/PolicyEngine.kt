@@ -81,8 +81,12 @@ class PolicyEngine(
     private val clientsStopped: () -> Boolean = { false },
     /** The owner's Allow, Ask or Block per tool; null keeps every tool at its tier's default. */
     private val toolModes: ToolModes? = null,
+    private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
+
+    // Many MCP clients never end their session, so a session's confirmations also go once it has been idle a while.
+    private val lastUsed = HashMap<SessionId, Long>()
 
     /** Checks a call before it runs. */
     suspend fun before(
@@ -248,7 +252,7 @@ class PolicyEngine(
         id: SessionId,
         tools: Set<String>,
     ) {
-        confirmedSensitive.getOrPut(id) { HashSet() } += tools
+        confirmed(id) += tools
     }
 
     /** Treats each exact [details] of [tool] as confirmed for session [id]; any other detail still asks. */
@@ -258,13 +262,14 @@ class PolicyEngine(
         tool: String,
         details: Set<String>,
     ) {
-        confirmedSensitive.getOrPut(id) { HashSet() } += details.map { confirmationKey(tool, it) }
+        confirmed(id) += details.map { confirmationKey(tool, it) }
     }
 
     /** Forgets a session's confirmations when it ends. Its client's rate-limit window stays, so reconnecting does not reset it. */
     @Synchronized
     fun endSession(id: SessionId) {
         confirmedSensitive.remove(id)
+        lastUsed.remove(id)
     }
 
     @Synchronized
@@ -273,7 +278,9 @@ class PolicyEngine(
         tool: String,
         detail: String?,
     ): Boolean {
+        dropIdle()
         val confirmed = confirmedSensitive[id] ?: return false
+        lastUsed[id] = nowMillis()
         return tool in confirmed || confirmationKey(tool, detail) in confirmed
     }
 
@@ -282,7 +289,18 @@ class PolicyEngine(
         id: SessionId,
         key: String,
     ) {
-        confirmedSensitive.getOrPut(id) { HashSet() } += key
+        confirmed(id) += key
+    }
+
+    private fun confirmed(id: SessionId): MutableSet<String> {
+        dropIdle()
+        lastUsed[id] = nowMillis()
+        return confirmedSensitive.getOrPut(id) { HashSet() }
+    }
+
+    private fun dropIdle() {
+        val cutoff = nowMillis() - SESSION_IDLE_MS
+        lastUsed.filterValues { it < cutoff }.keys.forEach(::endSession)
     }
 
     /** A whole tool when it has no detail, else that exact change of it. */
@@ -304,6 +322,9 @@ class PolicyEngine(
 
     companion object {
         const val DEFAULT_CALLS_PER_MINUTE = 120
+
+        /** After this long without a call, a session's confirmations are dropped and its next sensitive call asks again. */
+        const val SESSION_IDLE_MS = 12 * 60 * 60 * 1000L
 
         private val SCREEN_SCOPES = setOf(Scope.SCREEN_READ, Scope.UI_INTERACT, Scope.APPS_CONTROL)
 
