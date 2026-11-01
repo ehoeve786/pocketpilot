@@ -114,10 +114,15 @@ class SafFileStore(
         val source = resolve(from)
         if (source.folder) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$from is a folder; only files can be copied")
         if (segments(from) == segments(to)) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$from and $to are the same file")
+        val destination = target(to, replace)
+        // One shared folder can sit inside another, so two paths can name the same file; writing it would empty it.
+        if (DocumentsContract.getDocumentId(destination) == DocumentsContract.getDocumentId(source.uri)) {
+            throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$from and $to are the same file")
+        }
         val input = resolver.openInputStream(source.uri) ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not open $from")
         input.use {
             val output =
-                resolver.openOutputStream(target(to, replace), "wt")
+                resolver.openOutputStream(destination, "wt")
                     ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not write $to")
             output.use { input.copyTo(it) }
         }
