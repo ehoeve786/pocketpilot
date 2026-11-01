@@ -308,7 +308,10 @@ object AdbQuery {
             }
 
             "ls" -> {
-                args.filterNot { it.startsWith("-") }.forEach(::checkPath)
+                // Without a path, ls lists the shell's working directory, which may be outside the readable paths.
+                val paths = args.filterNot { it.startsWith("-") }
+                require(paths.isNotEmpty()) { "Name a folder" }
+                paths.forEach(::checkPath)
             }
 
             else -> {
