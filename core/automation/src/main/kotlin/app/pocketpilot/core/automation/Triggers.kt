@@ -722,7 +722,7 @@ internal object Triggers {
                 type = "app.crash",
                 category = Category.APPS,
                 title = "App crashed",
-                description = "An app crashed or stopped responding. Needs Shizuku.",
+                description = "An app crashed. Needs Shizuku.",
                 fields = listOf(appsField()),
                 source = Source.SHIZUKU,
                 variables = listOf("package", "error"),

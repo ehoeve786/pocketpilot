@@ -354,7 +354,8 @@ class LogWatcher(
         message: String,
     ) {
         if (crashes) {
-            val pkg = CRASH.find(message)?.groupValues?.get(1) ?: ANR.find(message)?.groupValues?.get(1)
+            // Only crashes: "ANR in" lines go to the system buffer, which is not read for privacy.
+            val pkg = CRASH.find(message)?.groupValues?.get(1)
             if (pkg != null && !hidden(pkg)) {
                 emit(TriggerEvent("app.crash", mapOf("package" to pkg, "error" to message.take(MAX_LINE))))
             }
@@ -373,7 +374,6 @@ class LogWatcher(
         /** "1760212345.123  1234  5678 E Tag: message", from `logcat -v epoch`. */
         val LINE = Regex("^\\s*(\\d+\\.\\d+)\\s+\\d+\\s+\\d+\\s+[VDIWEF]\\s+([^:]*?)\\s*:\\s?(.*)$")
         val CRASH = Regex("^Process: ([A-Za-z0-9_.]+), PID")
-        val ANR = Regex("^ANR in ([A-Za-z0-9_.]+)")
         val PACKAGE = Regex("[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+")
     }
 }
