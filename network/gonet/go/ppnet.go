@@ -32,6 +32,7 @@ type Node struct {
 	targetPort int
 
 	mu        sync.Mutex
+	publicMu  sync.Mutex // serializes SetPublic, so a call made while another opens Funnel cannot be overtaken by it
 	srv       *tsnet.Server
 	listener  net.Listener
 	httpSrv   *http.Server
@@ -137,6 +138,8 @@ func (n *Node) serveWhenRunning(srv *tsnet.Server) {
 // SetPublic turns Funnel on or off. With Funnel on, the node accepts connections from the public
 // internet as well as the tailnet on port 443; with it off, only tailnet devices can connect.
 func (n *Node) SetPublic(on bool) error {
+	n.publicMu.Lock()
+	defer n.publicMu.Unlock()
 	n.mu.Lock()
 	n.public = on
 	srv := n.srv
