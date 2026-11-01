@@ -105,7 +105,11 @@ class TriggerSources(
             lastDark = darkOf(it)
         }
         lastGps = gpsOn()
-        receiver = systemReceiver().also { register(it, systemFilter()) }
+        receiver =
+            systemReceiver().also {
+                register(it, systemFilter())
+                register(it, IntentFilter().apply { FROM_SYSTEM_APPS.forEach(::addAction) }, ContextCompat.RECEIVER_EXPORTED)
+            }
         packageReceiver =
             packageReceiver().also {
                 register(
@@ -325,7 +329,8 @@ class TriggerSources(
                     emit(TriggerEvent("sms.received", mapOf("from" to from, "text" to text.take(MAX_EXTRA_VALUE))))
                 }
             }
-        register(receiver, IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION))
+        // Sent by the phone app, so see FROM_SYSTEM_APPS.
+        register(receiver, IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION), ContextCompat.RECEIVER_EXPORTED)
         smsReceiver = receiver
     }
 
@@ -407,7 +412,8 @@ class TriggerSources(
     private fun register(
         receiver: BroadcastReceiver,
         filter: IntentFilter,
-    ) = ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        flags: Int = ContextCompat.RECEIVER_NOT_EXPORTED,
+    ) = ContextCompat.registerReceiver(context, receiver, filter, flags)
 
     private fun systemFilter() =
         IntentFilter().apply {
@@ -423,16 +429,12 @@ class TriggerSources(
                 Intent.ACTION_DOCK_EVENT,
                 Intent.ACTION_CONFIGURATION_CHANGED,
                 LocationManager.PROVIDERS_CHANGED_ACTION,
-                NfcAdapter.ACTION_ADAPTER_STATE_CHANGED,
                 UsbManager.ACTION_USB_DEVICE_ATTACHED,
                 UsbManager.ACTION_USB_DEVICE_DETACHED,
                 PowerManager.ACTION_POWER_SAVE_MODE_CHANGED,
                 NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED,
                 AudioManager.RINGER_MODE_CHANGED_ACTION,
                 WifiManager.WIFI_STATE_CHANGED_ACTION,
-                BluetoothAdapter.ACTION_STATE_CHANGED,
-                BluetoothDevice.ACTION_ACL_CONNECTED,
-                BluetoothDevice.ACTION_ACL_DISCONNECTED,
             ).forEach(::addAction)
         }
 
@@ -819,6 +821,18 @@ class TriggerSources(
     ) = TriggerEvent(type, mapOf("state" to PhoneState.onOff(on)))
 
     private companion object {
+        /**
+         * Sent by the Bluetooth and NFC apps rather than the system, so a not-exported receiver never gets them.
+         * They are protected broadcasts that only those apps may send, so exporting the receiver lets no other app in.
+         */
+        val FROM_SYSTEM_APPS =
+            listOf(
+                NfcAdapter.ACTION_ADAPTER_STATE_CHANGED,
+                BluetoothAdapter.ACTION_STATE_CHANGED,
+                BluetoothDevice.ACTION_ACL_CONNECTED,
+                BluetoothDevice.ACTION_ACL_DISCONNECTED,
+            )
+
         fun orientationOf(config: Configuration): String =
             if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"
 
