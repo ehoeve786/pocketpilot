@@ -184,6 +184,14 @@ private fun WireGuardSection(
                     config = ""
                 }
             }, enabled = config.isNotBlank()) { Text(stringResource(R.string.feature_network_wg_save)) }
+            // Replacing a working tunnel can be abandoned; until then its controls are hidden.
+            if (setup.configured) {
+                TextButton(onClick = {
+                    editing = false
+                    config = ""
+                    problem = null
+                }) { Text(stringResource(R.string.feature_network_cancel)) }
+            }
         }
         problem?.let { Text(stringResource(R.string.feature_network_error, it), color = MaterialTheme.colorScheme.error) }
         return
