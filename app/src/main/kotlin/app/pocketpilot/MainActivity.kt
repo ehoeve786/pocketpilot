@@ -226,9 +226,23 @@ class MainActivity : ComponentActivity() {
     private fun receiveSharedRule(intent: Intent) {
         val uri =
             when (intent.action) {
-                Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-                Intent.ACTION_VIEW -> intent.data
-                else -> null
+                Intent.ACTION_SEND -> {
+                    runCatching {
+                        IntentCompat.getParcelableExtra(
+                            intent,
+                            Intent.EXTRA_STREAM,
+                            Uri::class.java,
+                        )
+                    }.getOrNull()
+                }
+
+                Intent.ACTION_VIEW -> {
+                    intent.data
+                }
+
+                else -> {
+                    null
+                }
             }?.takeIf { it.scheme == ContentResolver.SCHEME_CONTENT } ?: return
         val json = runCatching { contentResolver.openInputStream(uri)?.use(::readCapped) }.getOrNull()
         val check =
@@ -266,7 +280,8 @@ class MainActivity : ComponentActivity() {
 
     private fun handleOpen(intent: Intent?) {
         intent?.let(::receiveSharedRule)
-        when (intent?.getStringExtra(EXTRA_OPEN)) {
+        // Any app can start this activity; a bundle it cannot read is ignored rather than crashing the app.
+        when (runCatching { intent?.getStringExtra(EXTRA_OPEN) }.getOrNull()) {
             OPEN_PROPOSALS -> {
                 openProposals = true
                 openAutomations.intValue++

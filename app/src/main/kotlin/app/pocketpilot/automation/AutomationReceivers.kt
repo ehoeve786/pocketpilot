@@ -83,7 +83,9 @@ class AutomationEventReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action != ACTION_EVENT) return
-        val extras = intent.extras ?: return
+        // Another app's bundle can hold classes this app does not have; reading it then throws, which would crash
+        // the whole process. size() reads it here, where that can be caught.
+        val extras = runCatching { intent.extras?.apply { size() } }.getOrNull() ?: return
         if (!EventKey.matches(EventKey.get(context.secretStore()), extras.getString(KEY_EXTRA))) return
         val event = extras.getString("event")?.takeIf { it.isNotBlank() } ?: return
         val data =
