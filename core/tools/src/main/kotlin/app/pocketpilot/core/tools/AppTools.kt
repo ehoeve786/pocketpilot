@@ -188,6 +188,9 @@ class AppOpenUrlTool(
             availability = Availability(Phase.P0),
         )
 
+    // Checked against the deny list before the link opens, like the other tools that start an app.
+    override suspend fun targetPackage(call: ToolCall): String? = call.arguments.string("package")?.takeIf { it.isNotBlank() }
+
     override suspend fun execute(
         call: ToolCall,
         session: Session,
