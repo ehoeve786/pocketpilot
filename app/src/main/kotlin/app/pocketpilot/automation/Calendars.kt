@@ -45,6 +45,9 @@ class Calendars(
 
     @Volatile private var lastCheck = 0L
 
+    // lastCheck outlives the process, so an alarm that starts the app before watch() is set up is caught up on.
+    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
     val readable: Boolean get() = granted(Manifest.permission.READ_CALENDAR)
 
     /** Occurrences overlapping [from, to), from visible calendars, earliest first. */
@@ -150,16 +153,24 @@ class Calendars(
             observer?.let { context.contentResolver.unregisterContentObserver(it) }
             observer = null
             cancelAlarm()
+            prefs.edit().remove(KEY_LAST_CHECK).apply()
             return
         }
+        var catchUp = false
         if (observer == null && readable) {
-            lastCheck = System.currentTimeMillis()
+            val now = System.currentTimeMillis()
+            // A saved check means the trigger was on when the process ended, perhaps killed and restarted by this
+            // very alarm; what came due since is fired, going back at most an hour.
+            val saved = prefs.getLong(KEY_LAST_CHECK, 0)
+            lastCheck = if (saved > 0) maxOf(saved, now - CATCH_UP_MS) else now
+            catchUp = lastCheck < now
+            if (!catchUp) prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
             observer =
                 object : ContentObserver(Handler(Looper.getMainLooper())) {
                     override fun onChange(selfChange: Boolean) = schedule()
                 }.also { context.contentResolver.registerContentObserver(CalendarContract.CONTENT_URI, true, it) }
         }
-        schedule()
+        if (catchUp) onAlarm() else schedule()
     }
 
     /** The calendar alarm went off: fire every start and end since the last check. */
@@ -174,6 +185,7 @@ class Calendars(
             }
         }
         lastCheck = now
+        prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
         schedule()
     }
 
@@ -268,6 +280,9 @@ class Calendars(
         private const val MINUTE_MS = 60_000L
         private const val HOUR_MS = 3_600_000L
         private const val DAY_MS = 86_400_000L
+        private const val CATCH_UP_MS = 3_600_000L
+        private const val PREFS = "calendar_trigger"
+        private const val KEY_LAST_CHECK = "last_check"
         private val UTC_ZONE: ZoneId = ZoneId.of("UTC")
         private const val WEEK_MS = 7 * DAY_MS
         private const val MAX_HOURS = 24 * 31
