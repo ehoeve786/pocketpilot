@@ -187,6 +187,54 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a send whose filled-in value holds braces still goes out`() =
+        runTest {
+            val record =
+                engine(this, FakeHost()).run(
+                    rule(
+                        listOf(
+                            ActionStep("var.set", mapOf("name" to "msg", "value" to "{ok}")),
+                            ActionStep("app.open_url", mapOf("url" to "https://example.com/?q={msg}")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertEquals(RunOutcome.OK, record.outcome, record.lines.joinToString("\n"))
+        }
+
+    @Test
+    fun `another rule run by flow run_rule gets its own variables`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            val other =
+                Rule(
+                    "r2",
+                    "Greeter",
+                    triggers = listOf(TriggerSpec("manual")),
+                    actions = listOf(ActionStep("notify.post", mapOf("title" to "{greeting}"))),
+                    variables = mapOf("greeting" to "Hello"),
+                )
+            store.upsert(other)
+            engine(this, host, store).run(rule(listOf(ActionStep("flow.run_rule", mapOf("rule" to "r2")))), "Test")
+            assertEquals("Hello", (host.calls.last().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `schedules with days or times the app cannot read are refused`() {
+        fun at(params: Map<String, String>) =
+            Rule(
+                "r",
+                "R",
+                triggers = listOf(TriggerSpec("time.at", params)),
+                actions = listOf(ActionStep("flow.log", mapOf("text" to "x"))),
+            )
+        assertTrue(RuleValidator.problems(at(mapOf("time" to "08:00", "days" to "Mon-Fri"))).any { "not a day" in it })
+        assertTrue(RuleValidator.problems(at(mapOf("time" to "8pm"))).any { "HH:MM" in it })
+        assertEquals(emptyList(), RuleValidator.problems(at(mapOf("time" to "08:00", "days" to "mon, Friday"))))
+    }
+
+    @Test
     fun `the run log hides the values of secret variables`() =
         runTest {
             val record =

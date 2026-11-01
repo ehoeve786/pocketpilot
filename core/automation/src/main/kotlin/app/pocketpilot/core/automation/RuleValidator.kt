@@ -17,6 +17,7 @@ object RuleValidator {
                 if (def.sideloadOnly && !sideload) problems += "${def.title} is only in the sideload build"
                 missing(def.fields, spec.params).forEach { problems += "${def.title}: set ${it.label}" }
                 place(def.title, def.fields, spec.params, problems)
+                schedule(def.title, def.fields, spec.params, problems)
             }
         }
         group(rule.constraints, problems, sideload)
@@ -146,6 +147,7 @@ object RuleValidator {
                         if (def.sideloadOnly && !sideload) problems += "${def.title} is only in the sideload build"
                         missing(def.fields, node.spec.params).forEach { problems += "${def.title}: set ${it.label}" }
                         place(def.title, def.fields, node.spec.params, problems)
+                        schedule(def.title, def.fields, node.spec.params, problems)
                     }
                 }
 
@@ -166,6 +168,37 @@ object RuleValidator {
         if (fields.none { it.key == "at" } || params["at"].isNullOrBlank()) return
         if (Place.coordinates(params["at"].orEmpty()) == null) problems += "$title: give the place as latitude, longitude"
     }
+
+    /** Times and days the schedule cannot read, which would otherwise never fire or fall back to some other day. */
+    private fun schedule(
+        title: String,
+        fields: List<FieldDef>,
+        params: Map<String, String>,
+        problems: MutableList<String>,
+    ) {
+        for (field in fields) {
+            val value = params[field.key]?.takeIf { it.isNotBlank() && !Placeholders.contains(it) } ?: continue
+            when (field.kind) {
+                FieldKind.TIME -> {
+                    if (parseTime(value) == null) problems += "$title: give ${field.label} as HH:MM, like 08:30"
+                }
+
+                FieldKind.DAYS -> {
+                    val unknown = value.split(',').map { it.trim() }.filter { it.isNotEmpty() && !isDay(it) }
+                    if (unknown.isNotEmpty()) problems += "$title: ${unknown.joinToString()} is not a day; list days like mon, tue, fri"
+                }
+
+                else -> {
+                    Unit
+                }
+            }
+        }
+    }
+
+    private fun isDay(text: String): Boolean =
+        text.length >= 3 &&
+            java.time.DayOfWeek.entries
+                .any { it.name.startsWith(text.uppercase()) }
 
     private fun missing(
         fields: List<FieldDef>,
