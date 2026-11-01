@@ -37,7 +37,8 @@ class PocketPilotService : Service() {
 
     @Inject lateinit var wireGuard: WireGuardProvider
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // One at a time, in order, so a Stop's server.stop() always finishes before a later Start's server.start().
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -51,7 +52,8 @@ class PocketPilotService : Service() {
             scope.launch {
                 pauseNetworks()
                 server.stop()
-                stopSelf()
+                // Only if no Start came in meanwhile; a later one keeps the service.
+                stopSelf(startId)
             }
             return START_NOT_STICKY
         }
