@@ -108,6 +108,8 @@ internal fun SettingsScreen(
     ownNetworkCard: @Composable () -> Unit = {},
     /** Counts up each time a setup step asks for remote access; the screen scrolls to that card. */
     remoteAccessRequest: Int = 0,
+    /** Clears [remoteAccessRequest] once handled, so a later open of Settings does not scroll again. */
+    onRemoteAccessShown: () -> Unit = {},
 ) {
     val scroll = rememberScrollState()
     // Null until the card has been laid out, so a request made as Settings opens waits for the measured position.
@@ -116,6 +118,7 @@ internal fun SettingsScreen(
         if (remoteAccessRequest > 0) {
             val top = snapshotFlow { remoteCardTop }.filterNotNull().first()
             scroll.animateScrollTo(top.roundToInt())
+            onRemoteAccessShown()
         }
     }
     Scaffold(

@@ -679,6 +679,7 @@ class MainActivity : ComponentActivity() {
                         },
                         openChat = openChat.intValue,
                         remoteAccessRequest = remoteAccessRequests.intValue,
+                        onRemoteAccessShown = { remoteAccessRequests.intValue = 0 },
                     )
                 }
             }
