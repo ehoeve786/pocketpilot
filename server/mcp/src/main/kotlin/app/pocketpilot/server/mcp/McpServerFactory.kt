@@ -1,6 +1,7 @@
 package app.pocketpilot.server.mcp
 
 import app.pocketpilot.core.model.Session
+import app.pocketpilot.core.model.SessionId
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.ToolRegistry
 import io.modelcontextprotocol.kotlin.sdk.server.Server
@@ -19,6 +20,8 @@ class McpServerFactory(
     private val appVersion: String,
     /** True for tools the owner blocked; they are left out of tools/list so no model sees them. */
     private val blocked: (String) -> Boolean = { false },
+    /** Called when a client's session ends, so the confirmations given in it are dropped. */
+    private val onSessionEnd: (SessionId) -> Unit = {},
 ) {
     fun create(session: Session): Server {
         val server =
@@ -32,6 +35,7 @@ class McpServerFactory(
                 dispatcher.dispatch(session, spec.name, request.arguments ?: JsonObject(emptyMap())).toMcpResult()
             }
         }
+        server.onClose { onSessionEnd(session.id) }
         return server
     }
 
