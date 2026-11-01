@@ -7,6 +7,7 @@ import app.pocketpilot.server.oauth.PROTECTED_RESOURCE_PATH
 import app.pocketpilot.server.oauth.protectedResourceMetadataUrl
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.decodeURLPart
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.request.header
@@ -61,7 +62,10 @@ val McpAuth =
                 call.respondText("Cross-site requests are not allowed", status = HttpStatusCode.Forbidden)
                 return@onCall
             }
-            if (!call.request.path().startsWith(PROTECTED_RESOURCE_PATH)) return@onCall
+            // Routing ignores empty segments and decodes each one, so `//mcp` and `/%6Dcp` reach `/mcp`: check that path.
+            // Anything that cannot be decoded is checked too.
+            val routed = runCatching { routedPath(call.request.path()) }.getOrNull()
+            if (routed != null && !routed.startsWith(PROTECTED_RESOURCE_PATH)) return@onCall
 
             val presented =
                 call.request
@@ -110,6 +114,19 @@ internal fun ApplicationCall.issuer(remotePort: Int): String =
  * clients for an hour, but cannot block the local token or the apps on the phone.
  */
 internal fun ApplicationCall.clientAddress(remotePort: Int): String = if (isRemote(remotePort)) REMOTE_KEY else request.local.remoteAddress
+
+/** [path] as routing sees it: empty and `.` segments dropped, `..` resolved, each segment decoded. */
+internal fun routedPath(path: String): String {
+    val segments = ArrayDeque<String>()
+    for (raw in path.substringBefore('?').split('/')) {
+        when (val segment = raw.decodeURLPart()) {
+            "", "." -> Unit
+            ".." -> segments.removeLastOrNull()
+            else -> segments.addLast(segment)
+        }
+    }
+    return "/" + segments.joinToString("/")
+}
 
 /** The host of an Origin header, lowercased; null for "null" or anything unparsable. */
 internal fun originHost(origin: String): String? =

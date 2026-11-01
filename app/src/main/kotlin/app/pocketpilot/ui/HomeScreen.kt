@@ -125,6 +125,7 @@ fun HomeScreen(
     startOnSettings: Boolean = false,
     /** Counts up when a setup step asks for remote access, which opens Settings at that card. */
     remoteAccessRequest: Int = 0,
+    onRemoteAccessShown: () -> Unit = {},
     /** The setup steps, which Doctor re-checks with a fix for each. */
     setupSteps: List<SetupStep> = emptyList(),
     onOpenSetup: () -> Unit = {},
@@ -226,6 +227,7 @@ fun HomeScreen(
             modifier = modifier,
             ownNetworkCard = ownNetworkCard,
             remoteAccessRequest = remoteAccessRequest,
+            onRemoteAccessShown = onRemoteAccessShown,
         )
         return
     }

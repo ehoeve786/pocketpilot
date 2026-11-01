@@ -194,6 +194,19 @@ class RemoteOAuthTest {
         // 6. Revoking the client ends access at once.
         oauth.revokeClient(clientId)
         assertEquals(401, request("POST", "/mcp", body = INITIALIZE, contentType = "application/json", bearer = accessToken).status)
+
+        // 7. Paths that route to /mcp without spelling it cannot reuse the session without a token.
+        for (path in listOf("//mcp", "/%6Dcp", "/./mcp", "/x/../mcp")) {
+            val sneaky =
+                request(
+                    "POST",
+                    path,
+                    body = """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"device.info","arguments":{}}}""",
+                    contentType = "application/json",
+                    sessionId = sessionId,
+                )
+            assertEquals(401, sneaky.status, path)
+        }
     }
 
     @Test

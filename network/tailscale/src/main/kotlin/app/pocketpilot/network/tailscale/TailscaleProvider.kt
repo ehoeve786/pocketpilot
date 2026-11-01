@@ -13,6 +13,7 @@ import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +58,9 @@ class TailscaleProvider(
 
     private var poller: Job? = null
 
+    // One node call at a time, in the order made, so a stop queued before a start cannot land after it.
+    private val nodeDispatcher = Dispatchers.IO.limitedParallelism(1)
+
     /** Starts the node if the owner left it on. */
     fun resume() {
         if (enabled) start()
@@ -65,17 +69,18 @@ class TailscaleProvider(
     @Synchronized
     override fun start() {
         prefs.edit().putBoolean(KEY_ENABLED, true).apply()
-        // The poller outlives a node that stopped, so it only keeps a start that is already connecting or connected.
-        val starting = state.value.let { it is NetworkState.Connecting || it is NetworkState.Connected || it is NetworkState.NeedsAuth }
-        if (poller?.isActive == true && starting) return
+        // The poller ends when the node stops, so a live one means a start is under way, unless it failed and needs a retry.
+        if (poller?.isActive == true && state.value !is NetworkState.Error) return
         poller?.cancel()
         autoOff.restart(System.currentTimeMillis())
         mutableState.value = NetworkState.Connecting
         poller =
-            scope.launch(Dispatchers.IO) {
+            scope.launch(nodeDispatcher) {
                 try {
                     val node = node()
                     node.setPublic(mutablePublic.value.enabled)
+                    // Start does nothing on a node that is still up, so a retry after an error needs it stopped first.
+                    node.stop()
                     node.start("")
                 } catch (e: Throwable) {
                     // Errors too: a missing native library is an UnsatisfiedLinkError. The stack trace goes to logcat only.
@@ -84,7 +89,7 @@ class TailscaleProvider(
                     return@launch
                 }
                 while (isActive) {
-                    refresh()
+                    if (!refresh()) break
                     delay(if (state.value is NetworkState.Connected) POLL_CONNECTED_MS else POLL_STARTING_MS)
                 }
             }
@@ -100,7 +105,7 @@ class TailscaleProvider(
             .apply()
         poller?.cancel()
         poller = null
-        scope.launch(Dispatchers.IO) { runCatching { createdNode?.stop() } }
+        scope.launch(nodeDispatcher) { runCatching { createdNode?.stop() } }
         mutableState.value = NetworkState.Stopped
         mutablePublic.value = PublicAccessState(enabled = false)
     }
@@ -111,13 +116,14 @@ class TailscaleProvider(
         if (poller == null) return
         poller?.cancel()
         poller = null
-        scope.launch(Dispatchers.IO) { runCatching { createdNode?.stop() } }
+        scope.launch(nodeDispatcher) { runCatching { createdNode?.stop() } }
         mutableState.value = NetworkState.Stopped
     }
 
     override fun logout() {
+        // Queued before stop's job: Logout needs the node still running to sign out, and stops it itself.
+        scope.launch(nodeDispatcher) { runCatching { createdNode?.logout() } }
         stop()
-        scope.launch(Dispatchers.IO) { runCatching { createdNode?.logout() } }
     }
 
     override fun setPublic(enabled: Boolean) = applyPublic(enabled, autoOffAfterMinutes = null)
@@ -129,7 +135,7 @@ class TailscaleProvider(
         prefs.edit().putBoolean(KEY_PUBLIC, enabled).apply()
         if (enabled) autoOff.restart(System.currentTimeMillis())
         mutablePublic.value = PublicAccessState(enabled = enabled, autoOffAfterMinutes = autoOffAfterMinutes)
-        scope.launch(Dispatchers.IO) {
+        scope.launch(nodeDispatcher) {
             runCatching { createdNode?.setPublic(enabled) }
             refresh()
         }
@@ -159,9 +165,12 @@ class TailscaleProvider(
         return NetworkState.Error("Tailscale stopped unexpectedly last time", details)
     }
 
-    private fun refresh() {
-        val node = createdNode ?: return
-        val status = runCatching { JSONObject(node.status()) }.getOrNull() ?: return
+    /** Returns false once the node is no longer running. */
+    private suspend fun refresh(): Boolean {
+        val node = createdNode ?: return true
+        val status = runCatching { JSONObject(node.status()) }.getOrNull() ?: return true
+        // A cancelled poller's status call can return after a new start; its result is stale.
+        if (!currentCoroutineContext().isActive) return false
         val backend = status.optString("backendState")
         val dnsName = status.optString("dnsName")
         val error = status.optString("error").takeIf(String::isNotEmpty)
@@ -196,7 +205,7 @@ class TailscaleProvider(
         val lastRequestMs = status.optLong("lastRequestUnix") * MS_PER_SECOND
         if (public && autoOff.expired(System.currentTimeMillis(), lastRequestMs)) {
             applyPublic(false, autoOffAfterMinutes = autoOff.minutes)
-            return
+            return true
         }
         val problem = status.optString("funnelProblem").takeIf(String::isNotEmpty) ?: error.takeIf { public }
         mutablePublic.value =
@@ -206,6 +215,7 @@ class TailscaleProvider(
                 problem = problem,
                 autoOffAfterMinutes = mutablePublic.value.autoOffAfterMinutes.takeUnless { public },
             )
+        return status.optBoolean("running")
     }
 
     private companion object {

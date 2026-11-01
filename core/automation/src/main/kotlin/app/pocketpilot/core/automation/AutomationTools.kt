@@ -353,7 +353,7 @@ class AutomationUpdateTool(
             "Change an automation",
             "Changes one of the owner's automations in place: give its id (from automation.list) and the whole new " +
                 "rule, shaped as for automation.propose. Its on/off switch, pin and history stay. A change to its " +
-                "triggers, to shell commands, or a new sensitive step waits for the owner as a proposal instead.",
+                "triggers, shell commands, agent task or variables, or a new sensitive step, waits for the owner as a proposal instead.",
             """{"type":"object","properties":{"id":{"type":"string"},$RULE_PROPERTIES},"required":["id","name","triggers"],
             "additionalProperties":false}""",
             RiskTier.SENSITIVE,
@@ -369,6 +369,10 @@ class AutomationUpdateTool(
             changed.triggers.forEach { appendLine("When: ${Describe.trigger(it)}") }
             if (!changed.constraints.isEmpty) appendLine("If: ${Describe.group(changed.constraints)}")
             changed.actions.forEach { appendLine("Then: ${Describe.action(it)}") }
+            if (changed.runAs == RunMode.AGENT) appendLine("Agent task: ${changed.agentPrompt}")
+            changed.variables.forEach { (name, value) ->
+                appendLine("Variable: $name = ${if (isSecretVariable(name)) "(hidden)" else value}")
+            }
         }.trimEnd()
     }
 
@@ -381,7 +385,10 @@ class AutomationUpdateTool(
             store.rule(id) ?: throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "No automation $id", "Call automation.list for the ids.")
         val changed = validRule(JsonObject(call.arguments - "id"), id, session.principal, sideload)
         val shellChanged = changed.usesShell() && changed.shellCommands() != current.shellCommands()
-        val reviewed = shellChanged || changed.triggers != current.triggers || needsReview(current, changed)
+        // An agent's task and the rule's variables decide what it does as much as its steps do.
+        val behaviourChanged =
+            changed.runAs != current.runAs || changed.agentPrompt != current.agentPrompt || changed.variables != current.variables
+        val reviewed = shellChanged || changed.triggers != current.triggers || behaviourChanged || needsReview(current, changed)
         if (current.pending || !reviewed) {
             store.change(id, changed.copy(proposedBy = current.proposedBy))
             val saved = store.rule(id) ?: changed
@@ -402,8 +409,8 @@ class AutomationUpdateTool(
                 put("status", "pending")
                 put(
                     "note",
-                    "It changes a trigger, shell commands or a sensitive step, so the owner accepts it on the phone; " +
-                        "then it updates $id in place.",
+                    "It changes a trigger, shell commands, a sensitive step, the agent task or variables, so the owner " +
+                        "accepts it on the phone; then it updates $id in place.",
                 )
             }.toString(),
         )

@@ -10,6 +10,7 @@ import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
+import app.pocketpilot.capability.api.screen.Role
 import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.ScreenSize
@@ -166,7 +167,9 @@ class A11yScreenReader(
         val sameBounds =
             rect.left == element.bounds.left && rect.top == element.bounds.top &&
                 rect.right == element.bounds.right && rect.bottom == element.bounds.bottom
-        val sameText = element.password || text?.toString()?.takeIf { it.isNotBlank() } == element.text
+        // Read as the snapshot read it: a hint is not text, and a window with no text of its own was given its title.
+        val liveText = if (isShowingHintText) null else text?.toString()?.takeIf { it.isNotBlank() }
+        val sameText = element.password || liveText == element.text || (liveText == null && element.role == Role.WINDOW)
         return sameBounds && sameText && viewIdResourceName?.takeIf { it.isNotBlank() } == element.resourceId
     }
 
