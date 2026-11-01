@@ -94,7 +94,10 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         url: String,
         packageName: String,
     ): String {
-        require(url.startsWith("https://") || url.startsWith("http://")) { "Only http and https links can be opened" }
+        // The schemes the app side allows; an intent: URL would start any component.
+        require(listOf("https://", "http://", "mailto:", "tel:").any { url.startsWith(it, ignoreCase = true) }) {
+            "Only http, https, mailto and tel links can be opened"
+        }
         if (packageName.isEmpty()) return run("am", "start", "-a", "android.intent.action.VIEW", "-d", url)
         require(PACKAGE.matches(packageName)) { "Not a package name" }
         return run("am", "start", "-a", "android.intent.action.VIEW", "-d", url, "-p", packageName)
