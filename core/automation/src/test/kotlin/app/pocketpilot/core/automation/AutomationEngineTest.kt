@@ -686,6 +686,22 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `runs today and the cooldown still hold after other runs fill the history`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            val engine = engine(this, FakeHost(), store)
+            val once = rule(emptyList(), ConstraintGroup.of(ConstraintSpec("rule.runs_today", mapOf("max" to "1"))))
+            val cooled = once.copy(id = "r2", constraints = ConstraintGroup.of(ConstraintSpec("rule.cooldown", mapOf("minutes" to "60"))))
+            store.upsert(once)
+            store.upsert(cooled)
+            assertEquals(RunOutcome.OK, engine.run(once, "Test").outcome)
+            assertEquals(RunOutcome.OK, engine.run(cooled, "Test").outcome)
+            repeat(300) { engine.run(rule(emptyList()).copy(id = "other"), "Test") }
+            assertEquals(RunOutcome.SKIPPED, engine.run(once, "Test").outcome)
+            assertEquals(RunOutcome.SKIPPED, engine.run(cooled, "Test").outcome)
+        }
+
+    @Test
     fun `agent runs stop at the monthly cap`() =
         runTest {
             val host = FakeHost()

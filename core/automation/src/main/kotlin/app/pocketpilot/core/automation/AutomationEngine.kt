@@ -22,7 +22,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
-import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -252,7 +251,14 @@ class AutomationEngine(
                 lines = (if (lines.size > MAX_LINES) lines.take(MAX_LINES - 1) + lines.last() else lines).map { masked(it, context) },
                 variables = localVariables(vars),
             )
-        store.addRun(record)
+        store.addRun(
+            record,
+            Instant
+                .ofEpochMilli(started)
+                .atZone(zone())
+                .toLocalDate()
+                .toString(),
+        )
         if (outcome != RunOutcome.SKIPPED) {
             onEvent(
                 TriggerEvent(
@@ -893,18 +899,32 @@ class AutomationEngine(
 
             override fun variable(name: String): String? = lookup(context, name)
 
+            // The rule's own summary outlasts the shared history; the history covers summaries saved before it kept these.
             override fun lastRunAt(ruleId: String): Long? =
-                store.data.value.runs
-                    .firstOrNull { it.ruleId == ruleId && it.outcome != RunOutcome.SKIPPED }
+                store
+                    .rule(ruleId)
+                    ?.lastRun
                     ?.startedAtMillis
+                    ?.takeIf { it > 0 }
+                    ?: store.data.value.runs
+                        .firstOrNull { it.ruleId == ruleId && it.outcome != RunOutcome.SKIPPED }
+                        ?.startedAtMillis
 
             override fun runsToday(ruleId: String): Int {
-                val today = LocalDate.now(zone())
-                return store.data.value.runs.count {
-                    it.ruleId == ruleId &&
-                        it.outcome != RunOutcome.SKIPPED &&
-                        Instant.ofEpochMilli(it.startedAtMillis).atZone(zone()).toLocalDate() == today
-                }
+                val today = now().toLocalDate()
+                val inHistory =
+                    store.data.value.runs.count {
+                        it.ruleId == ruleId &&
+                            it.outcome != RunOutcome.SKIPPED &&
+                            Instant.ofEpochMilli(it.startedAtMillis).atZone(zone()).toLocalDate() == today
+                    }
+                val summary =
+                    store
+                        .rule(ruleId)
+                        ?.lastRun
+                        ?.takeIf { it.day == today.toString() }
+                        ?.runsThatDay ?: 0
+                return maxOf(inHistory, summary)
             }
 
             override fun ruleEnabled(ruleId: String): Boolean? = store.rule(ruleId)?.enabled
