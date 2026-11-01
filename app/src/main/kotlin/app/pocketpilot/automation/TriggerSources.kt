@@ -173,6 +173,7 @@ class TriggerSources(
             photosWatch = "photo.taken" in types,
         )
         watchKeys("volume.button" in types || "media.button" in types)
+        watchClicks("screen.click" in types)
         watchAddresses("ip.changed" in types)
         // An app's state is judged against the state seen when the rule started, so the first change is not missed.
         params("app.enabled").mapNotNull { it["package"]?.trim()?.takeIf(String::isNotEmpty) }.forEach { pkg ->
@@ -203,6 +204,7 @@ class TriggerSources(
         sensors.stop()
         hardware.stop()
         watchKeys(false)
+        watchClicks(false)
         watchAddresses(false)
         logWatcher.stop()
         calendars.watch(null)
@@ -651,6 +653,19 @@ class TriggerSources(
 
     private fun watchKeys(on: Boolean) {
         A11yBridge.listenToKeys(if (on) ::keyPressed else null)
+    }
+
+    /** "Something tapped on screen": the label of each view the owner taps, except in hidden apps and this one. */
+    private fun watchClicks(on: Boolean) {
+        A11yBridge.listenToClicks(if (on) ::clicked else null)
+    }
+
+    private fun clicked(
+        pkg: String,
+        label: String,
+    ) {
+        if (pkg == context.packageName || hidden(pkg)) return
+        emit(TriggerEvent("screen.click", mapOf("text" to label.take(MAX_EXTRA_VALUE), "package" to pkg)))
     }
 
     /** Volume and media keys: the key-down of each press, not the repeats while it is held. */

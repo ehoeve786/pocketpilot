@@ -1193,6 +1193,11 @@ class AutomationEngineTest {
         assertTrue(matches("intent.action", mapOf("action" to "com.example.DONE"), mapOf("action" to "com.example.DONE")))
         assertTrue(matches("media.changed", mapOf("state" to "track"), mapOf("state" to "track", "package" to "com.spotify.music")))
         assertTrue(matches("log.line", mapOf("text" to "OOM"), mapOf("line" to "lowmemorykiller: oom kill", "tag" to "lmkd")))
+
+        val accept = mapOf("text" to "accept", "apps" to "com.doordash.driverapp")
+        assertTrue(matches("screen.click", accept, mapOf("text" to "Accept", "package" to "com.doordash.driverapp")))
+        assertFalse(matches("screen.click", accept, mapOf("text" to "Decline", "package" to "com.doordash.driverapp")))
+        assertFalse(matches("screen.click", accept, mapOf("text" to "Accept", "package" to "com.ubercab.driver")))
     }
 
     @Test
@@ -1303,6 +1308,25 @@ class AutomationEngineTest {
             val engine = engine(this, host, store)
 
             engine.onEvent(TriggerEvent("intent.received", mapOf("event" to "arrived")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true), host.outside)
+        }
+
+    @Test
+    fun `a run started by a tap in another app is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "hi"))),
+                    triggers = listOf(TriggerSpec("screen.click", mapOf("text" to "Accept", "apps" to "com.doordash.driverapp"))),
+                ),
+            )
+            val engine = engine(this, host, store)
+
+            engine.onEvent(TriggerEvent("screen.click", mapOf("text" to "Accept", "package" to "com.doordash.driverapp")))
             advanceUntilIdle()
 
             assertEquals(listOf(true), host.outside)

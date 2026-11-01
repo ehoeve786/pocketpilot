@@ -706,6 +706,17 @@ internal object Triggers {
                 sentence = { p -> "\"${p.p("text")}\" appears in ${p.appsText()}" },
                 match = { p, e, _ -> containsText(p.p("text"), e["text"]) && anyOf(p.p("apps"), e["package"]) },
             ),
+            TriggerDef(
+                type = "screen.click",
+                category = Category.SCREEN,
+                title = "Something tapped on screen",
+                description = "You tap a button or other view with this label. Needs the Accessibility service.",
+                fields = listOf(textField("text", "Label", hint = "Matched ignoring case"), appsField()),
+                source = Source.ACCESSIBILITY,
+                variables = listOf("text", "package"),
+                sentence = { p -> "\"${p.p("text")}\" tapped in ${p.appsText()}" },
+                match = { p, e, _ -> containsText(p.p("text"), e["text"]) && anyOf(p.p("apps"), e["package"]) },
+            ),
             // Logs
             TriggerDef(
                 type = "log.line",
