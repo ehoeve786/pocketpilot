@@ -156,7 +156,8 @@ class AutomationRuntime(
         val now = System.currentTimeMillis()
         lastFired[key(ruleId, index)] = now
         onEvent(TriggerEvent(spec.type, mapOf("time" to LocalTime.now().format(HH_MM)), ruleId))
-        schedule(rule)
+        // A rule switched off, or rules paused, since the alarm was set gets no new alarm.
+        if (rule in activeRules(store.data.value)) schedule(rule)
     }
 
     private val mutableOptions = MutableStateFlow<Map<PickSource, List<PickOption>>>(emptyMap())
@@ -451,8 +452,10 @@ class AutomationRuntime(
             grantsFor(rules.flatMap(::enableTypesIn).toSet())
             // Alarms set before the grant were inexact, and sources that needed a permission start now.
             withContext(Dispatchers.Main) {
-                rules.forEach(::schedule)
-                if (active) sources.use(rules)
+                // Read again: the grants take seconds, and the owner may have switched rules off meanwhile.
+                val current = activeRules(store.data.value)
+                current.forEach(::schedule)
+                if (active) sources.use(current)
             }
         }
     }
