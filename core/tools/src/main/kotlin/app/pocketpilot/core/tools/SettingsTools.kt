@@ -71,6 +71,9 @@ class SettingsSetTool(
             availability = Availability(Phase.P0),
         )
 
+    override suspend fun confirmationDetail(call: ToolCall): String =
+        "Set ${call.arguments.string("key")} to ${call.arguments.string("value")}"
+
     override suspend fun execute(
         call: ToolCall,
         session: Session,

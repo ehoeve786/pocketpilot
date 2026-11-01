@@ -33,6 +33,8 @@ class AudioControlTool(
             availability = Availability(Phase.P0),
         )
 
+    override suspend fun confirmationDetail(call: ToolCall): String? = call.arguments.string("action")
+
     override suspend fun execute(
         call: ToolCall,
         session: Session,
