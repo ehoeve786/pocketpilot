@@ -63,6 +63,8 @@ class AppStopTool(
 
     override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
 
+    override suspend fun confirmationDetail(call: ToolCall): String = "Force stop ${call.arguments.string("package")}"
+
     override suspend fun execute(
         call: ToolCall,
         session: Session,

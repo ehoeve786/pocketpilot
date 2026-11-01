@@ -187,6 +187,36 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `the run log hides the values of secret variables`() =
+        runTest {
+            val record =
+                engine(this, FakeHost()).run(
+                    rule(
+                        listOf(
+                            ActionStep("var.set", mapOf("name" to "bot_token", "value" to "123:ABCDEF")),
+                            ActionStep("notify.post", mapOf("title" to "bot{bot_token}/send")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertFalse(record.lines.any { "123:ABCDEF" in it }, record.lines.joinToString("\n"))
+        }
+
+    @Test
+    fun `a run that logs too much stops, and its record keeps the line saying why`() =
+        runTest {
+            val inner = ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(ActionStep("flow.log", mapOf("text" to "x"))))
+            val record =
+                engine(
+                    this,
+                    FakeHost(),
+                ).run(rule(listOf(ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(inner)))), "Test")
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue("logged more than" in record.lines.last(), record.lines.last())
+        }
+
+    @Test
     fun `runs tool actions with defaults and placeholders`() =
         runTest {
             val host = FakeHost()
@@ -656,6 +686,22 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `runs today and the cooldown still hold after other runs fill the history`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            val engine = engine(this, FakeHost(), store)
+            val once = rule(emptyList(), ConstraintGroup.of(ConstraintSpec("rule.runs_today", mapOf("max" to "1"))))
+            val cooled = once.copy(id = "r2", constraints = ConstraintGroup.of(ConstraintSpec("rule.cooldown", mapOf("minutes" to "60"))))
+            store.upsert(once)
+            store.upsert(cooled)
+            assertEquals(RunOutcome.OK, engine.run(once, "Test").outcome)
+            assertEquals(RunOutcome.OK, engine.run(cooled, "Test").outcome)
+            repeat(300) { engine.run(rule(emptyList()).copy(id = "other"), "Test") }
+            assertEquals(RunOutcome.SKIPPED, engine.run(once, "Test").outcome)
+            assertEquals(RunOutcome.SKIPPED, engine.run(cooled, "Test").outcome)
+        }
+
+    @Test
     fun `agent runs stop at the monthly cap`() =
         runTest {
             val host = FakeHost()
@@ -870,6 +916,23 @@ class AutomationEngineTest {
             tool.execute(update("Summarise my mail", "https://evil.example"), session)
             assertEquals("r1", store.rules.single { it.pending }.replaces)
             assertEquals("https://a.example", store.rule("r1")?.variables?.get("endpoint"))
+        }
+
+    @Test
+    fun `an update that moves a sensitive step out of its condition waits as a proposal`() =
+        runTest {
+            val dnd = ActionStep("setting.dnd", mapOf("value" to "on"))
+            val guard = ActionStep("flow.if", constraints = ConstraintGroup(), children = listOf(dnd))
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                Rule("r1", "Old", enabled = true, triggers = listOf(TriggerSpec("wifi.connected", office)), actions = listOf(guard)),
+            )
+            val tool = AutomationUpdateTool(store, sideload = true, onChanged = { _, _ -> error("not in place") }, onProposed = {})
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            // updateArgs puts setting.dnd at the top level, outside the flow.if.
+            tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "Old", "setting.dnd")), session)
+            assertEquals("r1", store.rules.single { it.pending }.replaces)
+            assertEquals(listOf(guard), store.rule("r1")?.actions)
         }
 
     @Test

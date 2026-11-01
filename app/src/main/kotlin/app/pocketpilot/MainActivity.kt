@@ -291,7 +291,7 @@ class MainActivity : ComponentActivity() {
                 agent.profiles.profiles.value
                     .firstOrNull() ?: return
             agent.start(prompt, first.id, allowSettings = false, useFallbacks = true, conversation = true)
-            PocketPilotService.start(this)
+            PocketPilotService.keepAlive(this)
         }
         openChat.intValue++
     }
@@ -382,7 +382,7 @@ class MainActivity : ComponentActivity() {
                 start = { text, profileId, allowSettings, useFallbacks ->
                     agent.start(text, profileId, allowSettings, useFallbacks, conversation = true)
                     // The service keeps the process alive while the agent works in other apps.
-                    PocketPilotService.start(this)
+                    PocketPilotService.keepAlive(this)
                 },
                 send = agent::send,
                 pause = { agent.pause() },
@@ -416,7 +416,9 @@ class MainActivity : ComponentActivity() {
                 test = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_test), checkConstraints = false) },
                 stop = automations.engine::stop,
                 accept = { id ->
-                    acceptGated(automations.store.rule(id)) { automations.store.accept(id) }
+                    // The rule as shown is saved, not whatever an AI app changed it to while the fingerprint prompt was open.
+                    val shown = automations.store.rule(id)
+                    acceptGated(shown) { shown?.let(automations.store::saveAccepted) }
                 },
                 decline = automations.store::delete,
                 setSettings = automations.store::setSettings,
@@ -448,6 +450,8 @@ class MainActivity : ComponentActivity() {
                 rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
                     PocketPilotService.start(this)
                 }
+            // The setup step only asks for the permission; starting the server stays the owner's choice.
+            val notificationPermissionOnly = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
             val folderPicker =
                 rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
                     tree?.let { runCatching { sharedFolders.add(it) } }
@@ -505,7 +509,7 @@ class MainActivity : ComponentActivity() {
                     SetupActions(
                         allowNotifications = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                notificationPermissionOnly.launch(Manifest.permission.POST_NOTIFICATIONS)
                             } else {
                                 startActivity(
                                     Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName),

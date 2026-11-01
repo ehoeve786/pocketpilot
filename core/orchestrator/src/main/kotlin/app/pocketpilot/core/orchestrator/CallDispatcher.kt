@@ -15,7 +15,9 @@ import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.policy.Decision
 import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 
@@ -42,7 +44,28 @@ class CallDispatcher(
     ): ToolResult {
         val call = ToolCall(callId = ids.next(), sessionId = session.id, tool = tool, arguments = arguments)
         val started = clock.nowMillis()
-        val settled = run(call, session)
+        var allowed = false
+        val settled =
+            try {
+                run(call, session) { allowed = true }
+            } catch (e: CancellationException) {
+                // A cancelled call may already have acted, such as a tap, so it is recorded too.
+                val decision = if (allowed) AuditDecision.ALLOW else AuditDecision.DENY
+                val cancelled = Settled(ToolResult.error(ToolErrorCode.INTERNAL_ERROR, "$tool was cancelled"), decision)
+                withContext(NonCancellable) { record(call, session, arguments, started, cancelled) }
+                throw e
+            }
+        record(call, session, arguments, started, settled)
+        return settled.result
+    }
+
+    private suspend fun record(
+        call: ToolCall,
+        session: Session,
+        arguments: JsonObject,
+        started: Long,
+        settled: Settled,
+    ) {
         val result = settled.result
         auditSink.record(
             AuditEvent(
@@ -51,7 +74,7 @@ class CallDispatcher(
                 sessionId = session.id.value,
                 principal = session.principal,
                 sessionKind = session.kind,
-                tool = tool,
+                tool = call.tool,
                 argumentsRedacted = redactor.redact(arguments),
                 decision = settled.decision,
                 backend = null,
@@ -66,7 +89,6 @@ class CallDispatcher(
                 errorCode = result.errorCode?.name,
             ),
         )
-        return result
     }
 
     /** What a call ended with: the result returned to the client and whether the call was allowed to run. */
@@ -82,6 +104,7 @@ class CallDispatcher(
     private suspend fun run(
         received: ToolCall,
         session: Session,
+        onAllowed: () -> Unit,
     ): Settled {
         val handler =
             registry.handler(received.tool)
@@ -121,6 +144,7 @@ class CallDispatcher(
         if (decision is Decision.Deny) {
             return refused(ToolResult.error(decision.code, decision.message, decision.hint))
         }
+        onAllowed()
 
         val result =
             try {

@@ -416,16 +416,38 @@ class AutomationUpdateTool(
         )
     }
 
-    /** True when [changed] adds a step, or alters one, whose tier is sensitive or destructive (this includes tool.call). */
+    /**
+     * True when [changed] adds or alters a sensitive or destructive step (this includes tool.call) or a step that
+     * runs or switches other rules, moves one of those out from under the steps around it, or drops a confirm.ask.
+     */
     private fun needsReview(
         current: Rule,
         changed: Rule,
     ): Boolean {
         val known = current.allSteps().toSet()
-        return changed.allSteps().any { step ->
-            step !in known && (AutomationCatalog.action(step.type)?.tier?.let { it > RiskTier.INTERACT } ?: true)
-        }
+        val added = changed.allSteps().any { step -> step !in known && step.isReviewed() }
+        val confirmsDropped = current.allSteps().count { it.type == CONFIRM } > changed.allSteps().count { it.type == CONFIRM }
+        return added || confirmsDropped || current.reviewedPaths() != changed.reviewedPaths()
     }
+}
+
+private const val CONFIRM = "confirm.ask"
+
+private fun ActionStep.isReviewed(): Boolean =
+    type in setOf("flow.run_rule", "flow.set_rule") || (AutomationCatalog.action(type)?.tier?.let { it > RiskTier.INTERACT } ?: true)
+
+/** Each reviewed step with the steps it sits inside (without their other children) and the branch it is in, sorted. */
+private fun Rule.reviewedPaths(): List<String> {
+    fun walk(
+        steps: List<ActionStep>,
+        enclosing: String,
+    ): List<String> =
+        steps.flatMap { step ->
+            val here = enclosing + "/" + step.copy(children = emptyList(), elseChildren = emptyList())
+            val own = if (step.isReviewed()) listOf(here) else emptyList()
+            own + walk(step.children, "$here:then") + walk(step.elseChildren, "$here:else")
+        }
+    return walk(actions, "").sorted()
 }
 
 /** Every step of the rule, including the steps inside flow steps. */

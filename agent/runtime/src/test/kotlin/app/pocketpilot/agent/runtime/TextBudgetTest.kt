@@ -30,6 +30,15 @@ class TextBudgetTest {
     }
 
     @Test
+    fun `keeps the owner's chat message whole when it joined old tool results`() {
+        val owner = Prompts.followUp("Please " + "do this carefully ".repeat(60))
+        val joined = Message(Role.USER, result(1).parts + Part.Text(owner))
+        val out = TextBudget.apply(listOf(Message.user("Task"), call(1), joined, call(2), result(2)))
+        assertEquals(owner, (out[2].parts.last() as Part.Text).text)
+        assertTrue(text(Message(Role.USER, listOf(out[2].parts.first()))).endsWith(TextBudget.MARKER))
+    }
+
+    @Test
     fun `cuts old JSON fallback results too`() {
         val old = Message(Role.USER, listOf(Part.Text("${TextBudget.JSON_RESULT}ui.tap:"), Part.Text(screen)))
         val messages =

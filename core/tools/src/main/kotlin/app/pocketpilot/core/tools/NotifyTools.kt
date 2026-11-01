@@ -121,8 +121,8 @@ class NotifyActTool(
             name = "notify.act",
             title = "Act on a notification",
             description =
-                "Acts on a notification from notify.list by its key: action \"open\" taps it, \"dismiss\" clears it, " +
-                    "any other action presses the button with that title. Give text to reply through a button that accepts text.",
+                "Acts on a notification from notify.list by its key: action presses the button with that title; " +
+                    "otherwise \"open\" taps it and \"dismiss\" clears it. Give text to reply through a button that accepts text.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"key":{"type":"string"},"action":{"type":"string"},
@@ -163,10 +163,13 @@ class NotifyActTool(
                     "No notification with key $key",
                     "Call notify.list again; the notification may have been cleared.",
                 )
+        // A button with the same title wins, so an alarm's "Dismiss" button is pressed rather than the notification cleared.
+        val hasButton = target.actions.any { it.title.equals(action, ignoreCase = true) }
         val command =
-            when (action.lowercase()) {
-                OPEN -> NotificationCommand.Open
-                DISMISS -> NotificationCommand.Dismiss
+            when {
+                hasButton -> NotificationCommand.Action(action, text)
+                action.lowercase() == OPEN -> NotificationCommand.Open
+                action.lowercase() == DISMISS -> NotificationCommand.Dismiss
                 else -> NotificationCommand.Action(action, text)
             }
         if (command is NotificationCommand.Action) {
@@ -210,6 +213,9 @@ class NotifyPostTool(
             requiredScopes = setOf(Scope.NOTIFY_ACT),
             availability = Availability(Phase.P1),
         )
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
+        listOfNotNull(call.arguments.string("title"), call.arguments.string("text")).joinToString("\n")
 
     override suspend fun execute(
         call: ToolCall,

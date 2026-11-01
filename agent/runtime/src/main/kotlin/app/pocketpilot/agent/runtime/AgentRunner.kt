@@ -178,7 +178,9 @@ class AgentRun internal constructor(
 
     /** Ends a chat once its current turn is answered. */
     fun close() {
-        inbox.close()
+        // cancel, not close: a message already sent but not yet read would otherwise start one more turn, which a
+        // new run that replaced this one could neither see nor stop.
+        inbox.cancel()
     }
 
     @OptIn(DelicateCoroutinesApi::class)

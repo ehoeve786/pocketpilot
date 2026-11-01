@@ -61,6 +61,8 @@ class AdbQueryTest {
             "dumpsys --skip",
             "dumpsys --skip a.b",
             "dumpsys --proto",
+            "ls",
+            "ls -R",
             "settings put global adb_enabled 0",
             "settings delete secure x",
             "pm uninstall com.example.app",

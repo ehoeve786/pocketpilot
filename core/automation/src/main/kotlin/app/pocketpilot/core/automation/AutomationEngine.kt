@@ -7,7 +7,9 @@ import app.pocketpilot.core.model.ToolResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +22,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
-import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -246,10 +247,18 @@ class AutomationEngine(
                 startedAtMillis = started,
                 endedAtMillis = clock.nowMillis(),
                 outcome = outcome,
-                lines = lines.take(MAX_LINES),
+                // The last line says how the run ended, so it is kept even when the rest is cut.
+                lines = (if (lines.size > MAX_LINES) lines.take(MAX_LINES - 1) + lines.last() else lines).map { masked(it, context) },
                 variables = localVariables(vars),
             )
-        store.addRun(record)
+        store.addRun(
+            record,
+            Instant
+                .ofEpochMilli(started)
+                .atZone(zone())
+                .toLocalDate()
+                .toString(),
+        )
         if (outcome != RunOutcome.SKIPPED) {
             onEvent(
                 TriggerEvent(
@@ -279,6 +288,17 @@ class AutomationEngine(
         val shown = if (key == "package" || key in appKeys) value.split(',').joinToString(", ") { host.appName(it.trim()) } else value
         return shown.take(MAX_VARIABLE_CHARS)
     }
+
+    /** [line] with the values of secret-named variables hidden, since steps log their settings after placeholders are filled. */
+    private fun masked(
+        line: String,
+        context: RunContext,
+    ): String =
+        (context.vars + store.data.value.variables)
+            .filter { (name, value) -> isSecretVariable(name) && value.length >= MIN_MASKED_CHARS }
+            .values
+            .sortedByDescending { it.length }
+            .fold(line) { text, secret -> text.replace(secret, "(hidden)") }
 
     /** The variables a run set, kept short so the history stays small. Secret-named ones are left out. */
     private fun localVariables(vars: Map<String, String>): Map<String, String> =
@@ -337,6 +357,12 @@ class AutomationEngine(
         prefix: String,
     ) {
         steps.forEachIndexed { index, step ->
+            // Steps that never suspend would otherwise ignore Stop and the time limit.
+            currentCoroutineContext().ensureActive()
+            if (context.lines.size >= MAX_RUN_LINES) {
+                context.lines += stamped("Stopped: the run logged more than $MAX_RUN_LINES lines")
+                throw StepFailed()
+            }
             val label = "$prefix${index + 1}"
             val def = AutomationCatalog.action(step.type)
             val title = def?.let { Describe.action(step) } ?: step.type
@@ -873,18 +899,32 @@ class AutomationEngine(
 
             override fun variable(name: String): String? = lookup(context, name)
 
+            // The rule's own summary outlasts the shared history; the history covers summaries saved before it kept these.
             override fun lastRunAt(ruleId: String): Long? =
-                store.data.value.runs
-                    .firstOrNull { it.ruleId == ruleId && it.outcome != RunOutcome.SKIPPED }
+                store
+                    .rule(ruleId)
+                    ?.lastRun
                     ?.startedAtMillis
+                    ?.takeIf { it > 0 }
+                    ?: store.data.value.runs
+                        .firstOrNull { it.ruleId == ruleId && it.outcome != RunOutcome.SKIPPED }
+                        ?.startedAtMillis
 
             override fun runsToday(ruleId: String): Int {
-                val today = LocalDate.now(zone())
-                return store.data.value.runs.count {
-                    it.ruleId == ruleId &&
-                        it.outcome != RunOutcome.SKIPPED &&
-                        Instant.ofEpochMilli(it.startedAtMillis).atZone(zone()).toLocalDate() == today
-                }
+                val today = now().toLocalDate()
+                val inHistory =
+                    store.data.value.runs.count {
+                        it.ruleId == ruleId &&
+                            it.outcome != RunOutcome.SKIPPED &&
+                            Instant.ofEpochMilli(it.startedAtMillis).atZone(zone()).toLocalDate() == today
+                    }
+                val summary =
+                    store
+                        .rule(ruleId)
+                        ?.lastRun
+                        ?.takeIf { it.day == today.toString() }
+                        ?.runsThatDay ?: 0
+                return maxOf(inHistory, summary)
             }
 
             override fun ruleEnabled(ruleId: String): Boolean? = store.rule(ruleId)?.enabled
@@ -995,6 +1035,10 @@ class AutomationEngine(
         const val SETTING_PREFIX = "setting."
         const val MAX_RUN_MS = 30 * 60_000L
         const val MAX_LINES = 300
+        const val MAX_RUN_LINES = 20_000
+
+        // Shorter values would hide ordinary words in the log.
+        const val MIN_MASKED_CHARS = 4
         const val MAX_VARIABLE_CHARS = 500
         private val SECRET_WORDS = listOf("token", "password", "secret", "key", "header", "auth")
         const val MAX_LOOPS = 1000

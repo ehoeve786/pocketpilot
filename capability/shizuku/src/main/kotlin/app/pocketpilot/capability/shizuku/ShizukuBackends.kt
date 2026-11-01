@@ -57,6 +57,9 @@ private suspend fun <T> ShizukuConnection.call(block: (IPocketPilotPrivileged) -
             throw e
         } catch (e: IllegalArgumentException) {
             throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, e.message ?: "Shizuku refused the arguments")
+        } catch (e: IllegalStateException) {
+            // The privileged service's own failures (a command that exited with an error) cross Binder with their message.
+            throw ToolException(ToolErrorCode.INTERNAL_ERROR, e.message ?: "Shizuku could not run that call")
         } catch (e: Exception) {
             throw ToolException(
                 ToolErrorCode.INTERNAL_ERROR,
@@ -371,8 +374,9 @@ class ShizukuAppController(
             )
         }
         val result = shizuku.call { it.openUrl(url, packageName.orEmpty()) }
-        // am prints "Starting: Intent {...}" when it launches; any other wording, such as an error, is a failure.
-        if (!result.lineSequence().any { it.trimStart().startsWith("Starting: Intent") }) {
+        // am prints "Starting: Intent {...}" first, then "Error: ..." when nothing could take the intent.
+        val lines = result.lineSequence().map { it.trimStart() }
+        if (!lines.any { it.startsWith("Starting: Intent") } || lines.any { it.startsWith("Error") }) {
             throw ToolException(
                 ToolErrorCode.ELEMENT_NOT_FOUND,
                 "${packageName ?: "No app"} cannot open that link: ${result.trim().take(MAX_AM_REPLY)}",

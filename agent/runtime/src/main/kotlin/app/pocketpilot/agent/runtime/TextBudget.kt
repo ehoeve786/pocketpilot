@@ -21,11 +21,16 @@ internal object TextBudget {
         return messages.mapIndexed { i, message ->
             when {
                 i == 0 && resultMessages.isNotEmpty() -> message.copy(parts = message.parts.take(1) + message.parts.drop(1).map(::cut))
+
                 i == 0 || i !in cutBefore -> message
-                else -> message.copy(parts = message.parts.map(::cut))
+
+                // The owner's chat message can join a message of tool results; it is kept whole.
+                else -> message.copy(parts = message.parts.map { if (isOwnerMessage(it)) it else cut(it) })
             }
         }
     }
+
+    private fun isOwnerMessage(part: Part): Boolean = part is Part.Text && part.text.startsWith(Prompts.followUp(""))
 
     /** JSON fallback results travel as user text starting with "Result of". */
     private fun isJsonResult(message: Message): Boolean = (message.parts.firstOrNull() as? Part.Text)?.text?.startsWith(JSON_RESULT) == true

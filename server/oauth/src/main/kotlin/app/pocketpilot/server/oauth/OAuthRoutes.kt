@@ -4,16 +4,19 @@ import app.pocketpilot.core.model.Scope
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.Parameters
+import io.ktor.http.parseQueryString
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.contentType
-import io.ktor.server.request.receiveParameters
-import io.ktor.server.request.receiveText
+import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.header
 import io.ktor.server.response.respondRedirect
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -67,7 +70,8 @@ fun Route.oauthRoutes(
             call.respondOAuthError(OAuthException("invalid_client_metadata", "Send the registration as application/json"))
             return@post
         }
-        val body = runCatching { Json.parseToJsonElement(call.receiveText()).jsonObject }.getOrNull()
+        val text = call.boundedBody() ?: return@post
+        val body = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull()
         if (body == null) {
             call.respondOAuthError(OAuthException("invalid_client_metadata", "The body must be a JSON object"))
             return@post
@@ -121,7 +125,7 @@ fun Route.oauthRoutes(
 
     // The browser sends the code the phone shows. Only then can the owner approve on the phone.
     post("/authorize/pair") {
-        val form = call.receiveParameters()
+        val form = call.boundedForm() ?: return@post
         val requestId = form["request"].orEmpty()
         if (server.pair(requestId, form["code"].orEmpty())) {
             call.respondRedirect("/authorize/wait?request=${java.net.URLEncoder.encode(requestId, "UTF-8")}", permanent = false)
@@ -131,7 +135,7 @@ fun Route.oauthRoutes(
     }
 
     post("/token") {
-        val params = call.receiveParameters().entries().associate { it.key to it.value.first() }
+        val params = (call.boundedForm() ?: return@post).entries().associate { it.key to it.value.first() }
         // Remote callers share one address, so a failing client is counted by its own client_id instead. A client_id
         // is public, so a blocked client still gets its valid grants: anyone can send bad ones, but only the owner's
         // client holds a code or refresh token that succeeds. The block refuses failures only.
@@ -160,8 +164,33 @@ fun Route.oauthRoutes(
     }
 
     post("/revoke") {
-        call.receiveParameters()["token"]?.let(server::revokeToken)
+        (call.boundedForm() ?: return@post)["token"]?.let(server::revokeToken)
         call.respondText("", status = HttpStatusCode.OK)
+    }
+}
+
+// These endpoints answer anyone who can reach the phone, so a body is read only up to this size.
+private const val MAX_BODY_BYTES = 64 * 1024
+
+/** The request body, or null after answering 413 when it is longer than [MAX_BODY_BYTES]. */
+private suspend fun ApplicationCall.boundedBody(): String? {
+    val bytes = receiveChannel().readRemaining(MAX_BODY_BYTES + 1L).readByteArray()
+    if (bytes.size > MAX_BODY_BYTES) {
+        respondText("The request body is too large", status = HttpStatusCode.PayloadTooLarge)
+        return null
+    }
+    return bytes.decodeToString()
+}
+
+/** A form body read with [boundedBody]; empty when the body is not a form. */
+private suspend fun ApplicationCall.boundedForm(): Parameters? {
+    val text = boundedBody() ?: return null
+    return if (request.contentType().withoutParameters() ==
+        ContentType.Application.FormUrlEncoded
+    ) {
+        parseQueryString(text)
+    } else {
+        Parameters.Empty
     }
 }
 

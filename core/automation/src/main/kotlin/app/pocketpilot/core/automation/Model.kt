@@ -155,6 +155,11 @@ data class RunSummary(
     val outcome: RunOutcome,
     val actions: Int,
     val message: String? = null,
+    // Kept here as well as in the history, which other rules' runs and skipped runs push old records out of.
+    val startedAtMillis: Long = 0,
+    /** The local date of [startedAtMillis], and how many runs started on it. */
+    val day: String = "",
+    val runsThatDay: Int = 0,
 )
 
 /** One run of a rule, for the Activity tab. */

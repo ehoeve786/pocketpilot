@@ -80,11 +80,21 @@ class ModelRegistry(
         return null
     }
 
-    /** The descriptor for [model], or conservative defaults when the registry does not know it. */
+    /**
+     * The descriptor for [model], or conservative defaults when the registry does not know it. An unknown model is
+     * priced like the provider's dearest listed one, so a cost limit still stops the run, if anything early.
+     */
     fun describe(
         provider: String,
         model: String,
-    ): ModelDescriptor = find(provider, model) ?: defaultDescriptor(provider, model)
+    ): ModelDescriptor =
+        find(provider, model) ?: defaultDescriptor(provider, model).copy(
+            pricing =
+                (overrides + bundled)
+                    .filter { it.provider == provider }
+                    .mapNotNull { it.pricing }
+                    .maxByOrNull { it.inputPerMillion + it.outputPerMillion },
+        )
 
     companion object {
         private const val RESOURCE = "/app/pocketpilot/agent/registry/models.json"

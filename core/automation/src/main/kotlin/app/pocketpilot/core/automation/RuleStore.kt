@@ -153,22 +153,33 @@ class RuleStore(
     fun setSettings(settings: AutomationSettings) = update { it.copy(settings = settings) }
 
     /** Saves a finished run, keeping the newest [MAX_RUNS] and at most [MAX_HISTORY_CHARS] of their log lines. */
-    fun addRun(record: RunRecord) =
-        update { data ->
-            data.copy(
-                runs = keptRuns(listOf(record) + data.runs),
-                rules =
-                    data.rules.map {
-                        if (it.id != record.ruleId || record.outcome == RunOutcome.SKIPPED) {
-                            it
-                        } else {
-                            it.copy(
-                                lastRun = RunSummary(record.endedAtMillis, record.outcome, record.lines.size, record.lines.lastOrNull()),
-                            )
-                        }
-                    },
-            )
-        }
+    fun addRun(
+        record: RunRecord,
+        day: String = "",
+    ) = update { data ->
+        data.copy(
+            runs = keptRuns(listOf(record) + data.runs),
+            rules =
+                data.rules.map {
+                    if (it.id != record.ruleId || record.outcome == RunOutcome.SKIPPED) {
+                        it
+                    } else {
+                        it.copy(
+                            lastRun =
+                                RunSummary(
+                                    record.endedAtMillis,
+                                    record.outcome,
+                                    record.lines.size,
+                                    record.lines.lastOrNull(),
+                                    startedAtMillis = record.startedAtMillis,
+                                    day = day,
+                                    runsThatDay = 1 + (it.lastRun?.takeIf { last -> last.day == day }?.runsThatDay ?: 0),
+                                ),
+                        )
+                    }
+                },
+        )
+    }
 
     fun addAgentSpend(
         month: String,

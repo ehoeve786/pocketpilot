@@ -111,6 +111,35 @@ class NotifyToolsTest {
         }
 
     @Test
+    fun `a button titled Dismiss is pressed rather than the notification cleared`() =
+        runTest {
+            source.shade =
+                listOf(
+                    PhoneNotification(
+                        "alarm",
+                        "com.google.android.deskclock",
+                        "Upcoming alarm",
+                        "7:00",
+                        1,
+                        false,
+                        true,
+                        listOf(NotificationAction("Dismiss", acceptsText = false)),
+                    ),
+                )
+            val result =
+                dispatcher.dispatch(
+                    session,
+                    "notify.act",
+                    buildJsonObject {
+                        put("key", "alarm")
+                        put("action", "dismiss")
+                    },
+                )
+            assertFalse(result.isError)
+            assertEquals("alarm" to NotificationCommand.Action("dismiss", null), source.acted.single())
+        }
+
+    @Test
     fun `refuses unknown buttons and denied apps`() =
         runTest {
             val noButton =
