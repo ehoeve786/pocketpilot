@@ -120,9 +120,12 @@ class HomeAssistant(
         entity: String,
         data: JsonObject,
     ): String {
-        val domain = service.substringBefore('.', "").trim()
-        val name = service.substringAfter('.', "").trim()
-        if (domain.isEmpty() || name.isEmpty()) throw AutomationFailure("Give the action as domain.action, like light.turn_on")
+        // Home Assistant lowercases both parts, so Shell_Command.x would reach shell_command; only plain names go in the path.
+        val domain = service.substringBefore('.', "").trim().lowercase()
+        val name = service.substringAfter('.', "").trim().lowercase()
+        if (!SERVICE_PART.matches(domain) || !SERVICE_PART.matches(name)) {
+            throw AutomationFailure("Give the action as domain.action, like light.turn_on")
+        }
         if (domain in hostDomains || (domain == "homeassistant" && name in hostServices)) {
             throw AutomationFailure("$service is not allowed from a rule: it runs commands on the host or restarts Home Assistant")
         }
@@ -314,5 +317,6 @@ class HomeAssistant(
         const val HTTP_NOT_FOUND = 404
         const val MAX_REPLY_CHARS = 100_000
         const val MAX_ERROR_CHARS = 200
+        val SERVICE_PART = Regex("[a-z0-9_]+")
     }
 }
