@@ -3,13 +3,20 @@ plugins {
     alias(libs.plugins.pocketpilot.hilt)
 }
 
+// The version follows the commit count, so each build installs over the one before it. A checkout without history counts 1.
+val commitCount =
+    providers
+        .exec { commandLine("git", "rev-list", "--count", "HEAD") }
+        .standardOutput.asText
+        .map { it.trim().toIntOrNull() ?: 1 }
+
 android {
     namespace = "app.pocketpilot"
 
     defaultConfig {
         applicationId = "app.pocketpilot"
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = commitCount.get()
+        versionName = "0.1.${commitCount.get()}"
     }
 
     buildFeatures {
