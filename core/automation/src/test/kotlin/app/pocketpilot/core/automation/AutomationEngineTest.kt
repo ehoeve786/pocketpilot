@@ -187,6 +187,36 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `the run log hides the values of secret variables`() =
+        runTest {
+            val record =
+                engine(this, FakeHost()).run(
+                    rule(
+                        listOf(
+                            ActionStep("var.set", mapOf("name" to "bot_token", "value" to "123:ABCDEF")),
+                            ActionStep("notify.post", mapOf("title" to "bot{bot_token}/send")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertFalse(record.lines.any { "123:ABCDEF" in it }, record.lines.joinToString("\n"))
+        }
+
+    @Test
+    fun `a run that logs too much stops, and its record keeps the line saying why`() =
+        runTest {
+            val inner = ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(ActionStep("flow.log", mapOf("text" to "x"))))
+            val record =
+                engine(
+                    this,
+                    FakeHost(),
+                ).run(rule(listOf(ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(inner)))), "Test")
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue("logged more than" in record.lines.last(), record.lines.last())
+        }
+
+    @Test
     fun `runs tool actions with defaults and placeholders`() =
         runTest {
             val host = FakeHost()
