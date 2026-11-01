@@ -58,6 +58,9 @@ class ModelRegistryTest {
         assertEquals(ToolSupport.NATIVE, sonnet.tools)
         assertEquals(ToolSupport.JSON_FALLBACK, bundled.describe("openai-compatible:ollama", "gemma3:4b").tools)
         assertNull(bundled.describe("openai-compatible:deepseek", "deepseek-chat").pricing)
+        // An unlisted paid model still has a price, so the cost limit can stop it.
+        val dearest = bundled.describe("anthropic", "claude-unlisted").pricing
+        assertTrue(dearest != null && dearest.outputPerMillion >= sonnet.pricing!!.outputPerMillion)
         for (provider in listOf("anthropic", "openai", "gemini")) {
             assertTrue(bundled.find(provider, "missing") == null)
         }
