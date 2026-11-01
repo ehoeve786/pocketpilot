@@ -221,6 +221,29 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a run approves the tools of the rules it runs with flow run_rule`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                Rule(
+                    "r2",
+                    "Notifier",
+                    triggers = listOf(TriggerSpec("manual")),
+                    actions =
+                        listOf(
+                            ActionStep(
+                                "notify.post",
+                                mapOf("title" to "Hi"),
+                            ),
+                        ),
+                ),
+            )
+            engine(this, host, store).run(rule(listOf(ActionStep("flow.run_rule", mapOf("rule" to "r2")))), "Test")
+            assertTrue("notify.post" in host.opened.single(), host.opened.toString())
+        }
+
+    @Test
     fun `schedules with days or times the app cannot read are refused`() {
         fun at(params: Map<String, String>) =
             Rule(

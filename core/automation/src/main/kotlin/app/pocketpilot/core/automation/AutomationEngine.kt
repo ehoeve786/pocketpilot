@@ -241,7 +241,9 @@ class AutomationEngine(
         val vars = HashMap(rule.variables)
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         host.prepare(rule)
-        val session = host.openSession(rule, toolsOf(rule), fromOutside)
+        // Rules this one runs with flow.run_rule were made or accepted by the owner too, so their steps are approved with it.
+        val approved = rule.copy(actions = rule.actions + rulesRunBy(rule).flatMap { it.actions })
+        val session = host.openSession(approved, toolsOf(approved), fromOutside)
         val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain, triggerType = triggerType)
         if (data.isNotEmpty()) lines += stamped("Trigger: " + data.entries.joinToString { "${it.key} = ${logged(it.key, it.value)}" })
         val outcome =
@@ -332,6 +334,23 @@ class AutomationEngine(
             .values
             .sortedByDescending { it.length }
             .fold(line) { text, secret -> text.replace(secret, "(hidden)") }
+
+    /** The rules [rule] runs with flow.run_rule, directly or through them, that may run: named outright, on and accepted. */
+    private fun rulesRunBy(rule: Rule): List<Rule> {
+        val found = LinkedHashMap<String, Rule>()
+
+        fun walk(steps: List<ActionStep>) {
+            steps.forEach { step ->
+                val id = step.params["rule"]?.takeIf { step.type == "flow.run_rule" && !Placeholders.contains(it) }
+                val other = id?.let(store::rule)?.takeIf { it.enabled && !it.pending && it.id != rule.id }
+                if (other != null && found.putIfAbsent(other.id, other) == null) walk(other.actions)
+                walk(step.children)
+                walk(step.elseChildren)
+            }
+        }
+        walk(rule.actions)
+        return found.values.toList()
+    }
 
     /** The variables a run set, kept short so the history stays small. Secret-named ones are left out. */
     private fun localVariables(vars: Map<String, String>): Map<String, String> =

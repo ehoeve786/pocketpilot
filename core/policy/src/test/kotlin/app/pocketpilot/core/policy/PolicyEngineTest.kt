@@ -26,6 +26,7 @@ class PolicyEngineTest {
     private var whileAsking: () -> Unit = {}
     private val acting = mutableListOf<String>()
     private var stopped = false
+    private var now = 0L
 
     private fun engine(
         overrides: Map<String, AppMode> = emptyMap(),
@@ -43,6 +44,7 @@ class PolicyEngineTest {
         leaveDeniedApp = leave,
         indicator = { acting += it.principal },
         clientsStopped = { stopped },
+        nowMillis = { now },
     )
 
     private fun spec(
@@ -162,6 +164,20 @@ class PolicyEngineTest {
             assertEquals(Decision.Allow, engine.before(session, settings))
             assertEquals(Decision.Allow, engine.before(session, destructive))
             assertEquals(listOf("app.clear_data"), asked.map { it.tool })
+        }
+
+    @Test
+    fun `a session idle for half a day is asked again`() =
+        runTest {
+            val engine = engine()
+            val settings = spec("settings.set", RiskTier.SENSITIVE, Scope.SETTINGS_WRITE)
+            engine.before(session, settings)
+            now += PolicyEngine.SESSION_IDLE_MS / 2
+            engine.before(session, settings)
+            assertEquals(1, asked.size, "a session in use keeps its confirmation")
+            now += PolicyEngine.SESSION_IDLE_MS + 1
+            engine.before(session, settings)
+            assertEquals(2, asked.size)
         }
 
     @Test
