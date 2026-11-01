@@ -158,9 +158,11 @@ fun AutomationsScreen(
     val current = editing
     if (current != null) {
         BackHandler { editing = null }
-        val existing = state.rules.any { it.id == current.id }
+        // The saved copy has no credentials (see RuleSaver), so a rule restored after rotation is reloaded from the store.
+        val stored = state.rules.firstOrNull { it.id == current.id }
+        val existing = stored != null
         RuleEditor(
-            initial = current,
+            initial = stored ?: current,
             state = state,
             isNew = !existing,
             onSave = { rule ->
