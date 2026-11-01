@@ -234,8 +234,9 @@ object AdbQuery {
 
             "pm" -> {
                 val verb = args.firstOrNull().orEmpty()
-                require(verb.startsWith("list") || verb.startsWith("get-") || verb in setOf("path", "dump", "has-feature")) {
-                    "Only pm list, path, dump, has-feature and get-* are read-only"
+                require(verb.startsWith("list") || verb.startsWith("get-") || verb in setOf("path", "has-feature")) {
+                    // pm dump prints what dumpsys package does, which is refused above.
+                    "Only pm list, path, has-feature and get-* are read-only here"
                 }
             }
 
