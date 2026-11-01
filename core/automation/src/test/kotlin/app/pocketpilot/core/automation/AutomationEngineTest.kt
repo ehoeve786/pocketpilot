@@ -873,6 +873,23 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an update that moves a sensitive step out of its condition waits as a proposal`() =
+        runTest {
+            val dnd = ActionStep("setting.dnd", mapOf("value" to "on"))
+            val guard = ActionStep("flow.if", constraints = ConstraintGroup(), children = listOf(dnd))
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                Rule("r1", "Old", enabled = true, triggers = listOf(TriggerSpec("wifi.connected", office)), actions = listOf(guard)),
+            )
+            val tool = AutomationUpdateTool(store, sideload = true, onChanged = { _, _ -> error("not in place") }, onProposed = {})
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            // updateArgs puts setting.dnd at the top level, outside the flow.if.
+            tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "Old", "setting.dnd")), session)
+            assertEquals("r1", store.rules.single { it.pending }.replaces)
+            assertEquals(listOf(guard), store.rule("r1")?.actions)
+        }
+
+    @Test
     fun `an update that adds a shell command waits as a proposal that replaces the rule`() =
         runTest {
             val store = RuleStore(MemoryPersistence(), clock)
