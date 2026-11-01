@@ -1,5 +1,6 @@
 package app.pocketpilot.core.audit
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -23,11 +24,34 @@ class Redactor(
         value: JsonElement,
     ): JsonElement =
         when {
-            isSensitive(key) -> summary((value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: value.toString())
-            value is JsonObject -> redact(value)
-            value is JsonArray -> JsonArray(value.map { redactValue(key, it) })
-            else -> value
+            isSensitive(key) -> {
+                summary((value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: value.toString())
+            }
+
+            value is JsonObject -> {
+                redact(value)
+            }
+
+            value is JsonArray -> {
+                JsonArray(value.map { redactValue(key, it) })
+            }
+
+            // Some models send an object or array as JSON text, which the tool then parses; its keys are checked too.
+            value is JsonPrimitive && value.isString -> {
+                jsonText(value.content)?.let { redactValue(key, it).toString() }?.let(::JsonPrimitive)
+                    ?: value
+            }
+
+            else -> {
+                value
+            }
         }
+
+    private fun jsonText(text: String): JsonElement? =
+        text
+            .trim()
+            .takeIf { it.startsWith("{") || it.startsWith("[") }
+            ?.let { runCatching { Json.parseToJsonElement(it) }.getOrNull() }
 
     /** A key is sensitive when it is one of [sensitiveKeys] or contains one of [sensitiveWords], in any case. */
     private fun isSensitive(key: String): Boolean {

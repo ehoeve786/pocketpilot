@@ -128,8 +128,13 @@ fun ConfirmScreen(
     modifier: Modifier = Modifier,
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
+        // Scrolls, so a long command never pushes Allow and Deny off the screen.
         Column(
-            modifier = Modifier.padding(padding).padding(24.dp),
+            modifier =
+                Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.feature_approvals_confirm_title, ui.principal), style = MaterialTheme.typography.headlineSmall)

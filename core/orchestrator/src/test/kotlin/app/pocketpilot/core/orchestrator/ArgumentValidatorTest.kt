@@ -18,6 +18,17 @@ class ArgumentValidatorTest {
             ).jsonObject
 
     @Test
+    fun `a schema's maxLength replaces the default limit on string length`() {
+        val long = "x".repeat(200_000)
+        assertEquals(
+            "Argument 'path' is longer than 100000 characters",
+            ArgumentValidator.validate(schema, buildJsonObject { put("path", long) }),
+        )
+        val roomy = Json.parseToJsonElement("""{"type":"object","properties":{"text":{"type":"string","maxLength":1048576}}}""").jsonObject
+        assertNull(ArgumentValidator.validate(roomy, buildJsonObject { put("text", long) }))
+    }
+
+    @Test
     fun `text spelling a boolean or number becomes that type`() {
         val sent =
             buildJsonObject {

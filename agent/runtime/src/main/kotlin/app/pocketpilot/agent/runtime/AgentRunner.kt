@@ -270,9 +270,13 @@ class AgentRun internal constructor(
             }
 
             val done =
-                when (model.toolMode) {
-                    ToolMode.NATIVE -> nativeStep(reply)
-                    ToolMode.JSON_FALLBACK -> jsonStep(reply)
+                try {
+                    when (model.toolMode) {
+                        ToolMode.NATIVE -> nativeStep(reply)
+                        ToolMode.JSON_FALLBACK -> jsonStep(reply)
+                    }
+                } catch (e: ReplyFailed) {
+                    return RunStatus.FAILED to e.reason
                 }
             if (done != null) return RunStatus.FINISHED to done
             if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
@@ -337,6 +341,10 @@ class AgentRun internal constructor(
         return null
     }
 
+    private class ReplyFailed(
+        val reason: String,
+    ) : Exception(reason)
+
     private suspend fun jsonStep(first: Reply.Answer): String? {
         var reply = first
         var parsed = JsonFallback.parse(reply.text)
@@ -345,7 +353,10 @@ class AgentRun internal constructor(
             retries++
             messages += Message(Role.ASSISTANT, listOf(Part.Text(reply.text)))
             messages += Message.user(JsonFallback.retryMessage(parsed.problem))
-            reply = (withTimeoutOrNull(remainingMs()) { ask() } as? Reply.Answer) ?: break
+            val next = withTimeoutOrNull(remainingMs()) { ask() } ?: break
+            // A provider failure is the run's failure, not one more reply that is not a valid action.
+            if (next is Reply.Failed) throw ReplyFailed(next.message)
+            reply = next as Reply.Answer
             parsed = JsonFallback.parse(reply.text)
         }
         return when (parsed) {

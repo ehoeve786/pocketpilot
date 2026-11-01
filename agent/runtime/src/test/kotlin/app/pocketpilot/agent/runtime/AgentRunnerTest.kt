@@ -483,6 +483,23 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `a provider failure while asking for valid JSON fails the run with that failure`() =
+        runTest {
+            val provider = ScriptedProvider(say("not json at all"), fail(ModelErrorCode.QUOTA))
+            val end =
+                runner()
+                    .start(
+                        AgentTask("Tap", scopes),
+                        RunModel(provider, "fake-1", toolMode = ToolMode.JSON_FALLBACK),
+                        AgentBudgets(),
+                        backgroundScope,
+                    ).finished()
+            assertEquals(RunStatus.FAILED, end.status)
+            assertEquals(2, provider.requests.size, "no further request after the failure")
+            assertTrue(end.steps.none { it.note?.contains("not a valid action") == true }, end.steps.toString())
+        }
+
+    @Test
     fun `fails after three steps in a row fail`() =
         runTest {
             val provider = ScriptedProvider(callTool("ui_swipe"), callTool("nope"), callTool("ui_swipe"))

@@ -587,6 +587,7 @@ object AppModule {
     fun mcpHttpServer(
         registry: ToolRegistry,
         dispatcher: CallDispatcher,
+        policy: PolicyEngine,
         tokens: LocalTokenStore,
         oauth: AuthorizationServer,
         tailscale: TailscaleProvider,
@@ -601,6 +602,7 @@ object AppModule {
                     dispatcher,
                     appVersion = BuildConfig.VERSION_NAME,
                     blocked = { toolModes.modeFor(it) == ToolMode.BLOCK },
+                    onSessionEnd = policy::endSession,
                 ),
             sessions =
                 SessionFactory(

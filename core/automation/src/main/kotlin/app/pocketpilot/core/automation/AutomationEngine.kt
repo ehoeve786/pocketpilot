@@ -6,7 +6,9 @@ import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.ToolResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -167,11 +169,42 @@ class AutomationEngine(
         fromOutside: Boolean = false,
         chain: List<String> = emptyList(),
         triggerType: String? = null,
-    ): Boolean {
+    ): Boolean = launchRun(rule, reason, data, checkConstraints, fromOutside, chain, triggerType) != null
+
+    /**
+     * Runs [rule] as [start] does, so it shows as running and Stop reaches it, and waits for its record; null when it
+     * was already running.
+     */
+    suspend fun startAndWait(
+        rule: Rule,
+        reason: String,
+        data: Map<String, String>,
+        fromOutside: Boolean,
+    ): RunRecord? {
+        val run = launchRun(rule, reason, data, true, fromOutside, emptyList(), null) ?: return null
+        return try {
+            run.await()
+        } catch (e: CancellationException) {
+            // Stopped by the owner: the run still saved its record. A cancelled caller stops here instead.
+            currentCoroutineContext().ensureActive()
+            store.data.value.runs
+                .firstOrNull { it.ruleId == rule.id }
+        }
+    }
+
+    private fun launchRun(
+        rule: Rule,
+        reason: String,
+        data: Map<String, String>,
+        checkConstraints: Boolean,
+        fromOutside: Boolean,
+        chain: List<String>,
+        triggerType: String?,
+    ): Deferred<RunRecord>? {
         // A proposal the owner has not accepted never runs, not even as a test: its tools are not approved yet.
-        if (rule.pending || jobs.containsKey(rule.id)) return false
+        if (rule.pending || jobs.containsKey(rule.id)) return null
         val job =
-            scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            scope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 try {
                     run(rule, reason, data, checkConstraints, fromOutside, chain, triggerType)
                 } finally {
@@ -181,11 +214,11 @@ class AutomationEngine(
             }
         if (jobs.putIfAbsent(rule.id, job) != null) {
             job.cancel()
-            return false
+            return null
         }
         runningIds.update { it + rule.id }
         job.start()
-        return true
+        return job
     }
 
     /** Stops a running rule; its run ends as [RunOutcome.STOPPED]. */
@@ -413,11 +446,16 @@ class AutomationEngine(
         if (step.type in AI_REFUSED && readsAi(context, step)) {
             throw AutomationFailure("Not run: an AI answer is not checked, so it cannot choose what ${def.title} acts on")
         }
-        val params =
-            RuleValidator.withDefaults(def.fields, step.params).mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
-        // A send whose placeholder found no value would send the placeholder's own text, so it stops instead.
+        val written = RuleValidator.withDefaults(def.fields, step.params)
+        val params = written.mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
+        // A send whose placeholder found no value would send the placeholder's own text, so it stops instead. The
+        // settings as written are checked, since a filled-in value such as a message can hold braces of its own.
         if (step.type in SENDS) {
-            val missing = params.values.flatMap { Placeholders.names(it) }.distinct()
+            val missing =
+                written.values
+                    .flatMap { Placeholders.names(it) }
+                    .distinct()
+                    .filter { lookup(context, it) == null }
             if (missing.isNotEmpty()) {
                 throw AutomationFailure("Not sent: no value for ${missing.joinToString { "{$it}" }}")
             }
@@ -620,6 +658,8 @@ class AutomationEngine(
                 }
                 if (other.id == context.rule.id || context.depth >= MAX_DEPTH) throw AutomationFailure("A rule cannot run itself")
                 if (!holds(context.copy(rule = other), other.constraints)) return "skipped, its conditions did not hold"
+                // The other rule's own variables start as it defines them, without overwriting this run's.
+                other.variables.forEach { (name, value) -> context.vars.putIfAbsent(name, value) }
                 host.prepare(other)
                 execute(context.copy(rule = other, depth = context.depth + 1), other.actions, "$label.")
                 return "ran ${other.name}"
@@ -1027,6 +1067,11 @@ class AutomationEngine(
                 "app.crash",
                 "calendar.event",
                 "wifi.connected",
+                // A network's, device's or photo's name is chosen by whoever set it up.
+                "wifi.disconnected",
+                "headset.changed",
+                "usb.device",
+                "photo.taken",
             )
 
         private val UNTRUSTED_TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)

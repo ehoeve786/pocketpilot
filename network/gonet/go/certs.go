@@ -52,6 +52,8 @@ type CertManager struct {
 	busy      bool
 	lastError string
 	renewing  bool
+	// forgets counts Forget calls, so a request that was running when the owner pressed Forget is discarded.
+	forgets int
 }
 
 // NewCertManager keeps the ACME account key and certificates in blobs.
@@ -109,7 +111,7 @@ func (c *CertManager) Obtain() error {
 		return nil
 	}
 	c.busy = true
-	domain, email, token := c.domain, c.email, c.token
+	domain, email, token, forgets := c.domain, c.email, c.token, c.forgets
 	c.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -119,6 +121,11 @@ func (c *CertManager) Obtain() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.busy = false
+	if c.forgets != forgets {
+		// issue saved the key and certificate as it went; the owner has forgotten them since.
+		c.removeSavedLocked(domain)
+		return errors.New("the certificate was forgotten while it was being requested")
+	}
 	if err != nil {
 		c.lastError = err.Error()
 		c.logs.logf("ppnet: certificate for %s failed: %v", domain, err)
@@ -188,10 +195,15 @@ func (c *CertManager) Forget() {
 	// The Cloudflare token goes too, so it does not stay in memory after the owner has forgotten the certificate.
 	c.token = ""
 	c.cert, c.notAfter, c.lastError = nil, time.Time{}, ""
+	c.forgets++
+	c.removeSavedLocked(c.domain)
+}
+
+func (c *CertManager) removeSavedLocked(domain string) {
 	c.blobs.Remove(accountKeyName)
-	if c.domain != "" {
-		c.blobs.Remove(certName(c.domain))
-		c.blobs.Remove(keyName(c.domain))
+	if domain != "" {
+		c.blobs.Remove(certName(domain))
+		c.blobs.Remove(keyName(domain))
 	}
 }
 

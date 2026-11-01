@@ -32,6 +32,13 @@ class RedactorTest {
     }
 
     @Test
+    fun `objects sent as JSON text are redacted too`() {
+        val redacted = redactor.redact(buildJsonObject { put("rule", """{"actions":[{"params":{"password":"hunter2"}}]}""") })
+        assertFalse(redacted.toString().contains("hunter2"), redacted.toString())
+        assertEquals(JsonPrimitive("not json"), redactor.redact(buildJsonObject { put("rule", "not json") })["rule"])
+    }
+
+    @Test
     fun `nested objects are redacted too`() {
         val redacted = redactor.redact(buildJsonObject { putJsonObject("options") { put("password", "hunter2") } })
         assertTrue(Redactor.isRedacted(redacted.getValue("options").jsonObject.getValue("password")))

@@ -5,6 +5,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class StoresTest {
     private val dir = Files.createTempDirectory("agent").toFile()
@@ -20,6 +21,16 @@ class StoresTest {
             remove("p1")
         }
         assertEquals(listOf(ollama.copy(model = "qwen2.5:14b")), ProfileStore(file).profiles.value)
+    }
+
+    @Test
+    fun `a profiles file that cannot be decoded is set aside, not overwritten`() {
+        val file = dir.resolve("future.json")
+        file.writeText("""[{"id":"p1","name":"New","kind":"FUTURE_KIND","model":"m"}]""")
+        val store = ProfileStore(file)
+        assertEquals(emptyList(), store.profiles.value)
+        store.save(AgentProfile("p2", "Gemini", ProviderKind.GEMINI, "gemini-2.5-flash"))
+        assertTrue(dir.resolve("future.json.unreadable").readText().contains("FUTURE_KIND"))
     }
 
     @Test

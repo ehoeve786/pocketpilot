@@ -150,7 +150,7 @@ class FilesWriteTool(
                     "instead, on a new line, and leaves the rest of the file as it was; a missing file is created.",
             inputSchema =
                 schema(
-                    """{"type":"object","properties":{"path":{"type":"string"},"text":{"type":"string"},
+                    """{"type":"object","properties":{"path":{"type":"string"},"text":{"type":"string","maxLength":$MAX_BYTES},
                     "replace":{"type":"boolean"},"append":{"type":"boolean"}},"required":["path","text"],"additionalProperties":false}""",
                 ),
             riskTier = RiskTier.SENSITIVE,

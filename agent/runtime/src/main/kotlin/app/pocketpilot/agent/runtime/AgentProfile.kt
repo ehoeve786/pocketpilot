@@ -10,7 +10,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
@@ -118,10 +117,9 @@ class ProfileStore(
     private fun load(): List<AgentProfile> =
         try {
             if (file.exists()) json.decodeFromString(serializer, file.readText()) else emptyList()
-        } catch (e: IllegalArgumentException) {
-            emptyList()
-        } catch (e: IOException) {
-            // Keep the unreadable file aside, so the next save does not overwrite the owner's profiles.
+        } catch (e: Exception) {
+            // A read error, or a file this version cannot decode. Keep it aside, so the next save does not overwrite
+            // the owner's profiles.
             runCatching { file.renameTo(File(file.parentFile, "${file.name}.unreadable")) }
             emptyList()
         }
