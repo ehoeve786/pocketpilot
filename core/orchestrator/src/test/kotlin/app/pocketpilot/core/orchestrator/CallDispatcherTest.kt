@@ -19,6 +19,9 @@ import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -131,6 +134,18 @@ class CallDispatcherTest {
         runTest {
             val tool = FakeTool(spec("test.slow"), timeoutMs = 50) { awaitCancellation() }
             assertEquals(ToolErrorCode.TIMEOUT, dispatcher(tool).dispatch(session, "test.slow", args()).errorCode)
+        }
+
+    @Test
+    fun `a call cancelled while it runs is still audited`() =
+        runTest {
+            val tool = FakeTool(spec("test.slow")) { awaitCancellation() }
+            val job = launch { dispatcher(tool).dispatch(session, "test.slow", args()) }
+            advanceUntilIdle()
+            job.cancelAndJoin()
+            val event = audit.recent.value.single()
+            assertEquals(AuditDecision.ALLOW, event.decision)
+            assertEquals(AuditOutcome.ERROR, event.outcome)
         }
 
     @Test
