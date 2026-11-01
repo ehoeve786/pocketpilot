@@ -372,7 +372,8 @@ object AdbQuery {
     }
 
     private fun checkService(name: String) {
-        require(NAME.matches(name)) { "Not a service name: $name" }
+        // An option in the name's place, such as --skip or --proto, makes dumpsys dump every service.
+        require(NAME.matches(name) && !name.startsWith("-")) { "Not a service name: $name" }
         require(name !in PERSONAL_SERVICES) { "$name holds personal data; it can only be read with shell.exec, which the owner confirms" }
     }
 
