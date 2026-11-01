@@ -1081,6 +1081,7 @@ class AutomationEngine(
                 "call.changed",
                 "bluetooth.device",
                 "screen.text",
+                "screen.click",
                 "log.line",
                 "media.changed",
                 "app.crash",

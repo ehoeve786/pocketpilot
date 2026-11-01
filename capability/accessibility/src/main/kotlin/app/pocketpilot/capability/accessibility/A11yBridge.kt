@@ -51,6 +51,14 @@ object A11yBridge {
         keyListener?.invoke(event)
     }
 
+    @Volatile
+    private var clickListener: ((String, String) -> Unit)? = null
+
+    /** Receives (package, label) for each view the owner taps, for the "screen.click" trigger. Null stops listening. */
+    fun listenToClicks(listener: ((String, String) -> Unit)?) {
+        clickListener = listener
+    }
+
     /** Counts screen events, so watchers can react when the screen changes. */
     val changeCount: StateFlow<Long> = changes.asStateFlow()
 
@@ -107,6 +115,15 @@ object A11yBridge {
     }
 
     internal fun onEvent(event: AccessibilityEvent) {
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            clickListener?.let { listener ->
+                val pkg = event.packageName?.toString() ?: return@let
+                // A button's label is its text, or its content description when it only shows an icon.
+                val label = event.text.joinToString(" ").ifBlank { event.contentDescription?.toString().orEmpty() }
+                if (label.isNotBlank()) listener(pkg, label)
+            }
+            return
+        }
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkg = event.packageName?.toString()
             val cls = event.className?.toString()
