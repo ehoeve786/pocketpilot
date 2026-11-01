@@ -268,6 +268,16 @@ class RemoteOAuthTest {
     }
 
     @Test
+    fun `oversized bodies are refused on the public OAuth endpoints`() {
+        val big = "grant_type=authorization_code&code=" + "x".repeat(100_000)
+        assertEquals(413, request("POST", "/token", body = big, contentType = "application/x-www-form-urlencoded").status)
+        assertEquals(
+            413,
+            request("POST", "/register", body = "{\"a\":\"${"x".repeat(100_000)}\"}", contentType = "application/json").status,
+        )
+    }
+
+    @Test
     fun `unknown host names are refused on the remote port`() {
         assertEquals(403, request("GET", "/.well-known/oauth-protected-resource", hostHeader = "evil.example").status)
     }
