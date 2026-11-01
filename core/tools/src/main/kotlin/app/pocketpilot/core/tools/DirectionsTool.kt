@@ -186,7 +186,8 @@ class AppDirectionsTool(
                     $RETURN_SNAPSHOT_PROP},"required":["query"],"additionalProperties":false}""",
                 ),
             riskTier = RiskTier.INTERACT,
-            requiredScopes = setOf(Scope.APPS_CONTROL, Scope.SCREEN_READ),
+            // It taps and swipes in Maps to start the route.
+            requiredScopes = setOf(Scope.APPS_CONTROL, Scope.SCREEN_READ, Scope.UI_INTERACT),
             requiredCapabilities = setOf(CapabilityId.RUN_SHELL, CapabilityId.READ_UI, CapabilityId.INJECT_INPUT),
             annotations = ToolAnnotations(readOnly = false, destructive = false, idempotent = true),
             availability = Availability(Phase.P0),
