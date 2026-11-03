@@ -558,7 +558,7 @@ class AutomationEngineTest {
             host.found = "snapshot s9\ne25 button desc=\"Exit\" #exit_button [891,2086,1035,2199] click"
             host.schedule =
                 "snapshot a3 com.example 1080x2316\ne1 window [0,0,1080,2316]\n e2 text \"focused\" [0,0,10,10]\n" +
-                    " e3 textfield #query [0,0,10,10] click edit focused"
+                " e3 textfield #query [0,0,10,10] click edit focused"
             engine(this, host).run(
                 rule(
                     listOf(
