@@ -397,7 +397,8 @@ internal object Actions {
                     type = "ui.tap_text",
                     category = ui,
                     title = "Tap something on screen",
-                    description = "Finds an element by its text or label, its view id, the keyboard focus or a point, and taps or long-presses it.",
+                    description =
+                        "Finds an element by its text or label, its view id, the keyboard focus or a point, and taps or long-presses it.",
                     fields =
                         listOf(
                             choiceField(
@@ -410,7 +411,12 @@ internal object Actions {
                                     Choice("point", "X,Y location"),
                                 ),
                             ),
-                            textField("text", "Text, label or view id", required = false, hint = "A view id matches by its ending, such as exit_button"),
+                            textField(
+                                "text",
+                                "Text, label or view id",
+                                required = false,
+                                hint = "A view id matches by its ending, such as exit_button",
+                            ),
                             numberField("x", "X", required = false, hint = "Pixels, for a point"),
                             numberField("y", "Y", required = false),
                             choiceField("press", "Press", listOf(Choice("tap", "Tap"), Choice("long", "Long press"))),

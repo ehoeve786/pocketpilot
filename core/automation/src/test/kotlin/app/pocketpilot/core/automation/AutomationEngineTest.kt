@@ -556,7 +556,9 @@ class AutomationEngineTest {
         runTest {
             val host = FakeHost()
             host.found = "snapshot s9\ne25 button desc=\"Exit\" #exit_button [891,2086,1035,2199] click"
-            host.schedule = "snapshot a3 com.example 1080x2316\ne1 window [0,0,1080,2316]\n e2 textfield #query [0,0,10,10] click edit focused"
+            host.schedule =
+                "snapshot a3 com.example 1080x2316\ne1 window [0,0,1080,2316]\n e2 text \"focused\" [0,0,10,10]\n" +
+                    " e3 textfield #query [0,0,10,10] click edit focused"
             engine(this, host).run(
                 rule(
                     listOf(
@@ -570,11 +572,20 @@ class AutomationEngineTest {
             val byId = host.calls.single { it.first == "screen.find" && "resourceId" in it.second }.second
             assertEquals("exit_button", (byId["resourceId"] as JsonPrimitive).content)
             val taps = host.calls.filter { it.first == "ui.tap" }.map { it.second }
-            assertEquals(listOf("e25", "e2"), taps.map { (it["element"] as JsonPrimitive).content })
+            assertEquals(listOf("e25", "e3"), taps.map { (it["element"] as JsonPrimitive).content })
             assertEquals(listOf("s9", "a3"), taps.map { (it["snapshotId"] as JsonPrimitive).content })
             val long = host.calls.single { it.first == "ui.long_press" }.second
             assertEquals("920", (long["x"] as JsonPrimitive).content)
             assertEquals("1300", (long["y"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `a tap with nothing to find fails instead of tapping the first element`() =
+        runTest {
+            val host = FakeHost()
+            val record = engine(this, host).run(rule(listOf(ActionStep("ui.tap_text", mapOf("by" to "id", "text" to " ")))), "Test")
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertEquals(emptyList(), host.calls.filter { it.first == "screen.find" || it.first == "ui.tap" })
         }
 
     @Test
