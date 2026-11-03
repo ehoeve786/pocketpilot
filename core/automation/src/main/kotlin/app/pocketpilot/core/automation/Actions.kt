@@ -397,12 +397,42 @@ internal object Actions {
                     type = "ui.tap_text",
                     category = ui,
                     title = "Tap something on screen",
-                    description = "Finds an element by its text or label and taps it.",
-                    fields = listOf(textField("text", "Text or label")),
+                    description =
+                        "Finds an element by its text or label, its view id, the keyboard focus or a point, and taps or long-presses it.",
+                    fields =
+                        listOf(
+                            choiceField(
+                                "by",
+                                "Find it by",
+                                listOf(
+                                    Choice("text", "Text or label"),
+                                    Choice("id", "View id"),
+                                    Choice("focus", "Current focus"),
+                                    Choice("point", "X,Y location"),
+                                ),
+                            ),
+                            textField(
+                                "text",
+                                "Text, label or view id",
+                                required = false,
+                                hint = "A view id matches by its ending, such as exit_button",
+                            ),
+                            numberField("x", "X", required = false, hint = "Pixels, for a point"),
+                            numberField("y", "Y", required = false),
+                            choiceField("press", "Press", listOf(Choice("tap", "Tap"), Choice("long", "Long press"))),
+                        ),
                     tier = RiskTier.INTERACT,
                     kind = ActionKind.Engine,
-                    tools = setOf("screen.find", "ui.tap"),
-                    sentence = { p -> "Tap \"${p.p("text")}\"" },
+                    tools = setOf("screen.find", "screen.snapshot", "ui.tap", "ui.long_press"),
+                    sentence = { p ->
+                        val verb = if (p.p("press") == "long") "Long-press" else "Tap"
+                        when (p.p("by")) {
+                            "id" -> "$verb #${p.p("text")}"
+                            "focus" -> "$verb the focused element"
+                            "point" -> "$verb (${p.p("x")}, ${p.p("y")})"
+                            else -> "$verb \"${p.p("text")}\""
+                        }
+                    },
                 ),
                 ActionDef(
                     type = "ui.tap_run",

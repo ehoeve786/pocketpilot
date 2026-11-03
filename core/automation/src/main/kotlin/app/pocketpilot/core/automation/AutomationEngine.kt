@@ -562,16 +562,42 @@ class AutomationEngine(
             }
 
             "ui.tap_text" -> {
-                val found = callTool(context, "screen.find", args("text" to params.p("text")))
+                val press = if (params.p("press") == "long") "ui.long_press" else "ui.tap"
+                val by = params.p("by")
+                if (by == "point") {
+                    callTool(context, press, args("x" to params.p("x"), "y" to params.p("y"), "returnSnapshot" to false))
+                    return "${if (press == "ui.tap") "tapped" else "long-pressed"} (${params.p("x")}, ${params.p("y")})"
+                }
+                if (by != "focus" && params.p("text").isBlank()) throw AutomationFailure("Give the text, label or view id to tap")
+                val found =
+                    when (by) {
+                        "id" -> callTool(context, "screen.find", args("resourceId" to params.p("text")))
+                        "focus" -> callTool(context, "screen.snapshot", JsonObject(emptyMap()))
+                        else -> callTool(context, "screen.find", args("text" to params.p("text")))
+                    }
                 val lines = found.lines()
-                val snapshot = lines.firstOrNull()?.removePrefix("snapshot ")?.trim()
+                val snapshot =
+                    lines
+                        .firstOrNull()
+                        ?.removePrefix("snapshot ")
+                        ?.trim()
+                        ?.substringBefore(' ')
+                // Flags follow the bounds, so "focused" after the last "]" is the flag and not a word in the element's text.
+                val focused = Regex("""\][^"\n]*\bfocused\b""")
+                val matches = lines.drop(1).filter { it.isNotBlank() && (by != "focus" || focused.containsMatchIn(it)) }
                 // A heading such as "Add Run?" matches "ADD RUN" too; prefer the match the owner can press.
-                val matches = lines.drop(1).filter { it.isNotBlank() }
                 val element =
                     (matches.firstOrNull { Regex("""\bclick\b""").containsMatchIn(it) } ?: matches.firstOrNull())
+                        ?.trim()
                         ?.substringBefore(' ')
-                        ?: throw AutomationFailure("\"${params.p("text")}\" is not on screen")
-                callTool(context, "ui.tap", args("element" to element, "snapshotId" to snapshot, "returnSnapshot" to false))
+                        ?: throw AutomationFailure(
+                            when (by) {
+                                "id" -> "No view with id \"${params.p("text")}\" is on screen"
+                                "focus" -> "Nothing on screen has the focus"
+                                else -> "\"${params.p("text")}\" is not on screen"
+                            },
+                        )
+                callTool(context, press, args("element" to element, "snapshotId" to snapshot, "returnSnapshot" to false))
             }
 
             "ui.tap_run" -> {
