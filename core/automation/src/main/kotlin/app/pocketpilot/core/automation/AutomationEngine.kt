@@ -576,7 +576,12 @@ class AutomationEngine(
                         else -> callTool(context, "screen.find", args("text" to params.p("text")))
                     }
                 val lines = found.lines()
-                val snapshot = lines.firstOrNull()?.removePrefix("snapshot ")?.trim()?.substringBefore(' ')
+                val snapshot =
+                    lines
+                        .firstOrNull()
+                        ?.removePrefix("snapshot ")
+                        ?.trim()
+                        ?.substringBefore(' ')
                 // Flags follow the bounds, so "focused" after the last "]" is the flag and not a word in the element's text.
                 val focused = Regex("""\][^"\n]*\bfocused\b""")
                 val matches = lines.drop(1).filter { it.isNotBlank() && (by != "focus" || focused.containsMatchIn(it)) }
