@@ -552,6 +552,32 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `taps by view id, by point, by focus, and long-presses`() =
+        runTest {
+            val host = FakeHost()
+            host.found = "snapshot s9\ne25 button desc=\"Exit\" #exit_button [891,2086,1035,2199] click"
+            host.schedule = "snapshot a3 com.example 1080x2316\ne1 window [0,0,1080,2316]\n e2 textfield #query [0,0,10,10] click edit focused"
+            engine(this, host).run(
+                rule(
+                    listOf(
+                        ActionStep("ui.tap_text", mapOf("by" to "id", "text" to "exit_button")),
+                        ActionStep("ui.tap_text", mapOf("by" to "point", "x" to "920", "y" to "1300", "press" to "long")),
+                        ActionStep("ui.tap_text", mapOf("by" to "focus")),
+                    ),
+                ),
+                "Test",
+            )
+            val byId = host.calls.single { it.first == "screen.find" && "resourceId" in it.second }.second
+            assertEquals("exit_button", (byId["resourceId"] as JsonPrimitive).content)
+            val taps = host.calls.filter { it.first == "ui.tap" }.map { it.second }
+            assertEquals(listOf("e25", "e2"), taps.map { (it["element"] as JsonPrimitive).content })
+            assertEquals(listOf("s9", "a3"), taps.map { (it["snapshotId"] as JsonPrimitive).content })
+            val long = host.calls.single { it.first == "ui.long_press" }.second
+            assertEquals("920", (long["x"] as JsonPrimitive).content)
+            assertEquals("1300", (long["y"] as JsonPrimitive).content)
+        }
+
+    @Test
     fun `a swipe between two points sends the points and no direction`() =
         runTest {
             val host = FakeHost()
