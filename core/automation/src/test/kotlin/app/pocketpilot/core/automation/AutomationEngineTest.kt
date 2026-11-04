@@ -1083,7 +1083,8 @@ class AutomationEngineTest {
     @Test
     fun `a shared rule with a name the owner has replaces that rule when accepted`() {
         val store = RuleStore(MemoryPersistence(), clock)
-        store.upsert(Rule("r1", "Courier refresh", enabled = false, pinned = true, triggers = listOf(TriggerSpec("wifi.connected"))))
+        val owned = Rule("r1", "Courier refresh", category = "Skip", enabled = false, pinned = true)
+        store.upsert(owned.copy(triggers = listOf(TriggerSpec("wifi.connected"))))
         val shared = Rule("s1", "courier refresh ", triggers = listOf(TriggerSpec("screen.on")), proposedBy = SHARED_RULE_PROPOSER)
         store.addShared(shared)
         store.addShared(shared.copy(id = "s2", agentPrompt = "newer"))
@@ -1098,6 +1099,7 @@ class AutomationEngineTest {
         assertEquals("screen.on", rule.triggers.single().type)
         assertFalse(rule.enabled, "the owner had turned the replaced rule off, and accepting keeps it off")
         assertTrue(rule.pinned)
+        assertEquals("Skip", rule.category, "a file with no category keeps the replaced rule's")
     }
 
     @Test
