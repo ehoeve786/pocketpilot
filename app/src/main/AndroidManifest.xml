@@ -81,12 +81,23 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/vnd.pocketpilot.rule+json" />
             </intent-filter>
-            <!-- A file manager may not know the type of a .pocketpilot file, so it is matched by its name. -->
+            <!-- A file manager or chat app may not know the type of a .pocketpilot file, so it is matched by its name.
+                 pathPattern's ".*" stops at the first dot, so each pattern allows one more dot earlier in the path:
+                 Telegram's paths hold "org.telegram.messenger" before the name. (pathSuffix would need Android 12.) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.pocketpilot" />
-                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.pocketpilot" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.pocketpilot" />
+                <data android:pathPattern=".*\\..*\\.pocketpilot" />
+                <data android:pathPattern=".*\\..*\\..*\\.pocketpilot" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.pocketpilot" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.pocketpilot" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\.pocketpilot" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\.pocketpilot" />
             </intent-filter>
         </activity>
 
