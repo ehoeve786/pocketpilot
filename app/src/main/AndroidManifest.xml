@@ -81,6 +81,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/vnd.pocketpilot.rule+json" />
             </intent-filter>
+            <!-- Google Messages and similar apps pass neither the file's name nor its type, only a generic one. The file is
+                 read capped and parsed before it becomes a proposal, so anything else just shows "can't read". -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
             <!-- A file manager or chat app may not know the type of a .pocketpilot file, so it is matched by its name.
                  pathPattern's ".*" stops at the first dot, so each pattern allows one more dot earlier in the path:
                  Telegram's paths hold "org.telegram.messenger" before the name. (pathSuffix would need Android 12.) -->
