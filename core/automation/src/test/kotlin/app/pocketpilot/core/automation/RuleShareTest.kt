@@ -96,6 +96,32 @@ class RuleShareTest {
     }
 
     @Test
+    fun `a shared file keeps the category and variables but not credential variables`() {
+        val withExtras =
+            rule.copy(
+                category = "Uber",
+                variables = mapOf("first" to "yes", "count" to "2", "api_token" to "s3cret"),
+                variableTypes = mapOf("count" to VariableType.INTEGER, "api_token" to VariableType.STRING),
+            )
+        val file = withExtras.shareFileJson()
+        val received = parseSharedRule(file) { "new-id" }!!
+
+        assertEquals("Uber", received.category)
+        assertEquals(mapOf("first" to "yes", "count" to "2"), received.variables)
+        assertEquals(mapOf("count" to VariableType.INTEGER), received.variableTypes)
+        assertFalse("s3cret" in file)
+    }
+
+    @Test
+    fun `a file without a category or variables still opens`() {
+        val old = """{"name":"Old","actions":[{"type":"toast","params":{"text":"hi"}}]}"""
+        val received = parseSharedRule(old) { "id" }!!
+
+        assertEquals("", received.category)
+        assertEquals(emptyMap(), received.variables)
+    }
+
+    @Test
     fun `text that is not a shared rule is not a rule`() {
         assertNull(parseSharedRule("hello there") { "x" })
         assertNull(parseSharedRule("{\"unrelated\":true}") { "x" })

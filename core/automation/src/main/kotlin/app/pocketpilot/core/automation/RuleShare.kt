@@ -42,11 +42,27 @@ private data class SharedRule(
     val actions: List<ActionStep> = emptyList(),
     val runAs: RunMode = RunMode.DIRECT,
     val agentPrompt: String = "",
+    // Defaults keep files shared before these were added readable.
+    val category: String = "",
+    val variables: Map<String, String> = emptyMap(),
+    val variableTypes: Map<String, VariableType> = emptyMap(),
 )
 
-/** The rule as the JSON text of a shared file. */
+/** The rule as the JSON text of a shared file. Variables named like credentials stay home, as step settings do. */
 fun Rule.shareFileJson(): String {
-    val shared = SharedRule(name, triggers, constraints, withoutCredentials(actions), runAs, agentPrompt)
+    val kept = variables.filterKeys { !isSecretVariable(it) }
+    val shared =
+        SharedRule(
+            name,
+            triggers,
+            constraints,
+            withoutCredentials(actions),
+            runAs,
+            agentPrompt,
+            category,
+            kept,
+            variableTypes.filterKeys { it in kept },
+        )
     return AutomationJson.json.encodeToString(SharedRule.serializer(), shared)
 }
 
@@ -101,6 +117,9 @@ fun parseSharedRule(
             actions = shared.actions,
             runAs = shared.runAs,
             agentPrompt = shared.agentPrompt,
+            category = shared.category.trim(),
+            variables = shared.variables,
+            variableTypes = shared.variableTypes,
             proposedBy = SHARED_RULE_PROPOSER,
         )
     }.getOrNull()

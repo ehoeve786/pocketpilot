@@ -121,6 +121,8 @@ class RuleStore(
             val proposal =
                 shared.copy(
                     id = waiting?.id ?: shared.id,
+                    // A file from an older version has no category; the rule it updates keeps its own.
+                    category = shared.category.ifBlank { target?.category.orEmpty() },
                     replaces = target?.id,
                     createdAtMillis = waiting?.createdAtMillis ?: clock.nowMillis(),
                 )
