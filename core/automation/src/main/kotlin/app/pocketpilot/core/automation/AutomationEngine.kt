@@ -684,11 +684,18 @@ class AutomationEngine(
             }
 
             "flow.wait_until" -> {
-                val timeout = (params.p("timeout").toLongOrNull() ?: 60).coerceIn(1, MAX_WAIT_S.toLong()) * 1000
+                // takeIf rejects "NaN", which would pass coerceIn and make the loop spin without a delay.
+                fun seconds(
+                    name: String,
+                    default: Double,
+                    max: Double,
+                ) = ((params.p(name).toDoubleOrNull()?.takeIf { it.isFinite() } ?: default).coerceIn(0.1, max) * 1000).toLong()
+                val timeout = seconds("timeout", 60.0, MAX_WAIT_S)
+                val poll = seconds("poll", 0.5, POLL_MS / 1000.0)
                 val until = clock.nowMillis() + timeout
                 while (!holds(context, step.constraints)) {
-                    if (clock.nowMillis() >= until) throw AutomationFailure("Timed out after ${timeout / 1000} s")
-                    delay(POLL_MS)
+                    if (clock.nowMillis() >= until) throw AutomationFailure("Timed out after ${timeout / 1000.0} s")
+                    delay(poll)
                 }
             }
 

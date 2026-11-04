@@ -580,6 +580,23 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `wait until checks at its poll interval and honours a fractional timeout`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            val ticking = AutomationEngine(store, FakeHost(), this, { testScheduler.currentTime }) { ZoneOffset.UTC }
+            val never = ConstraintGroup.of(ConstraintSpec("variable.compare", mapOf("name" to "x", "op" to "set")))
+            val wait = ActionStep("flow.wait_until", mapOf("timeout" to "0.3", "poll" to "0.1"), constraints = never)
+            val record = ticking.run(rule(listOf(wait)), "Test")
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertEquals(300L, testScheduler.currentTime)
+
+            // A poll of NaN falls back to the default instead of spinning.
+            val nan = ActionStep("flow.wait_until", mapOf("timeout" to "1", "poll" to "NaN"), constraints = never)
+            assertEquals(RunOutcome.FAILED, ticking.run(rule(listOf(nan)), "Test").outcome)
+            assertEquals(1300L, testScheduler.currentTime)
+        }
+
+    @Test
     fun `a tap with nothing to find fails instead of tapping the first element`() =
         runTest {
             val host = FakeHost()
