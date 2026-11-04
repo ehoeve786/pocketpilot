@@ -1013,8 +1013,12 @@ internal object Actions {
                     type = "flow.wait_until",
                     category = Category.FLOW,
                     title = "Wait until",
-                    description = "Waits until its conditions hold, checking every few seconds; fails after the timeout.",
-                    fields = listOf(numberField("timeout", "Timeout (seconds)", default = "60")),
+                    description = "Waits until its conditions hold, checking every half second or as set; fails after the timeout.",
+                    fields =
+                        listOf(
+                            numberField("timeout", "Timeout (seconds)", default = "60"),
+                            numberField("poll", "Check every (seconds)", default = "0.5", required = false, hint = "0.1 to 2"),
+                        ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
                     conditional = true,
