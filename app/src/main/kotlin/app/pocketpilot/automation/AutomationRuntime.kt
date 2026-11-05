@@ -101,6 +101,13 @@ class AutomationRuntime(
                 .distinctUntilChanged()
                 .collect { rules -> withContext(Dispatchers.Main) { apply(rules) } }
         }
+        // A proposal the owner accepted or declined, wherever, takes its notification with it.
+        scope.launch {
+            store.data
+                .map { data -> data.rules.filter { it.pending }.mapTo(HashSet()) { it.id } }
+                .distinctUntilChanged()
+                .collect(notifier::dropProposalsExcept)
+        }
         scope.launch {
             combine(store.data.map { floatingButtons(activeRules(it)) }, A11yBridge.connected) { buttons, connected ->
                 if (connected) buttons else emptyList()
