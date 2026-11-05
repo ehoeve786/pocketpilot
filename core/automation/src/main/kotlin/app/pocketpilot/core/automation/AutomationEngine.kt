@@ -610,6 +610,7 @@ class AutomationEngine(
                     context.vars["${params.p("into")}_time"] = run.time
                     callTool(context, "ui.tap", args("element" to run.element, "snapshotId" to run.snapshotId, "returnSnapshot" to false))
                 }
+                return if (run == null) "none in the window" else "took ${run.day} ${run.time}"
             }
 
             "screen.read" -> {

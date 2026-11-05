@@ -508,6 +508,7 @@ class AutomationEngineTest {
             val tap = host.calls.single { it.first == "ui.tap" }.second
             assertEquals("e49", (tap["element"] as JsonPrimitive).content)
             assertEquals("yes", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
+            assertTrue(record.lines.any { it.endsWith("took Monday 6:00am to 10:00am") }, record.lines.toString())
         }
 
     @Test
@@ -529,6 +530,7 @@ class AutomationEngineTest {
             assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
             assertEquals(emptyList(), host.calls.filter { it.first == "ui.tap" })
             assertEquals("no", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
+            assertTrue(record.lines.any { it.endsWith("none in the window") }, record.lines.toString())
         }
 
     @Test
