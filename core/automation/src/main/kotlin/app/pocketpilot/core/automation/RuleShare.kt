@@ -46,6 +46,7 @@ private data class SharedRule(
     val category: String = "",
     val variables: Map<String, String> = emptyMap(),
     val variableTypes: Map<String, VariableType> = emptyMap(),
+    val maxRunMinutes: Int = Rule.DEFAULT_RUN_MINUTES,
 )
 
 /** The rule as the JSON text of a shared file. Variables named like credentials stay home, as step settings do. */
@@ -62,6 +63,7 @@ fun Rule.shareFileJson(): String {
             category,
             kept,
             variableTypes.filterKeys { it in kept },
+            maxRunMinutes,
         )
     return AutomationJson.json.encodeToString(SharedRule.serializer(), shared)
 }
@@ -120,6 +122,7 @@ fun parseSharedRule(
             category = shared.category.trim(),
             variables = shared.variables,
             variableTypes = shared.variableTypes,
+            maxRunMinutes = shared.maxRunMinutes.coerceIn(0, Rule.MAX_RUN_MINUTES),
             proposedBy = SHARED_RULE_PROPOSER,
         )
     }.getOrNull()

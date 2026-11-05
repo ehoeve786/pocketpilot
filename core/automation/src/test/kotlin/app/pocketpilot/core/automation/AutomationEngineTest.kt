@@ -275,19 +275,6 @@ class AutomationEngineTest {
         }
 
     @Test
-    fun `a run that logs too much stops, and its record keeps the line saying why`() =
-        runTest {
-            val inner = ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(ActionStep("flow.log", mapOf("text" to "x"))))
-            val record =
-                engine(
-                    this,
-                    FakeHost(),
-                ).run(rule(listOf(ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(inner)))), "Test")
-            assertEquals(RunOutcome.FAILED, record.outcome)
-            assertTrue("logged more than" in record.lines.last(), record.lines.last())
-        }
-
-    @Test
     fun `runs tool actions with defaults and placeholders`() =
         runTest {
             val host = FakeHost()
@@ -579,6 +566,29 @@ class AutomationEngineTest {
             val long = host.calls.single { it.first == "ui.long_press" }.second
             assertEquals("920", (long["x"] as JsonPrimitive).content)
             assertEquals("1300", (long["y"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `a run stops at its own time limit, and a limit of zero lets it run on`() =
+        runTest {
+            val wait = listOf(ActionStep("flow.wait", mapOf("seconds" to "2400")))
+            val capped = engine(this, FakeHost()).run(rule(wait).copy(maxRunMinutes = 30), "Test")
+            assertEquals(RunOutcome.FAILED, capped.outcome)
+            assertTrue(capped.lines.last().contains("longer than 30 minutes"))
+
+            val unlimited = engine(this, FakeHost()).run(rule(wait).copy(maxRunMinutes = 0), "Test")
+            assertEquals(RunOutcome.OK, unlimited.outcome)
+        }
+
+    @Test
+    fun `a run keeps going past the log limit and notes what it left out`() =
+        runTest {
+            val set = ActionStep("var.set", mapOf("name" to "x", "value" to "1"))
+            val inner = ActionStep("flow.repeat", mapOf("count" to "5"), children = listOf(set))
+            val outer = ActionStep("flow.repeat", mapOf("count" to "1000"), children = listOf(inner))
+            val record = engine(this, FakeHost()).run(rule(listOf(outer)), "Test")
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertTrue(record.lines.last().contains("more lines were not kept"), record.lines.last())
         }
 
     @Test
