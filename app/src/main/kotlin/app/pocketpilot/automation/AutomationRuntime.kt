@@ -97,9 +97,14 @@ class AutomationRuntime(
         started = true
         scope.launch {
             store.data
-                .map(::activeRules)
+                .map { activeRules(it) to it.settings.screenReadMillis }
                 .distinctUntilChanged()
-                .collect { rules -> withContext(Dispatchers.Main) { apply(rules) } }
+                .collect { (rules, screenRead) ->
+                    withContext(Dispatchers.Main) {
+                        sources.screenReadMillis = screenRead
+                        apply(rules)
+                    }
+                }
         }
         // A proposal the owner accepted or declined, wherever, takes its notification with it.
         scope.launch {

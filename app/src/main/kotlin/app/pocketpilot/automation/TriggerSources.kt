@@ -38,6 +38,7 @@ import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.api.shell.SystemReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuState
+import app.pocketpilot.core.automation.AutomationSettings
 import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.TriggerEvent
@@ -80,7 +81,10 @@ class TriggerSources(
     private var actionReceiver: Pair<Set<String>, BroadcastReceiver>? = null
     private val lastActionFire = HashMap<String, Long>()
     private var mediaWatch: MediaWatch? = null
-    private var screenText: Pair<Set<String>, Job>? = null
+    private var screenText: Pair<Pair<Set<String>, Long>, Job>? = null
+
+    /** How often "Text appears on screen" reads the screen while it changes; set from the owner's settings. */
+    var screenReadMillis = AutomationSettings.DEFAULT_SCREEN_READ_MILLIS
 
     private var receiver: BroadcastReceiver? = null
     private var packageReceiver: BroadcastReceiver? = null
@@ -379,12 +383,14 @@ class TriggerSources(
     }
 
     /**
-     * "Text appears on screen": checks the front window's text at most once a second while it changes. Waiting for the
-     * screen to go quiet instead never fired in apps that redraw all the time, such as a driver app's live map.
+     * "Text appears on screen": checks the front window's text at most every [screenReadMillis] while it changes. Waiting
+     * for the screen to go quiet instead never fired in apps that redraw all the time, such as a driver app's live map.
      */
     @OptIn(FlowPreview::class)
     private fun watchScreenText(texts: Set<String>) {
-        if (screenText?.first == texts) return
+        val choices = AutomationSettings.SCREEN_READ_CHOICES
+        val period = screenReadMillis.coerceIn(choices.first(), choices.last())
+        if (screenText?.first == texts to period) return
         screenText?.second?.cancel()
         screenText = null
         if (texts.isEmpty()) return
@@ -392,7 +398,7 @@ class TriggerSources(
             scope.launch {
                 var shown = emptySet<String>()
                 var lastPackage: String? = null
-                A11yBridge.changeCount.sample(SCREEN_SETTLE_MS).collect {
+                A11yBridge.changeCount.sample(period).collect {
                     val (pkg, onScreen) = A11yBridge.frontWindowText() ?: return@collect
                     if (pkg != lastPackage) {
                         shown = emptySet()
@@ -409,7 +415,7 @@ class TriggerSources(
                     shown = now.keys
                 }
             }
-        screenText = texts to job
+        screenText = (texts to period) to job
     }
 
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
@@ -871,7 +877,6 @@ class TriggerSources(
                 "com.android.packageinstaller",
             )
         const val SETTLE_MS = 2_000L
-        const val SCREEN_SETTLE_MS = 1_000L
         const val MAX_EXTRAS = 20
         const val MAX_EXTRA_VALUE = 2_000
         const val WATCH_ACTION_INTERVAL_MS = 5_000L

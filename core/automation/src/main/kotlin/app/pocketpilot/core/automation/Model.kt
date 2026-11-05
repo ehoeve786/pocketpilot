@@ -198,7 +198,14 @@ data class AutomationSettings(
     val agentMonthlyCapUsd: Double? = 5.0,
     /** The owner's Home Assistant, such as https://ha.example.com; its token is kept encrypted elsewhere. */
     val homeAssistantUrl: String? = null,
-)
+    /** How often "Text appears on screen" triggers read the screen while it changes, in milliseconds. */
+    val screenReadMillis: Long = DEFAULT_SCREEN_READ_MILLIS,
+) {
+    companion object {
+        const val DEFAULT_SCREEN_READ_MILLIS = 1_000L
+        val SCREEN_READ_CHOICES = listOf(500L, 1_000L, 2_000L, 3_000L, 5_000L)
+    }
+}
 
 /** Everything the store keeps. */
 @Serializable

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,11 +19,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -370,6 +373,20 @@ private fun SettingsCard(
                     checked = state.settings.paused,
                     onCheckedChange = { actions.setSettings(state.settings.copy(paused = it)) },
                 )
+            }
+            Text(stringResource(R.string.feature_automations_screen_read), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.feature_automations_screen_read_text), style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AutomationSettings.SCREEN_READ_CHOICES.forEach { millis ->
+                    FilterChip(
+                        selected = state.settings.screenReadMillis == millis,
+                        onClick = { actions.setSettings(state.settings.copy(screenReadMillis = millis)) },
+                        label = {
+                            val seconds = (millis / 1000.0).toString().removeSuffix(".0")
+                            Text(stringResource(R.string.feature_automations_screen_read_seconds, seconds))
+                        },
+                    )
+                }
             }
             Text(stringResource(R.string.feature_automations_ai_cap), style = MaterialTheme.typography.titleMedium)
             Text(
