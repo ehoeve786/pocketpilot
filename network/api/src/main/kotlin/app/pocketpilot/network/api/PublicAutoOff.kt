@@ -6,8 +6,11 @@ package app.pocketpilot.network.api
  * request starts it again. Zero minutes keeps public access on.
  */
 class PublicAutoOff(
-    val minutes: Int = DEFAULT_MINUTES,
+    minutes: Int = DEFAULT_MINUTES,
 ) {
+    /** Changed by the owner in Settings; read on every status poll. */
+    @Volatile var minutes: Int = minutes
+
     @Volatile private var idleSinceMs = 0L
 
     /** Starts the clock again, such as when public access is turned on. */
@@ -23,6 +26,9 @@ class PublicAutoOff(
 
     companion object {
         const val DEFAULT_MINUTES = 60
+
+        /** The choices Settings offers; 0 keeps public access on. */
+        val CHOICES = listOf(60, 8 * 60, 24 * 60, 0)
         private const val MS_PER_MINUTE = 60_000L
     }
 }

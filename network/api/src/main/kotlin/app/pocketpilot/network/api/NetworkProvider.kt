@@ -58,6 +58,8 @@ data class PublicAccessState(
     val problem: String? = null,
     /** Set when public access turned itself off after this many minutes without requests. */
     val autoOffAfterMinutes: Int? = null,
+    /** How many minutes without requests turn public access off; 0 keeps it on. */
+    val autoOffMinutes: Int = PublicAutoOff.DEFAULT_MINUTES,
 )
 
 /**
@@ -68,4 +70,7 @@ interface PublicAccess {
     val publicState: StateFlow<PublicAccessState>
 
     fun setPublic(enabled: Boolean)
+
+    /** Minutes without requests before public access turns itself off; 0 keeps it on. */
+    fun setAutoOffMinutes(minutes: Int)
 }

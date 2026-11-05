@@ -68,6 +68,8 @@ data class RemoteActions(
     val signIn: (String) -> Unit,
     val signOut: () -> Unit,
     val setPublic: (Boolean) -> Unit,
+    /** Minutes without requests before public access turns off; 0 keeps it on. */
+    val setAutoOff: (Int) -> Unit = {},
     /** The Tailscale node's recent log lines, for support. */
     val logs: () -> String = { "" },
 )
