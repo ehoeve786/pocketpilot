@@ -105,6 +105,10 @@
     <string name="feature_automations_run_direct">Run actions</string>
     <string name="feature_automations_run_agent">Ask Agent mode</string>
     <string name="feature_automations_agent_prompt">Task for Agent mode</string>
+    <string name="feature_automations_run_limit">Stop a run after</string>
+    <string name="feature_automations_run_limit_minutes">%1$d min</string>
+    <string name="feature_automations_run_limit_hours">%1$d h</string>
+    <string name="feature_automations_run_limit_none">No limit</string>
     <string name="feature_automations_agent_prompt_text">The trigger\'s details are added to the task. Counts toward the monthly limit.</string>
     <string name="feature_automations_problems">Before this rule can run</string>
     <string name="feature_automations_if_condition">If</string>

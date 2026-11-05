@@ -237,7 +237,7 @@ class AutomationEngine(
         triggerType: String? = null,
     ): RunRecord {
         val started = clock.nowMillis()
-        val lines = mutableListOf<String>()
+        val lines = RunLog(MAX_RUN_LINES)
         val vars = HashMap(rule.variables)
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         host.prepare(rule)
@@ -252,27 +252,30 @@ class AutomationEngine(
                     lines += stamped("Conditions did not hold: ${Describe.group(rule.constraints)}")
                     RunOutcome.SKIPPED
                 } else {
-                    withTimeout(MAX_RUN_MS) {
+                    val body: suspend () -> Unit = {
                         if (rule.runAs == RunMode.AGENT) runAgent(context) else execute(context, rule.actions, "")
                     }
+                    // 0 lets a rule run for as long as its own loops and waits allow, such as while an app is open.
+                    if (rule.maxRunMinutes > 0) withTimeout(rule.maxRunMinutes * 60_000L) { body() } else body()
                     RunOutcome.OK
                 }
             } catch (e: StopRun) {
                 RunOutcome.OK
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                lines += stamped("Stopped: the run took longer than ${MAX_RUN_MS / 60_000} minutes")
+                lines.end(stamped("Stopped: the run took longer than ${rule.maxRunMinutes} minutes, its time limit"))
                 RunOutcome.FAILED
             } catch (e: CancellationException) {
-                lines += stamped("Stopped")
+                lines.end(stamped("Stopped"))
                 RunOutcome.STOPPED
             } catch (e: StepFailed) {
                 RunOutcome.FAILED
             } catch (e: Exception) {
-                lines += stamped("Failed: ${e.message ?: e::class.simpleName}")
+                lines.end(stamped("Failed: ${e.message ?: e::class.simpleName}"))
                 RunOutcome.FAILED
             } finally {
                 host.closeSession(session)
             }
+        lines.noteDropped()
         val record =
             RunRecord(
                 id = store.newId(),
@@ -411,10 +414,6 @@ class AutomationEngine(
         steps.forEachIndexed { index, step ->
             // Steps that never suspend would otherwise ignore Stop and the time limit.
             currentCoroutineContext().ensureActive()
-            if (context.lines.size >= MAX_RUN_LINES) {
-                context.lines += stamped("Stopped: the run logged more than $MAX_RUN_LINES lines")
-                throw StepFailed()
-            }
             val label = "$prefix${index + 1}"
             val def = AutomationCatalog.action(step.type)
             val title = def?.let { Describe.action(step) } ?: step.type
@@ -1029,6 +1028,50 @@ class AutomationEngine(
             override fun stopwatchMillis(name: String): Long? =
                 store.data.value.stopwatches[name]
                     ?.millis(clock.nowMillis())
+        }
+    }
+
+    /**
+     * A run's log. Past [cap] lines the run keeps going but stops logging, so a long loop is not cut short; the
+     * count of lines left out and the last of them are noted at the end.
+     */
+    private class RunLog(
+        private val cap: Int,
+    ) : AbstractMutableList<String>() {
+        private val kept = ArrayList<String>()
+        private var dropped = 0
+        private var lastDropped = ""
+
+        override val size: Int get() = kept.size
+
+        override fun get(index: Int): String = kept[index]
+
+        override fun set(
+            index: Int,
+            element: String,
+        ): String = kept.set(index, element)
+
+        override fun removeAt(index: Int): String = kept.removeAt(index)
+
+        override fun add(
+            index: Int,
+            element: String,
+        ) {
+            if (kept.size < cap) {
+                kept.add(index, element)
+            } else {
+                dropped++
+                lastDropped = element
+            }
+        }
+
+        /** Adds past the cap: how the run ended. */
+        fun end(line: String) {
+            kept += line
+        }
+
+        fun noteDropped() {
+            if (dropped > 0) kept.add(minOf(kept.size, cap), "… $dropped more lines were not kept; the last: ${lastDropped.trim()}")
         }
     }
 
