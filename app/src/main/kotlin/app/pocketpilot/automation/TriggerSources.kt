@@ -45,7 +45,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import java.util.TimeZone
 
@@ -378,7 +378,10 @@ class TriggerSources(
         actionReceiver = actions to receiver
     }
 
-    /** "Text appears on screen": checks the front window's text after the screen settles. */
+    /**
+     * "Text appears on screen": checks the front window's text at most once a second while it changes. Waiting for the
+     * screen to go quiet instead never fired in apps that redraw all the time, such as a driver app's live map.
+     */
     @OptIn(FlowPreview::class)
     private fun watchScreenText(texts: Set<String>) {
         if (screenText?.first == texts) return
@@ -389,7 +392,7 @@ class TriggerSources(
             scope.launch {
                 var shown = emptySet<String>()
                 var lastPackage: String? = null
-                A11yBridge.changeCount.debounce(SCREEN_SETTLE_MS).collect {
+                A11yBridge.changeCount.sample(SCREEN_SETTLE_MS).collect {
                     val (pkg, onScreen) = A11yBridge.frontWindowText() ?: return@collect
                     if (pkg != lastPackage) {
                         shown = emptySet()
