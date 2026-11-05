@@ -85,7 +85,10 @@
     <string name="remote_error">Tailscale problem: %1$s</string>
     <string name="remote_connected">On your tailnet as %1$s</string>
     <string name="remote_public">Public access (Funnel)</string>
-    <string name="remote_public_explainer">Lets cloud apps such as claude.ai reach this phone. Each app still needs your approval here. Turns itself off after an hour without requests.</string>
+    <string name="remote_public_explainer">Lets cloud apps such as claude.ai reach this phone. Each app still needs your approval here.</string>
+    <string name="remote_public_auto_off_label">Turn off after this long without requests</string>
+    <string name="remote_public_auto_off_hours">%1$d h</string>
+    <string name="remote_public_auto_off_never">Never</string>
     <string name="remote_public_auto_off">Public access turned itself off after %1$d minutes without requests.</string>
     <string name="remote_public_problem">Funnel is not available yet: %1$s</string>
     <string name="remote_public_starting">Opening Funnel…</string>

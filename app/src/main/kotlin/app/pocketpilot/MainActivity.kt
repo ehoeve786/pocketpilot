@@ -616,6 +616,10 @@ class MainActivity : ComponentActivity() {
                                 signOut = tailscale::logout,
                                 // Making the phone reachable from the internet needs the owner's confirmation.
                                 setPublic = { on -> if (on) withOwner { tailscale.setPublic(true) } else tailscale.setPublic(false) },
+                                // Keeping the phone reachable for good weakens a safeguard, so it asks like turning it on does.
+                                setAutoOff = { minutes ->
+                                    if (minutes == 0) withOwner { tailscale.setAutoOffMinutes(0) } else tailscale.setAutoOffMinutes(minutes)
+                                },
                                 logs = tailscale::logs,
                             ),
                         onRevokeClient = oauth::revokeClient,

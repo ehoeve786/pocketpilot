@@ -44,13 +44,18 @@ class TailscaleProvider(
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val stateDir = File(context.noBackupFilesDir, "tailscale")
 
+    init {
+        autoOff.minutes = prefs.getInt(KEY_AUTO_OFF_MINUTES, autoOff.minutes)
+    }
+
     /** Created on first [start]: loading the Go library is the first thing that can fail. */
     @Volatile private var createdNode: Node? = null
 
     private val mutableState = MutableStateFlow(previousCrash())
     override val state: StateFlow<NetworkState> = mutableState.asStateFlow()
 
-    private val mutablePublic = MutableStateFlow(PublicAccessState(enabled = prefs.getBoolean(KEY_PUBLIC, false)))
+    private val mutablePublic =
+        MutableStateFlow(PublicAccessState(enabled = prefs.getBoolean(KEY_PUBLIC, false), autoOffMinutes = autoOff.minutes))
     override val publicState: StateFlow<PublicAccessState> = mutablePublic.asStateFlow()
 
     /** Whether the owner turned Tailscale on. */
@@ -128,13 +133,22 @@ class TailscaleProvider(
 
     override fun setPublic(enabled: Boolean) = applyPublic(enabled, autoOffAfterMinutes = null)
 
+    override fun setAutoOffMinutes(minutes: Int) {
+        require(minutes >= 0)
+        prefs.edit().putInt(KEY_AUTO_OFF_MINUTES, minutes).apply()
+        autoOff.minutes = minutes
+        // A shorter limit counts from now, so choosing it does not turn public access off at once.
+        autoOff.restart(System.currentTimeMillis())
+        mutablePublic.value = mutablePublic.value.copy(autoOffMinutes = minutes)
+    }
+
     private fun applyPublic(
         enabled: Boolean,
         autoOffAfterMinutes: Int?,
     ) {
         prefs.edit().putBoolean(KEY_PUBLIC, enabled).apply()
         if (enabled) autoOff.restart(System.currentTimeMillis())
-        mutablePublic.value = PublicAccessState(enabled = enabled, autoOffAfterMinutes = autoOffAfterMinutes)
+        mutablePublic.value = PublicAccessState(enabled, autoOffAfterMinutes = autoOffAfterMinutes, autoOffMinutes = autoOff.minutes)
         scope.launch(nodeDispatcher) {
             runCatching { createdNode?.setPublic(enabled) }
             refresh()
@@ -214,6 +228,7 @@ class TailscaleProvider(
                 url = if (public && problem == null && status.optBoolean("serving")) "https://$dnsName/mcp" else null,
                 problem = problem,
                 autoOffAfterMinutes = mutablePublic.value.autoOffAfterMinutes.takeUnless { public },
+                autoOffMinutes = autoOff.minutes,
             )
         return status.optBoolean("running")
     }
@@ -223,6 +238,7 @@ class TailscaleProvider(
         const val PREFS = "network_tailscale"
         const val KEY_ENABLED = "enabled"
         const val KEY_PUBLIC = "public"
+        const val KEY_AUTO_OFF_MINUTES = "public_auto_off_minutes"
         const val POLL_STARTING_MS = 1_000L
         const val POLL_CONNECTED_MS = 5_000L
         const val CRASH_LOG_LINES = 80

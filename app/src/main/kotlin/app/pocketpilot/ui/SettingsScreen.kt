@@ -158,6 +158,7 @@ internal fun SettingsScreen(
                     onSignIn = actions.remoteActions.signIn,
                     onSignOut = actions.remoteActions.signOut,
                     onPublicChange = actions.remoteActions.setPublic,
+                    onAutoOffChange = actions.remoteActions.setAutoOff,
                     logs = actions.remoteActions.logs,
                 )
             }

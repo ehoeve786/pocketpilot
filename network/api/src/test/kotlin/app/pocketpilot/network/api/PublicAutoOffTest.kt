@@ -35,4 +35,15 @@ class PublicAutoOffTest {
         val autoOff = PublicAutoOff(minutes = 0)
         assertFalse(autoOff.expired(nowMs = 100 * hour, lastRequestMs = 0))
     }
+
+    @Test
+    fun aChangedLimitAppliesAtOnceAndZeroKeepsPublicAccessOn() {
+        val autoOff = PublicAutoOff()
+        autoOff.restart(nowMs = 0)
+        autoOff.minutes = 8 * 60
+        assertFalse(autoOff.expired(nowMs = hour, lastRequestMs = 0))
+        assertTrue(autoOff.expired(nowMs = 8 * hour, lastRequestMs = 0))
+        autoOff.minutes = 0
+        assertFalse(autoOff.expired(nowMs = 1000 * hour, lastRequestMs = 0))
+    }
 }

@@ -1,13 +1,16 @@
 package app.pocketpilot.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -25,6 +28,7 @@ import app.pocketpilot.R
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
+import app.pocketpilot.network.api.PublicAutoOff
 
 /**
  * Remote access over Tailscale (spec section 7): join the tailnet, then optionally open the phone to
@@ -40,6 +44,7 @@ internal fun RemoteAccessCard(
     onSignIn: (String) -> Unit,
     onSignOut: () -> Unit,
     onPublicChange: (Boolean) -> Unit,
+    onAutoOffChange: (Int) -> Unit,
     logs: () -> String,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -82,6 +87,24 @@ internal fun RemoteAccessCard(
                             Text(stringResource(R.string.remote_public_explainer), style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(checked = public.enabled, onCheckedChange = onPublicChange)
+                    }
+                    Text(stringResource(R.string.remote_public_auto_off_label), style = MaterialTheme.typography.bodySmall)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PublicAutoOff.CHOICES.forEach { minutes ->
+                            FilterChip(
+                                selected = public.autoOffMinutes == minutes,
+                                onClick = { onAutoOffChange(minutes) },
+                                label = {
+                                    Text(
+                                        if (minutes == 0) {
+                                            stringResource(R.string.remote_public_auto_off_never)
+                                        } else {
+                                            stringResource(R.string.remote_public_auto_off_hours, minutes / 60)
+                                        },
+                                    )
+                                },
+                            )
+                        }
                     }
                     public.autoOffAfterMinutes?.takeUnless { public.enabled }?.let { minutes ->
                         Text(stringResource(R.string.remote_public_auto_off, minutes), style = MaterialTheme.typography.bodySmall)
