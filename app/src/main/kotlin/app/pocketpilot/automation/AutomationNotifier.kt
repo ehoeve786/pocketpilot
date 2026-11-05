@@ -31,11 +31,20 @@ class AutomationNotifier(
         show(
             CHANNEL_PROPOSALS,
             R.string.automation_channel_proposals,
-            "proposal:${rule.id}",
+            PROPOSAL + rule.id,
             context.getString(R.string.automation_proposal_title, shownClientName(rule.proposedBy)),
             rule.name,
             openIntent(MainActivity.OPEN_PROPOSALS),
         )
+    }
+
+    /** Removes the notification of each proposal no longer waiting, so accepting or declining one clears it. */
+    fun dropProposalsExcept(waiting: Set<String>) {
+        runCatching {
+            manager.activeNotifications
+                .filter { it.tag?.startsWith(PROPOSAL) == true && it.tag.removePrefix(PROPOSAL) !in waiting }
+                .forEach { manager.cancel(it.tag, it.id) }
+        }
     }
 
     /** An AI app changed [rule] in place; tapping opens the Automations list. */
@@ -101,6 +110,7 @@ class AutomationNotifier(
         const val CHANNEL_POSTS = "automation-posts"
         const val CHANNEL_PROPOSALS = "automation-proposals"
         const val NOTIFICATION_ID = 7
+        const val PROPOSAL = "proposal:"
     }
 }
 
