@@ -1137,7 +1137,8 @@ class AutomationEngine(
 
         /**
          * The snapshot line of the nearest tappable element to the right of the first element whose text or label
-         * contains [text], on the same row: an unlabeled close or menu button beside a heading.
+         * contains [text], on the same row and inside the smallest tappable element around that text (its card or
+         * row): an unlabeled close or menu button beside a heading or a price.
          */
         internal fun besideOf(
             lines: List<String>,
@@ -1154,9 +1155,18 @@ class AutomationEngine(
                 .asSequence()
                 .filter { line -> QUOTED.findAll(line.substringBefore(" [")).any { it.groupValues[1].contains(text, ignoreCase = true) } }
                 .mapNotNull(::box)
-                .firstNotNullOfOrNull { (_, top, right, bottom) ->
+                .firstNotNullOfOrNull { anchor ->
+                    val (left, top, right, bottom) = anchor
+                    val card =
+                        tappable
+                            .map { it.second }
+                            .filter { b -> b != anchor && b[0] <= left && b[1] <= top && b[2] >= right && b[3] >= bottom }
+                            .minByOrNull { b -> (b[2] - b[0]).toLong() * (b[3] - b[1]) }
                     tappable
-                        .filter { (_, b) -> b[0] >= right && b[1] < bottom && b[3] > top }
+                        .filter { (_, b) ->
+                            b[0] >= right && b[1] < bottom && b[3] > top &&
+                                (card == null || b[1] >= card[1] && b[2] <= card[2] && b[3] <= card[3])
+                        }
                         .minByOrNull { (_, b) -> b[0] }
                         ?.first
                 }

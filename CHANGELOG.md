@@ -39,3 +39,4 @@
 - Automations settings: "Screen text check rate" sets how often "Text appears on screen" triggers read the screen while it changes: 0.5 s, 1 s (default), 2 s, 3 s or 5 s. Faster reacts sooner and uses more battery.
 - oss and pro builds declare the accessibility service an accessibility tool, so apps that mark parts of their screen accessibility-sensitive (Android 14+) can still be read. The Play build does not.
 - "Tap something on screen" can find its target as the tappable thing beside a text, such as the unlabeled X beside "Delivery" on an Uber offer card: the nearest tappable element to the right of that text, on the same row.
+- "Tap beside a text" stays inside the card or row around that text, so it can anchor on a price: beside "$" taps an Uber offer card's X whatever the card says, and never a button beside the earnings pill.
