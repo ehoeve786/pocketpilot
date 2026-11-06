@@ -1172,9 +1172,8 @@ class AutomationEngine(
                     tappable
                         .filter { (_, b) ->
                             b[0] >= right && b[1] < bottom && b[3] > top &&
-                                (card == null || b[1] >= card[1] && b[2] <= card[2] && b[3] <= card[3])
-                        }
-                        .minByOrNull { (_, b) -> b[0] }
+                                (card == null || (b[1] >= card[1] && b[2] <= card[2] && b[3] <= card[3]))
+                        }.minByOrNull { (_, b) -> b[0] }
                         ?.first
                 }
         }
