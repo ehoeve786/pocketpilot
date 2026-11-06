@@ -213,6 +213,7 @@ object A11yOverlay {
                         shownButtons = buttonViews.size
                     }.onFailure { Log.w(TAG, "A floating button could not be shown: ${it.javaClass.simpleName}") }
             }
+            if (shownButtons > 0) service.startShadeCheck()
         }
         return true
     }

@@ -150,8 +150,16 @@ class SensorWatcher(
         sensors.unregisterListener(this)
         faceDown = null
         near = null
+        val motion = setOfNotNull(Sensor.TYPE_ACCELEROMETER.takeIf { shake || flip }, Sensor.TYPE_PROXIMITY.takeIf { proximity })
         wanted.forEach { type ->
-            sensors.getDefaultSensor(type)?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+            val sensor = sensors.getDefaultSensor(type) ?: return@forEach
+            if (type in motion) {
+                sensors.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            } else {
+                // A threshold only needs a reading now and then. Pressure is a continuous sensor that would otherwise
+                // report five times a second; batching lets the hardware hold readings while the processor sleeps.
+                sensors.registerListener(this, sensor, THRESHOLD_SAMPLING_US, THRESHOLD_BATCH_US)
+            }
         }
         listening = wanted
     }
@@ -252,6 +260,8 @@ class SensorWatcher(
         const val FLAT = 8.5f
         const val FLIP_HOLD_MS = 800L
         const val NEAR_CM = 5f
+        const val THRESHOLD_SAMPLING_US = 1_000_000
+        const val THRESHOLD_BATCH_US = 5_000_000
     }
 }
 

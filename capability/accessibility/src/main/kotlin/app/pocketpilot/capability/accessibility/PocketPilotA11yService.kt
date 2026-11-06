@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -16,15 +17,19 @@ import android.view.accessibility.AccessibilityNodeInfo
 class PocketPilotA11yService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
 
+    private val power by lazy { getSystemService(PowerManager::class.java) }
+
     /**
      * Pulling the shade down raises no event that reliably reaches us, so the shade is checked on a timer while
-     * the service runs, as well as on each window event.
+     * floating buttons are on screen, as well as on each window event. The timer stops once the last button goes,
+     * so the service does not wake the main thread four times a second all day; [startShadeCheck] starts it again.
      */
     private val shadeCheck =
         object : Runnable {
             override fun run() {
-                // Looking for the shade costs system calls, so it is only done while floating buttons are on screen.
-                if (A11yOverlay.buttonsShown() > 0) hideButtonsWhileShadeIsDown()
+                if (A11yOverlay.buttonsShown() == 0) return
+                // The shade cannot be down with the screen off, so the system calls are skipped then.
+                if (power.isInteractive) hideButtonsWhileShadeIsDown()
                 main.postDelayed(this, SHADE_CHECK_INTERVAL_MS)
             }
         }
@@ -32,6 +37,11 @@ class PocketPilotA11yService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         A11yBridge.attach(this)
+    }
+
+    /** Starts the shade timer, or restarts it if it is already running. Called on the main thread when buttons go up. */
+    internal fun startShadeCheck() {
+        main.removeCallbacks(shadeCheck)
         main.post(shadeCheck)
     }
 
