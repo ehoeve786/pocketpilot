@@ -7,6 +7,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.DayOfWeek
 import java.time.LocalTime
+import java.util.Locale
 
 /**
  * Every trigger, constraint and action this build offers. The builder, `automation.catalog` and the
@@ -95,6 +96,19 @@ internal fun anyOf(
     param: String?,
     value: String?,
 ): Boolean = param.isNullOrBlank() || param.split(',').map(String::trim).any { it.equals(value, ignoreCase = true) }
+
+/**
+ * Every app that the "apps" [params] of a set of triggers name, in lower case, or null when one of them is blank and
+ * so matches any app. A package outside the set cannot fire any of those triggers, as [anyOf] decides.
+ */
+fun appsOf(params: List<String?>): Set<String>? {
+    if (params.any { it.isNullOrBlank() || it.split(',').all(String::isBlank) }) return null
+    return params
+        .flatMap { it.orEmpty().split(',') }
+        .map { it.trim().lowercase(Locale.ROOT) }
+        .filter(String::isNotEmpty)
+        .toSet()
+}
 
 /** Blank [param] matches anything; otherwise [value] contains it, ignoring case. */
 internal fun containsText(

@@ -64,14 +64,18 @@ object A11yBridge {
 
     /**
      * The package of the window in front and the texts on it, or null while the service is off.
-     * Password fields are left out.
+     * Password fields are left out. When [wanted] refuses the package, its texts are not read and the list is
+     * empty: walking the window's views is the costly part, and a caller only interested in some apps skips it.
      */
-    fun frontWindowText(maxNodes: Int = MAX_TEXT_NODES): Pair<String, List<String>>? {
+    fun frontWindowText(
+        maxNodes: Int = MAX_TEXT_NODES,
+        wanted: (String) -> Boolean = { true },
+    ): Pair<String, List<String>>? {
         val root = current.value?.rootInActiveWindow ?: return null
         val pkg = root.packageName?.toString()
-        if (pkg == null) {
+        if (pkg == null || !wanted(pkg)) {
             root.releasePooled()
-            return null
+            return pkg?.let { it to emptyList() }
         }
         val texts = mutableListOf<String>()
         val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
