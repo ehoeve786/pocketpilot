@@ -42,12 +42,14 @@ import app.pocketpilot.core.automation.AutomationSettings
 import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.TriggerEvent
+import app.pocketpilot.core.automation.appsOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
+import java.util.Locale
 import java.util.TimeZone
 
 /**
@@ -81,7 +83,7 @@ class TriggerSources(
     private var actionReceiver: Pair<Set<String>, BroadcastReceiver>? = null
     private val lastActionFire = HashMap<String, Long>()
     private var mediaWatch: MediaWatch? = null
-    private var screenText: Pair<Pair<Set<String>, Long>, Job>? = null
+    private var screenText: Pair<Triple<Set<String>, Set<String>?, Long>, Job>? = null
 
     /** How often "Text appears on screen" reads the screen while it changes; set from the owner's settings. */
     var screenReadMillis = AutomationSettings.DEFAULT_SCREEN_READ_MILLIS
@@ -205,7 +207,11 @@ class TriggerSources(
             mediaWatch?.stop()
             mediaWatch = null
         }
-        watchScreenText(params("screen.text").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet())
+        val screenTextParams = params("screen.text").filter { !it["text"]?.trim().isNullOrEmpty() }
+        watchScreenText(
+            texts = screenTextParams.mapNotNull { it["text"]?.trim() }.toSet(),
+            apps = appsOf(screenTextParams.map { it["apps"] }),
+        )
     }
 
     @Synchronized
@@ -394,19 +400,27 @@ class TriggerSources(
      * for the screen to go quiet instead never fired in apps that redraw all the time, such as a driver app's live map.
      */
     @OptIn(FlowPreview::class)
-    private fun watchScreenText(texts: Set<String>) {
+    private fun watchScreenText(
+        texts: Set<String>,
+        apps: Set<String>?,
+    ) {
         val choices = AutomationSettings.SCREEN_READ_CHOICES
         val period = screenReadMillis.coerceIn(choices.first(), choices.last())
-        if (screenText?.first == texts to period) return
+        val key = Triple(texts, apps, period)
+        if (screenText?.first == key) return
         screenText?.second?.cancel()
         screenText = null
         if (texts.isEmpty()) return
+        // Only apps a rule can fire in have their window read; elsewhere the walk over every view is skipped.
+        val readable = { pkg: String ->
+            pkg != context.packageName && !hidden(pkg) && (apps == null || pkg.lowercase(Locale.ROOT) in apps)
+        }
         val job =
             scope.launch {
                 var shown = emptySet<String>()
                 var lastPackage: String? = null
                 A11yBridge.changeCount.sample(period).collect {
-                    val (pkg, onScreen) = A11yBridge.frontWindowText() ?: return@collect
+                    val (pkg, onScreen) = A11yBridge.frontWindowText(wanted = readable) ?: return@collect
                     if (pkg != lastPackage) {
                         shown = emptySet()
                         lastPackage = pkg
@@ -422,7 +436,7 @@ class TriggerSources(
                     shown = now.keys
                 }
             }
-        screenText = (texts to period) to job
+        screenText = key to job
     }
 
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
