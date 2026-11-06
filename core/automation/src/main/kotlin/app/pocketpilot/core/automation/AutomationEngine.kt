@@ -584,20 +584,27 @@ class AutomationEngine(
                 // Flags follow the bounds, so "focused" after the last "]" is the flag and not a word in the element's text.
                 val focused = Regex("""\][^"\n]*\bfocused\b""")
                 val matches = lines.drop(1).filter { it.isNotBlank() && (by != "focus" || focused.containsMatchIn(it)) }
+                if (by == "beside") {
+                    val box =
+                        besideOf(matches, params.p("text"))
+                            ?.let { BOUNDS.find(it) }
+                            ?.groupValues
+                            ?.drop(1)
+                            ?.map(String::toInt)
+                            ?: throw AutomationFailure("Nothing tappable is beside \"${params.p("text")}\" on screen")
+                    // A real touch at its centre: some apps (Uber's offer card) ignore an accessibility click on the button.
+                    val (x, y) = (box[0] + box[2]) / 2 to (box[1] + box[3]) / 2
+                    callTool(context, press, args("x" to "$x", "y" to "$y", "returnSnapshot" to false))
+                    return "${if (press == "ui.tap") "tapped" else "long-pressed"} ($x, $y)"
+                }
                 // A heading such as "Add Run?" matches "ADD RUN" too; prefer the match the owner can press.
                 val element =
-                    (
-                        if (by == "beside") {
-                            besideOf(matches, params.p("text"))
-                        } else {
-                            matches.firstOrNull { CLICKABLE.containsMatchIn(it) } ?: matches.firstOrNull()
-                        }
-                    )?.trim()
+                    (matches.firstOrNull { CLICKABLE.containsMatchIn(it) } ?: matches.firstOrNull())
+                        ?.trim()
                         ?.substringBefore(' ')
                         ?: throw AutomationFailure(
                             when (by) {
                                 "id" -> "No view with id \"${params.p("text")}\" is on screen"
-                                "beside" -> "Nothing tappable is beside \"${params.p("text")}\" on screen"
                                 "focus" -> "Nothing on screen has the focus"
                                 else -> "\"${params.p("text")}\" is not on screen"
                             },
