@@ -8,13 +8,13 @@ import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccess
 import app.pocketpilot.network.api.PublicAccessState
 import app.pocketpilot.network.api.PublicAutoOff
+import app.pocketpilot.network.api.StatusPoll
 import app.pocketpilot.network.gonet.gen.ppnet.Node
 import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +62,7 @@ class TailscaleProvider(
     val enabled: Boolean get() = prefs.getBoolean(KEY_ENABLED, false)
 
     private var poller: Job? = null
+    private val poll = StatusPoll()
 
     // One node call at a time, in the order made, so a stop queued before a start cannot land after it.
     private val nodeDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -94,8 +95,10 @@ class TailscaleProvider(
                     return@launch
                 }
                 while (isActive) {
+                    val before = state.value to mutablePublic.value
                     if (!refresh()) break
-                    delay(if (state.value is NetworkState.Connected) POLL_CONNECTED_MS else POLL_STARTING_MS)
+                    // The status call into the node and its JSON cost battery; a link that stays up is read less often.
+                    poll.await(connected = state.value is NetworkState.Connected, changed = (state.value to mutablePublic.value) != before)
                 }
             }
     }
@@ -152,6 +155,8 @@ class TailscaleProvider(
         scope.launch(nodeDispatcher) {
             runCatching { createdNode?.setPublic(enabled) }
             refresh()
+            // Funnel takes a moment to start serving, so the poller goes back to reading often.
+            poll.poke()
         }
     }
 
@@ -239,8 +244,6 @@ class TailscaleProvider(
         const val KEY_ENABLED = "enabled"
         const val KEY_PUBLIC = "public"
         const val KEY_AUTO_OFF_MINUTES = "public_auto_off_minutes"
-        const val POLL_STARTING_MS = 1_000L
-        const val POLL_CONNECTED_MS = 5_000L
         const val CRASH_LOG_LINES = 80
         const val MS_PER_SECOND = 1_000L
 

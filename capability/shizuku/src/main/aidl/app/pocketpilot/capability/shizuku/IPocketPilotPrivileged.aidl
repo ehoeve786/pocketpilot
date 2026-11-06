@@ -70,6 +70,13 @@ interface IPocketPilotPrivileged {
     // `am start -W` or `am broadcast` with arguments IntentArgs checks; returns what am printed.
     String startIntent(in String[] args, boolean broadcast) = 25;
 
+    // "Log line" and "App crashed": follows the `logcat` LogFollowArgs builds and writes to the pipe only lines that
+    // contain one of needles (ignoring case). One follow at a time: a new one ends the one before. The pipe ends
+    // when stopLog is called with the same id, or when the logcat ends.
+    ParcelFileDescriptor followLog(int id, in String[] buffers, String since, in String[] needles) = 26;
+
+    void stopLog(int id) = 27;
+
     // Required by Shizuku to stop the service.
     void destroy() = 16777114;
 }

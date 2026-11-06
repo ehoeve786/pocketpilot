@@ -16,6 +16,8 @@ mcpKotlinSdk = "0.15.0"
 ktor = "3.5.1"
 # Shizuku client API; the privileged UserService contract is versioned separately in capability/shizuku.
 shizuku = "13.1.5"
+# Geofencing for place triggers in the pro and play builds only; oss ships no Google libraries.
+playServicesLocation = "21.3.0"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 
@@ -45,6 +47,7 @@ ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref =
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }

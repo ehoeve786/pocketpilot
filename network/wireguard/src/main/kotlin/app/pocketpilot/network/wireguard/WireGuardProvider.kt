@@ -5,13 +5,13 @@ import android.util.Log
 import app.pocketpilot.network.api.NetworkProvider
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.SecretStore
+import app.pocketpilot.network.api.StatusPoll
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
 import app.pocketpilot.network.gonet.gen.ppnet.Tunnel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,6 +59,7 @@ class WireGuardProvider(
     val enabled: Boolean get() = prefs.getBoolean(KEY_ENABLED, false)
 
     private var poller: Job? = null
+    private val poll = StatusPoll(startingMs = StatusPoll.STARTING_MS * 3)
 
     /** The stop of the tunnel that [pause] began; a start waits for it, so the two cannot interleave. */
     private var stopping: Job? = null
@@ -110,6 +111,7 @@ class WireGuardProvider(
                 }
                 var followedAt = 0L
                 while (isActive) {
+                    val before = state.value
                     refresh()
                     // Also catches a domain set after the tunnel came up, and a router whose address changed.
                     val now = System.currentTimeMillis()
@@ -117,7 +119,8 @@ class WireGuardProvider(
                         followedAt = now
                         mutableSetup.value.serverHost?.let { certificates.followRelay(it) }
                     }
-                    delay(POLL_MS)
+                    // A tunnel that stays up is read less often; the handshake time alone is not a change.
+                    poll.await(connected = state.value is NetworkState.Connected, changed = state.value != before)
                 }
             }
     }
@@ -183,7 +186,6 @@ class WireGuardProvider(
         const val PREFS = "network_wireguard"
         const val KEY_ENABLED = "enabled"
         const val SECRET_CONFIG = "wireguard_config"
-        const val POLL_MS = 3_000L
         const val FOLLOW_RELAY_MS = 15 * 60_000L
     }
 }

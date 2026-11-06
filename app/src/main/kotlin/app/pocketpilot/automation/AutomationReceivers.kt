@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
-import android.location.LocationManager
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import app.pocketpilot.R
@@ -23,6 +22,8 @@ interface AutomationEntryPoint {
     fun automationRuntime(): AutomationRuntime
 
     fun secretStore(): SecretStore
+
+    fun placeAlerts(): PlaceAlerts
 }
 
 internal fun Context.automations(): AutomationRuntime =
@@ -47,15 +48,16 @@ class AutomationAlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** A proximity alert from [PlaceWatcher]: the phone entered or left one of the rules' places. */
+/** A place alert from [PlaceWatcher]: the phone entered or left one of the rules' places. */
 class PlaceReceiver : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
         val place = intent.getStringExtra(EXTRA_PLACE) ?: return
-        if (!intent.hasExtra(LocationManager.KEY_PROXIMITY_ENTERING)) return
-        context.automations().onPlace(place, intent.getBooleanExtra(LocationManager.KEY_PROXIMITY_ENTERING, false))
+        val alerts = EntryPointAccessors.fromApplication(context.applicationContext, AutomationEntryPoint::class.java).placeAlerts()
+        val entering = alerts.entering(intent) ?: return
+        context.automations().onPlace(place, entering)
     }
 
     companion object {

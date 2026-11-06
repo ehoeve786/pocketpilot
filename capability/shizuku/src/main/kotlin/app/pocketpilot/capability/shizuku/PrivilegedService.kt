@@ -6,9 +6,11 @@ import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.IntentArgs
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.shell.AdbQuery
+import app.pocketpilot.capability.api.shell.LogFollowArgs
 import app.pocketpilot.capability.api.shell.ShellReply
 import java.io.BufferedReader
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -259,6 +261,56 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         return ShellReply.encode(exit, text, stderr.take(MAX_SHELL_OUTPUT))
     }
 
+    private val followLock = Any()
+
+    /** The running log follow and the id the app gave it. */
+    private var follow: Pair<Int, Process>? = null
+
+    override fun followLog(
+        id: Int,
+        buffers: Array<String>,
+        since: String,
+        needles: Array<String>,
+    ): ParcelFileDescriptor {
+        val wanted = needles.toList()
+        val process =
+            ProcessBuilder(LogFollowArgs.argv(buffers.toList(), since, wanted))
+                .redirectErrorStream(true)
+                .start()
+        process.outputStream.close()
+        synchronized(followLock) {
+            follow?.second?.destroy()
+            follow = id to process
+        }
+        val (read, write) = ParcelFileDescriptor.createPipe()
+        thread(name = "pp-log-follow") {
+            try {
+                ParcelFileDescriptor.AutoCloseOutputStream(write).bufferedWriter().use { out ->
+                    process.inputStream.bufferedReader().useLines { lines ->
+                        lines.forEach { line ->
+                            // Only lines the app may want cross the pipe, so the app's process is not woken for the rest.
+                            if (LogFollowArgs.matches(line, wanted)) {
+                                out.write(line)
+                                out.write("\n")
+                                out.flush()
+                            }
+                        }
+                    }
+                }
+            } catch (e: IOException) {
+                // The app closed its end of the pipe, or the logcat was stopped.
+            } finally {
+                process.destroy()
+                synchronized(followLock) { if (follow?.second === process) follow = null }
+            }
+        }
+        return read
+    }
+
+    override fun stopLog(id: Int) {
+        synchronized(followLock) { follow?.takeIf { it.first == id }?.second?.destroy() }
+    }
+
     private fun mutable(packageName: String) {
         AppAdminArgs.checkPackage(packageName)
         AppAdminArgs.checkNotProtected(packageName)
@@ -317,7 +369,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 7
+        const val VERSION = 8
 
         private const val COMMAND_TIMEOUT_S = 15L
         private const val READ_CHUNK = 4096

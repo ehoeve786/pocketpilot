@@ -35,7 +35,7 @@ import android.telephony.TelephonyManager
 import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.accessibility.A11yBridge
-import app.pocketpilot.capability.api.shell.SystemReader
+import app.pocketpilot.capability.api.shell.LogFollower
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.automation.AutomationSettings
@@ -65,7 +65,7 @@ class TriggerSources(
     private val places: PlaceWatcher,
     private val calendars: Calendars,
     private val homeAssistant: HomeAssistant,
-    logs: SystemReader,
+    logs: LogFollower,
     /** Text messages are read in the sideload build only. */
     private val sideload: Boolean,
     private val shizukuState: StateFlow<ShizukuState>,
@@ -97,6 +97,10 @@ class TriggerSources(
     private var lastOrientation: String? = null
     private var lastDark: Boolean? = null
     private var lastGps: Boolean? = null
+    private var lastLocationOn: Boolean? = null
+
+    /** The places the rules watch, set again when location comes back on: geofencing drops every fence when it goes off. */
+    @Volatile private var watchedPlaces: List<Place> = emptyList()
     private var lastCelsius: Int? = null
 
     @Synchronized
@@ -109,6 +113,7 @@ class TriggerSources(
             lastDark = darkOf(it)
         }
         lastGps = gpsOn()
+        lastLocationOn = context.getSystemService(LocationManager::class.java).isLocationEnabled
         receiver =
             systemReceiver().also {
                 register(it, systemFilter())
@@ -164,7 +169,8 @@ class TriggerSources(
 
         fun params(type: String) = triggers.filter { it.type == type }.map { it.params }
 
-        places.watch(params("location.place").mapNotNull(Place::from))
+        watchedPlaces = params("location.place").mapNotNull(Place::from)
+        places.watch(watchedPlaces)
         sensors.watch(
             shake = "sensor.shake" in types,
             flip = "sensor.flip" in types,
@@ -204,6 +210,7 @@ class TriggerSources(
 
     @Synchronized
     fun stop() {
+        watchedPlaces = emptyList()
         places.watch(emptyList())
         sensors.stop()
         hardware.stop()
@@ -561,6 +568,9 @@ class TriggerSources(
                             lastGps = on
                             emit(state("gps.changed", on))
                         }
+                        val locationOn = context.getSystemService(LocationManager::class.java).isLocationEnabled
+                        if (locationOn && lastLocationOn == false && watchedPlaces.isNotEmpty()) places.watch(watchedPlaces)
+                        lastLocationOn = locationOn
                     }
 
                     NfcAdapter.ACTION_ADAPTER_STATE_CHANGED -> {
