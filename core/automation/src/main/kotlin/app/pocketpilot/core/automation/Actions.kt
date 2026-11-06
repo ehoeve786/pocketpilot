@@ -398,7 +398,8 @@ internal object Actions {
                     category = ui,
                     title = "Tap something on screen",
                     description =
-                        "Finds an element by its text or label, its view id, the keyboard focus or a point, and taps or long-presses it.",
+                        "Finds an element by its text or label, its view id, the keyboard focus, a point, or as the tappable thing " +
+                            "beside a text (an unlabeled close button), and taps or long-presses it.",
                     fields =
                         listOf(
                             choiceField(
@@ -409,6 +410,7 @@ internal object Actions {
                                     Choice("id", "View id"),
                                     Choice("focus", "Current focus"),
                                     Choice("point", "X,Y location"),
+                                    Choice("beside", "Beside a text"),
                                 ),
                             ),
                             textField(
@@ -429,6 +431,7 @@ internal object Actions {
                         when (p.p("by")) {
                             "id" -> "$verb #${p.p("text")}"
                             "focus" -> "$verb the focused element"
+                            "beside" -> "$verb beside \"${p.p("text")}\""
                             "point" -> "$verb (${p.p("x")}, ${p.p("y")})"
                             else -> "$verb \"${p.p("text")}\""
                         }
