@@ -53,6 +53,11 @@ android {
         }
     }
 
+    // Code that needs Google Play services, shared by the two flavors that ship it.
+    sourceSets {
+        listOf("pro", "play").forEach { flavor -> getByName(flavor).kotlin.directories.add("src/gms/kotlin") }
+    }
+
     packaging {
         resources {
             // Duplicate metadata from the Ktor and MCP SDK jars.
@@ -114,6 +119,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)
+
+    "proImplementation"(libs.play.services.location)
+    "playImplementation"(libs.play.services.location)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test.junit)

@@ -4,6 +4,12 @@ name: Release build
 # without waiting for a release.
 on:
   workflow_dispatch:
+    inputs:
+      flavor:
+        description: Which distribution to build
+        type: choice
+        options: [all, oss, pro, play]
+        default: all
 
 permissions:
   contents: read
@@ -54,7 +60,16 @@ jobs:
           POCKETPILOT_RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           POCKETPILOT_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           POCKETPILOT_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease
+          FLAVOR: ${{ inputs.flavor }}
+        # The choice input only allows the listed values; the task name is built from them, never from free text.
+        run: |
+          case "$FLAVOR" in
+            oss) task=assembleOssRelease ;;
+            pro) task=assembleProRelease ;;
+            play) task=assemblePlayRelease ;;
+            *) task=assembleRelease ;;
+          esac
+          ./gradlew ":app:$task"
 
       - name: Remove the decoded keystore
         if: always()

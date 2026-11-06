@@ -9,6 +9,7 @@ import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.automation.Calendars
 import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.automation.PhoneState
+import app.pocketpilot.automation.PlaceAlerts
 import app.pocketpilot.automation.PlaceWatcher
 import app.pocketpilot.automation.SecretStoreRuleSecrets
 import app.pocketpilot.automation.TriggerSources
@@ -115,10 +116,11 @@ object AutomationModule {
         capturer: ScreenCapturer,
         imaging: ImagePipeline,
         approvals: ApprovalCenter,
+        placeAlerts: PlaceAlerts,
     ): AutomationRuntime {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
         val calendars = Calendars(context)
-        val places = PlaceWatcher(context)
+        val places = PlaceWatcher(context, placeAlerts)
         val host =
             AndroidAutomationHost(
                 context = context,

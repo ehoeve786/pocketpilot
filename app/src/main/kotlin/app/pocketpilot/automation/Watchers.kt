@@ -13,24 +13,28 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
-import app.pocketpilot.capability.api.shell.SystemReader
+import app.pocketpilot.capability.api.shell.LogFollowArgs
+import app.pocketpilot.capability.api.shell.LogFollower
 import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.TriggerEvent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.sqrt
 
 /**
- * "Arrive at or leave a place" through the platform's proximity alerts, which need neither Google
- * services nor PocketPilot running all the time: Android sends [PlaceReceiver] a broadcast on entering or
- * leaving each circle. The alerts set are remembered so ones no rule needs any more are removed.
+ * "Arrive at or leave a place" through [alerts], which need no PocketPilot code running all the time: Android sends
+ * [PlaceReceiver] a broadcast on entering or leaving each circle. The alerts set are remembered so ones no rule needs
+ * any more are removed.
  */
 class PlaceWatcher(
     private val context: Context,
+    private val alerts: PlaceAlerts,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -39,16 +43,9 @@ class PlaceWatcher(
     /** Sets an alert for every place in [places] and removes the rest. */
     @Synchronized
     fun watch(places: Collection<Place>) {
-        val locations = context.getSystemService(LocationManager::class.java)
         val wanted = places.associateBy { it.key }
         val old = prefs.getStringSet(KEY, emptySet()).orEmpty()
-        (old - wanted.keys).forEach {
-            try {
-                locations.removeProximityAlert(alert(it))
-            } catch (e: SecurityException) {
-                // The permission was taken back; Android dropped the alert with it.
-            }
-        }
+        (old - wanted.keys).forEach { alerts.remove(it, alert(it)) }
         val set =
             if (!permitted) {
                 emptySet()
@@ -56,13 +53,7 @@ class PlaceWatcher(
                 wanted
                     .filter { (key, place) ->
                         try {
-                            locations.addProximityAlert(
-                                place.latitude,
-                                place.longitude,
-                                place.radiusMeters.toFloat(),
-                                NO_EXPIRY,
-                                alert(key),
-                            )
+                            alerts.add(key, place, alert(key))
                             true
                         } catch (e: SecurityException) {
                             false
@@ -105,7 +96,6 @@ class PlaceWatcher(
     private companion object {
         const val PREFS = "place_alerts"
         const val KEY = "places"
-        const val NO_EXPIRY = -1L
     }
 }
 
@@ -150,8 +140,16 @@ class SensorWatcher(
         sensors.unregisterListener(this)
         faceDown = null
         near = null
+        val motion = setOfNotNull(Sensor.TYPE_ACCELEROMETER.takeIf { shake || flip }, Sensor.TYPE_PROXIMITY.takeIf { proximity })
         wanted.forEach { type ->
-            sensors.getDefaultSensor(type)?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+            val sensor = sensors.getDefaultSensor(type) ?: return@forEach
+            if (type in motion) {
+                sensors.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            } else {
+                // A threshold only needs a reading now and then. Pressure is a continuous sensor that would otherwise
+                // report five times a second; batching lets the hardware hold readings while the processor sleeps.
+                sensors.registerListener(this, sensor, THRESHOLD_SAMPLING_US, THRESHOLD_BATCH_US)
+            }
         }
         listening = wanted
     }
@@ -252,6 +250,8 @@ class SensorWatcher(
         const val FLAT = 8.5f
         const val FLIP_HOLD_MS = 800L
         const val NEAR_CM = 5f
+        const val THRESHOLD_SAMPLING_US = 1_000_000
+        const val THRESHOLD_BATCH_US = 5_000_000
     }
 }
 
@@ -282,18 +282,22 @@ fun sensorThresholdOf(params: Map<String, String>): SensorThreshold? {
 }
 
 /**
- * "Log line" and "App crashed": reads new system log lines through Shizuku's read-only path every few
- * seconds while a rule uses them. Logs of apps on the deny list are dropped.
+ * "Log line" and "App crashed": follows the system log through Shizuku while a rule uses them. The privileged service
+ * keeps only lines that may match, so this process wakes for those alone, instead of starting a logcat every few
+ * seconds and reading everything written since. Logs of apps on the deny list are dropped.
  */
 class LogWatcher(
-    private val reader: SystemReader,
+    private val reader: LogFollower,
     private val scope: CoroutineScope,
     private val hidden: (String) -> Boolean,
     private val emit: (TriggerEvent) -> Unit,
 ) {
     private var job: Job? = null
-    private var texts: Set<String> = emptySet()
-    private var crashes = false
+    private var watching: Pair<Set<String>, Boolean>? = null
+
+    @Volatile private var texts: Set<String> = emptySet()
+
+    @Volatile private var crashes = false
 
     /** Watches for lines containing any of [lineTexts], and for crashes when [crashes]. */
     @Synchronized
@@ -301,53 +305,54 @@ class LogWatcher(
         lineTexts: Set<String>,
         crashes: Boolean,
     ) {
+        val on = lineTexts.isNotEmpty() || crashes
+        if (on && watching == (lineTexts to crashes) && job?.isActive == true) return
+        // The needles are fixed when the follow starts, so any change starts a new one.
+        job?.cancel()
+        job = null
+        watching = null
         texts = lineTexts
         this.crashes = crashes
-        val on = lineTexts.isNotEmpty() || crashes
-        if (!on) {
-            job?.cancel()
-            job = null
-            return
-        }
-        if (job?.isActive == true) return
+        if (!on) return
+        watching = lineTexts to crashes
+        // Only the buffers the rules need: the system buffer holds most of the phone's personal log text.
+        val buffers = listOfNotNull("main".takeIf { lineTexts.isNotEmpty() }, "crash".takeIf { crashes })
+        val needles = (lineTexts + listOfNotNull(CRASH_NEEDLE.takeIf { crashes })).take(LogFollowArgs.MAX_NEEDLES).toSet()
         job =
             scope.launch {
                 var since = System.currentTimeMillis()
                 // Lines logged in the same millisecond as the newest one seen; only a repeat of one of them is skipped.
                 val seenAtSince = HashSet<String>()
+                var retry = MIN_RETRY_MS
                 while (isActive) {
-                    delay(POLL_MS)
-                    if (!reader.available.value) continue
-                    // Only the buffers the rules need: the system buffer holds most of the phone's personal log text.
-                    val buffers = listOfNotNull("main".takeIf { texts.isNotEmpty() }, "crash".takeIf { this@LogWatcher.crashes })
-                    val result =
-                        runCatching {
-                            val start = String.format(Locale.ROOT, "%.3f", since / 1000.0)
-                            reader.read(
-                                listOf("logcat", "-d", "-v", "epoch", "-T", start, "-b", buffers.joinToString(",")),
-                                filter(),
-                                TIMEOUT_MS,
-                            )
-                        }.getOrNull() ?: continue
-                    result.stdout.lineSequence().forEach { line ->
-                        val parsed = LINE.find(line) ?: return@forEach
-                        val at = (parsed.groupValues[1].toDoubleOrNull()?.times(1000))?.toLong() ?: return@forEach
-                        if (at < since) return@forEach
-                        if (at > since) {
-                            since = at
-                            seenAtSince.clear()
+                    reader.available.first { it }
+                    val start = String.format(Locale.ROOT, "%.3f", since / 1000.0)
+                    try {
+                        reader.followLog(buffers, start, needles).collect { line ->
+                            retry = MIN_RETRY_MS
+                            val parsed = LINE.find(line) ?: return@collect
+                            val at = (parsed.groupValues[1].toDoubleOrNull()?.times(1000))?.toLong() ?: return@collect
+                            if (at < since) return@collect
+                            if (at > since) {
+                                since = at
+                                seenAtSince.clear()
+                            }
+                            if (!seenAtSince.add(line)) return@collect
+                            handle(parsed.groupValues[2].trim(), parsed.groupValues[3])
                         }
-                        if (!seenAtSince.add(line)) return@forEach
-                        handle(parsed.groupValues[2].trim(), parsed.groupValues[3])
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Shizuku stopped or refused; the follow starts again below.
                     }
+                    // The follow ended. It goes on from the newest line seen, so lines written meanwhile are not missed.
+                    delay(retry)
+                    retry = (retry * 2).coerceAtMost(MAX_RETRY_MS)
                 }
             }
     }
 
     fun stop() = watch(emptySet(), crashes = false)
-
-    /** With one text and no crash watching, the service keeps only matching lines. */
-    private fun filter(): String = texts.singleOrNull()?.takeIf { !crashes }.orEmpty()
 
     private fun handle(
         tag: String,
@@ -367,9 +372,12 @@ class LogWatcher(
     }
 
     private companion object {
-        const val POLL_MS = 10_000L
-        const val TIMEOUT_MS = 8_000L
+        const val MIN_RETRY_MS = 5_000L
+        const val MAX_RETRY_MS = 60_000L
         const val MAX_LINE = 1_000
+
+        /** The start of a crash report, which [CRASH] reads the package from. */
+        const val CRASH_NEEDLE = "Process: "
 
         /** "1760212345.123  1234  5678 E Tag: message", from `logcat -v epoch`. */
         val LINE = Regex("^\\s*(\\d+\\.\\d+)\\s+\\d+\\s+\\d+\\s+[VDIWEF]\\s+([^:]*?)\\s*:\\s?(.*)$")

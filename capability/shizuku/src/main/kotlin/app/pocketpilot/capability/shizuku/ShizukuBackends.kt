@@ -31,20 +31,25 @@ import app.pocketpilot.capability.api.screen.passwordFieldRefused
 import app.pocketpilot.capability.api.screen.swipePoints
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.settings.SettingsController
+import app.pocketpilot.capability.api.shell.LogFollower
 import app.pocketpilot.capability.api.shell.ShellReply
 import app.pocketpilot.capability.api.shell.ShellResult
 import app.pocketpilot.capability.api.shell.ShellRunner
-import app.pocketpilot.capability.api.shell.SystemReader
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /** Runs a privileged call off the main thread and turns its failures into tool errors. */
@@ -531,7 +536,7 @@ class ShizukuShellRunner(
 class ShizukuSystemReader(
     private val shizuku: ShizukuConnection,
     scope: CoroutineScope,
-) : SystemReader {
+) : LogFollower {
     override val backendId: String = BackendIds.SHIZUKU
     override val available: StateFlow<Boolean> = shizuku.availability(scope)
 
@@ -540,4 +545,26 @@ class ShizukuSystemReader(
         filter: String,
         timeoutMs: Long,
     ): ShellResult = ShellReply.decode(shizuku.call { it.runReadOnly(argv.toTypedArray(), filter, timeoutMs) })
+
+    private val followIds = AtomicInteger()
+
+    override fun followLog(
+        buffers: List<String>,
+        since: String,
+        needles: Set<String>,
+    ): Flow<String> =
+        channelFlow {
+            val id = followIds.incrementAndGet()
+            val pipe = shizuku.call { it.followLog(id, buffers.toTypedArray(), since, needles.toTypedArray()) }
+            val reading =
+                launch(Dispatchers.IO) {
+                    ParcelFileDescriptor.AutoCloseInputStream(pipe).bufferedReader().useLines { lines -> lines.forEach { send(it) } }
+                }
+            try {
+                reading.join()
+            } finally {
+                // A blocked pipe read cannot be cancelled; stopping the logcat ends the pipe, which ends the read.
+                if (!reading.isCompleted) withContext(NonCancellable) { runCatching { shizuku.call { it.stopLog(id) } } }
+            }
+        }
 }
