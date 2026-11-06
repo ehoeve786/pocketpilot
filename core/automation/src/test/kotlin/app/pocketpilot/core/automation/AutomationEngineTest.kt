@@ -569,6 +569,23 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `taps the unlabeled button beside a text on the same row`() =
+        runTest {
+            val host = FakeHost()
+            host.schedule =
+                "snapshot a1 com.ubercab.driver 1080x2316\n" +
+                    "e12 button [45,1258,1035,2189] click\n" +
+                    " e15 text \"Delivery\" [181,1303,364,1390] selected\n" +
+                    " e21 button \"Match\" [90,2009,990,2144] click\n" +
+                    " e22 button [855,1303,990,1438] click"
+            engine(this, host).run(rule(listOf(ActionStep("ui.tap_text", mapOf("by" to "beside", "text" to "delivery")))), "Test")
+            val tap = host.calls.single { it.first == "ui.tap" }.second
+            assertEquals("e22", (tap["element"] as JsonPrimitive).content)
+            assertEquals("a1", (tap["snapshotId"] as JsonPrimitive).content)
+            assertEquals(null, AutomationEngine.besideOf(listOf("e1 text \"Delivery\" [0,0,10,10]"), "Delivery"))
+        }
+
+    @Test
     fun `a run stops at its own time limit, and a limit of zero lets it run on`() =
         runTest {
             val wait = listOf(ActionStep("flow.wait", mapOf("seconds" to "2400")))

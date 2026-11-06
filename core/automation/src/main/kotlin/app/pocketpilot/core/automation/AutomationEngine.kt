@@ -571,7 +571,7 @@ class AutomationEngine(
                 val found =
                     when (by) {
                         "id" -> callTool(context, "screen.find", args("resourceId" to params.p("text")))
-                        "focus" -> callTool(context, "screen.snapshot", JsonObject(emptyMap()))
+                        "focus", "beside" -> callTool(context, "screen.snapshot", JsonObject(emptyMap()))
                         else -> callTool(context, "screen.find", args("text" to params.p("text")))
                     }
                 val lines = found.lines()
@@ -586,12 +586,18 @@ class AutomationEngine(
                 val matches = lines.drop(1).filter { it.isNotBlank() && (by != "focus" || focused.containsMatchIn(it)) }
                 // A heading such as "Add Run?" matches "ADD RUN" too; prefer the match the owner can press.
                 val element =
-                    (matches.firstOrNull { Regex("""\bclick\b""").containsMatchIn(it) } ?: matches.firstOrNull())
-                        ?.trim()
+                    (
+                        if (by == "beside") {
+                            besideOf(matches, params.p("text"))
+                        } else {
+                            matches.firstOrNull { CLICKABLE.containsMatchIn(it) } ?: matches.firstOrNull()
+                        }
+                    )?.trim()
                         ?.substringBefore(' ')
                         ?: throw AutomationFailure(
                             when (by) {
                                 "id" -> "No view with id \"${params.p("text")}\" is on screen"
+                                "beside" -> "Nothing tappable is beside \"${params.p("text")}\" on screen"
                                 "focus" -> "Nothing on screen has the focus"
                                 else -> "\"${params.p("text")}\" is not on screen"
                             },
@@ -1125,6 +1131,31 @@ class AutomationEngine(
                     "tool.call",
                 )
         private val PLACEHOLDER = Regex("""\{[^{}]+\}""")
+        private val CLICKABLE = Regex("""\bclick\b""")
+        private val BOUNDS = Regex("""\[(-?\d+),(-?\d+),(-?\d+),(-?\d+)]""")
+        private val QUOTED = Regex("\"([^\"]*)\"")
+
+        /**
+         * The snapshot line of the nearest tappable element to the right of the first element whose text or label
+         * contains [text], on the same row: an unlabeled close or menu button beside a heading.
+         */
+        internal fun besideOf(
+            lines: List<String>,
+            text: String,
+        ): String? {
+            fun box(line: String) = BOUNDS.find(line)?.groupValues?.drop(1)?.map(String::toInt)
+            val tappable = lines.filter { CLICKABLE.containsMatchIn(it) }.mapNotNull { line -> box(line)?.let { line to it } }
+            return lines
+                .asSequence()
+                .filter { line -> QUOTED.findAll(line.substringBefore(" [")).any { it.groupValues[1].contains(text, ignoreCase = true) } }
+                .mapNotNull(::box)
+                .firstNotNullOfOrNull { (_, top, right, bottom) ->
+                    tappable
+                        .filter { (_, b) -> b[0] >= right && b[1] < bottom && b[3] > top }
+                        .minByOrNull { (_, b) -> b[0] }
+                        ?.first
+                }
+        }
 
         /**
          * Steps an outside event may never run: they change which rules are on, which only the owner decides, or
