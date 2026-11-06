@@ -580,9 +580,21 @@ class AutomationEngineTest {
                 " e22 button [855,1303,990,1438] click"
             engine(this, host).run(rule(listOf(ActionStep("ui.tap_text", mapOf("by" to "beside", "text" to "delivery")))), "Test")
             val tap = host.calls.single { it.first == "ui.tap" }.second
-            assertEquals("e22", (tap["element"] as JsonPrimitive).content)
-            assertEquals("a1", (tap["snapshotId"] as JsonPrimitive).content)
+            assertEquals("922", (tap["x"] as JsonPrimitive).content)
+            assertEquals("1370", (tap["y"] as JsonPrimitive).content)
             assertEquals(null, AutomationEngine.besideOf(listOf("e1 text \"Delivery\" [0,0,10,10]"), "Delivery"))
+            // A price outside the card (the earnings pill) must not reach the search button beside it.
+            val screen =
+                listOf(
+                    "e29 button [352,94,729,275] click",
+                    " e30 text \"\$45.33\" [397,116,616,206]",
+                    "e32 button desc=\"Search for places\" [900,94,1035,229] click",
+                    "e12 button [45,1258,1035,2189] click",
+                    " e14 text \"Exclusive\" [420,1303,620,1390]",
+                    " e16 text \"\$28.44\" [90,1390,380,1533]",
+                    " e22 button [855,1303,990,1438] click",
+                )
+            assertEquals(" e22 button [855,1303,990,1438] click", AutomationEngine.besideOf(screen, "$"))
         }
 
     @Test

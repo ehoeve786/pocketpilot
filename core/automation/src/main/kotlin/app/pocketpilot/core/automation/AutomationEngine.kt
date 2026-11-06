@@ -584,20 +584,27 @@ class AutomationEngine(
                 // Flags follow the bounds, so "focused" after the last "]" is the flag and not a word in the element's text.
                 val focused = Regex("""\][^"\n]*\bfocused\b""")
                 val matches = lines.drop(1).filter { it.isNotBlank() && (by != "focus" || focused.containsMatchIn(it)) }
+                if (by == "beside") {
+                    val box =
+                        besideOf(matches, params.p("text"))
+                            ?.let { BOUNDS.find(it) }
+                            ?.groupValues
+                            ?.drop(1)
+                            ?.map(String::toInt)
+                            ?: throw AutomationFailure("Nothing tappable is beside \"${params.p("text")}\" on screen")
+                    // A real touch at its centre: some apps (Uber's offer card) ignore an accessibility click on the button.
+                    val (x, y) = (box[0] + box[2]) / 2 to (box[1] + box[3]) / 2
+                    callTool(context, press, args("x" to "$x", "y" to "$y", "returnSnapshot" to false))
+                    return "${if (press == "ui.tap") "tapped" else "long-pressed"} ($x, $y)"
+                }
                 // A heading such as "Add Run?" matches "ADD RUN" too; prefer the match the owner can press.
                 val element =
-                    (
-                        if (by == "beside") {
-                            besideOf(matches, params.p("text"))
-                        } else {
-                            matches.firstOrNull { CLICKABLE.containsMatchIn(it) } ?: matches.firstOrNull()
-                        }
-                    )?.trim()
+                    (matches.firstOrNull { CLICKABLE.containsMatchIn(it) } ?: matches.firstOrNull())
+                        ?.trim()
                         ?.substringBefore(' ')
                         ?: throw AutomationFailure(
                             when (by) {
                                 "id" -> "No view with id \"${params.p("text")}\" is on screen"
-                                "beside" -> "Nothing tappable is beside \"${params.p("text")}\" on screen"
                                 "focus" -> "Nothing on screen has the focus"
                                 else -> "\"${params.p("text")}\" is not on screen"
                             },
@@ -1137,7 +1144,8 @@ class AutomationEngine(
 
         /**
          * The snapshot line of the nearest tappable element to the right of the first element whose text or label
-         * contains [text], on the same row: an unlabeled close or menu button beside a heading.
+         * contains [text], on the same row and inside the smallest tappable element around that text (its card or
+         * row): an unlabeled close or menu button beside a heading or a price.
          */
         internal fun besideOf(
             lines: List<String>,
@@ -1154,10 +1162,18 @@ class AutomationEngine(
                 .asSequence()
                 .filter { line -> QUOTED.findAll(line.substringBefore(" [")).any { it.groupValues[1].contains(text, ignoreCase = true) } }
                 .mapNotNull(::box)
-                .firstNotNullOfOrNull { (_, top, right, bottom) ->
+                .firstNotNullOfOrNull { anchor ->
+                    val (left, top, right, bottom) = anchor
+                    val card =
+                        tappable
+                            .map { it.second }
+                            .filter { b -> b != anchor && b[0] <= left && b[1] <= top && b[2] >= right && b[3] >= bottom }
+                            .minByOrNull { b -> (b[2] - b[0]).toLong() * (b[3] - b[1]) }
                     tappable
-                        .filter { (_, b) -> b[0] >= right && b[1] < bottom && b[3] > top }
-                        .minByOrNull { (_, b) -> b[0] }
+                        .filter { (_, b) ->
+                            b[0] >= right && b[1] < bottom && b[3] > top &&
+                                (card == null || (b[1] >= card[1] && b[2] <= card[2] && b[3] <= card[3]))
+                        }.minByOrNull { (_, b) -> b[0] }
                         ?.first
                 }
         }
