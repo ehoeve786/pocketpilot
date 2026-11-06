@@ -37,3 +37,4 @@
 - A proposal's notification ("Unverified: Claude … proposed a rule") now goes away once the proposal is accepted or declined, from the notification, the Proposals list or anywhere else. Notifications left over from proposals already handled are cleared when PocketPilot starts.
 - "Text appears on screen" triggers now work in apps that redraw constantly, such as Uber Driver's live map. The trigger waited for the screen to stay unchanged for a second, which never happened there, so it never fired. It now checks at most once a second while the screen changes.
 - Automations settings: "Screen text check rate" sets how often "Text appears on screen" triggers read the screen while it changes: 0.5 s, 1 s (default), 2 s, 3 s or 5 s. Faster reacts sooner and uses more battery.
+- oss and pro builds declare the accessibility service an accessibility tool, so apps that mark parts of their screen accessibility-sensitive (Android 14+) can still be read. The Play build does not.

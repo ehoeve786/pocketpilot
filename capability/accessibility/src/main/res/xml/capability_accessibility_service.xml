@@ -8,4 +8,5 @@
     android:canRetrieveWindowContent="true"
     android:canTakeScreenshot="true"
     android:description="@string/capability_accessibility_description"
+    android:isAccessibilityTool="@bool/capability_accessibility_is_tool"
     android:notificationTimeout="100" />
