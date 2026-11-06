@@ -55,7 +55,7 @@ android {
 
     // Code that needs Google Play services, shared by the two flavors that ship it.
     sourceSets {
-        listOf("pro", "play").forEach { flavor -> getByName(flavor).kotlin.srcDir("src/gms/kotlin") }
+        listOf("pro", "play").forEach { flavor -> getByName(flavor).kotlin.directories.add("src/gms/kotlin") }
     }
 
     packaging {

@@ -1,8 +1,8 @@
 package app.pocketpilot
 
 import android.content.Context
-import app.pocketpilot.automation.PlatformPlaceAlerts
 import app.pocketpilot.automation.PlaceAlerts
+import app.pocketpilot.automation.PlatformPlaceAlerts
 import app.pocketpilot.core.model.PolicyProfile
 import dagger.Module
 import dagger.Provides
