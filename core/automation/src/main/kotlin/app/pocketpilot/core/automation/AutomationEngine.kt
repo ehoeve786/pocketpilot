@@ -1143,7 +1143,12 @@ class AutomationEngine(
             lines: List<String>,
             text: String,
         ): String? {
-            fun box(line: String) = BOUNDS.find(line)?.groupValues?.drop(1)?.map(String::toInt)
+            fun box(line: String): List<Int>? =
+                BOUNDS
+                    .find(line)
+                    ?.groupValues
+                    ?.drop(1)
+                    ?.map(String::toInt)
             val tappable = lines.filter { CLICKABLE.containsMatchIn(it) }.mapNotNull { line -> box(line)?.let { line to it } }
             return lines
                 .asSequence()
