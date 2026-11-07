@@ -82,4 +82,18 @@ class AgentToolsTest {
             tools.defs.map { it.name },
         )
     }
+
+    @Test
+    fun `loading a tool the model already has says to call it directly`() {
+        val tools = AgentTools(listOf(spec("home.entities"), spec("home.control")) + (1..8).map { spec("extra.tool$it") })
+        assertEquals(
+            "Loaded extra.tool1; their definitions are in your tools now. " +
+                "home.entities, home.control are already in your tools: call them directly, without loading.",
+            tools.load(listOf("home.entities", "extra.tool1", "home.control")),
+        )
+        assertEquals(
+            "extra.tool1 is already in your tools: call it directly, without loading.",
+            tools.load(listOf("extra.tool1")),
+        )
+    }
 }
