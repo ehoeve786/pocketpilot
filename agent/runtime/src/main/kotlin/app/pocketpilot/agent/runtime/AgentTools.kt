@@ -116,6 +116,12 @@ internal class AgentTools(
                 "settings.get",
                 "settings.set",
                 "adb.query",
+                // Smart home requests are common in a chat, and a model that only sees one line for them tends to say it
+                // cannot control devices. They are sent even before Home Assistant is set up, and then answer how to set it up.
+                "home.entities",
+                "home.state",
+                "home.control",
+                "home.control_secure",
             )
 
         private val loadDef =

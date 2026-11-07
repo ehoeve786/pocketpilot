@@ -72,4 +72,14 @@ class AgentToolsTest {
         assertEquals(listOf("ui_tap", "extra_one", "extra_two"), tools.defs.map { it.name })
         assertEquals("", tools.catalog)
     }
+
+    @Test
+    fun `sends the home tools in full so a model asked about devices sees them`() {
+        val home = listOf("home.entities", "home.state", "home.control", "home.control_secure").map(::spec)
+        val tools = AgentTools(home + (1..8).map { spec("extra.tool$it") })
+        assertEquals(
+            listOf("home_entities", "home_state", "home_control", "home_control_secure", AgentTools.LOAD),
+            tools.defs.map { it.name },
+        )
+    }
 }
