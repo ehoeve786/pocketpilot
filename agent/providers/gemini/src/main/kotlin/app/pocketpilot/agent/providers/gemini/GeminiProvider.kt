@@ -304,7 +304,15 @@ class GeminiProvider(
             retryAfter: String?,
         ): ModelEvent.Error {
             val error = ModelErrors.fromHttp(status, body, retryAfter ?: RETRY_DELAY.find(body)?.groupValues?.get(1))
-            return if (status == 400 && "API_KEY_INVALID" in body) error.copy(code = ModelErrorCode.AUTH) else error
+            if (status == 400 && "API_KEY_INVALID" in body) return error.copy(code = ModelErrorCode.AUTH)
+            val quota = GeminiQuota.of(body) ?: return error
+            // The quota's name goes first: the message is cut to a few hundred characters, and the name is deep in the body.
+            // A daily limit is spent until tomorrow, so it is not worth the runner's quick retries.
+            return error.copy(
+                code = if (quota.daily) ModelErrorCode.QUOTA else error.code,
+                message = "Gemini ${quota.description} reached. ${error.message}",
+                retryAfterMs = error.retryAfterMs.takeIf { !quota.daily },
+            )
         }
 
         /** The call's arguments as an object; anything else becomes `{}`. */
@@ -318,6 +326,32 @@ class GeminiProvider(
         fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
         fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
+    }
+}
+
+/** Which Gemini quota a 429 hit, read from the `QuotaFailure` details in its body. */
+data class GeminiQuota(
+    val id: String,
+    val description: String,
+    val daily: Boolean,
+) {
+    companion object {
+        private val QUOTA_ID = Regex(""""quotaId"\s*:\s*"([^"]+)"""")
+
+        /** The first quota named in [body], or null when the body names none. */
+        fun of(body: String): GeminiQuota? {
+            val id = QUOTA_ID.find(body)?.groupValues?.get(1) ?: return null
+            val daily = "PerDay" in id
+            val what =
+                when {
+                    daily -> "daily request limit"
+                    "Token" in id && "PerMinute" in id -> "per-minute token limit"
+                    "PerMinute" in id -> "per-minute request limit"
+                    else -> "quota $id"
+                }
+            val tier = if ("FreeTier" in id) " (free tier)" else ""
+            return GeminiQuota(id, what + tier, daily)
+        }
     }
 }
 

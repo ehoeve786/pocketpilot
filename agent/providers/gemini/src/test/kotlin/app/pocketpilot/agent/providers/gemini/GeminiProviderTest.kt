@@ -29,6 +29,7 @@ import kotlinx.serialization.json.jsonObject
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class GeminiProviderTest {
     private val requests = mutableListOf<HttpRequestData>()
@@ -221,6 +222,43 @@ class GeminiProviderTest {
             assertEquals(ModelEvent.Error(ModelErrorCode.RATE_LIMIT, "HTTP 429: {\"error\":{}}", 7000L), header.single())
             assertEquals(12000L, (body.single() as ModelEvent.Error).retryAfterMs)
         }
+
+    @Test
+    fun `names a spent daily quota first and stops quick retries`() =
+        runTest {
+            val body =
+                """{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details.",
+                "status":"RESOURCE_EXHAUSTED","details":[{"@type":"type.googleapis.com/google.rpc.QuotaFailure","violations":[
+                {"quotaMetric":"generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                "quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]},
+                {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"40s"}]}}"""
+            val error = provider { json(body, HttpStatusCode.TooManyRequests) }.stream(hi).toList().single() as ModelEvent.Error
+
+            assertEquals(ModelErrorCode.QUOTA, error.code)
+            assertTrue(error.message.startsWith("Gemini daily request limit (free tier) reached. HTTP 429:"), error.message)
+            assertEquals(null, error.retryAfterMs)
+        }
+
+    @Test
+    fun `a per-minute quota stays a rate limit with its wait`() =
+        runTest {
+            val body = """{"error":{"details":[{"violations":[{"quotaId":"GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]},
+                {"retryDelay":"9s"}]}}"""
+            val error = provider { json(body, HttpStatusCode.TooManyRequests) }.stream(hi).toList().single() as ModelEvent.Error
+
+            assertEquals(ModelErrorCode.RATE_LIMIT, error.code)
+            assertTrue(error.message.startsWith("Gemini per-minute request limit (free tier) reached."), error.message)
+            assertEquals(9000L, error.retryAfterMs)
+        }
+
+    @Test
+    fun `reads the quota a body names`() {
+        assertEquals(
+            GeminiQuota("GenerateContentInputTokensPerModelPerMinute-FreeTier", "per-minute token limit (free tier)", false),
+            GeminiQuota.of("""{"quotaId": "GenerateContentInputTokensPerModelPerMinute-FreeTier"}"""),
+        )
+        assertEquals(null, GeminiQuota.of("""{"error":{}}"""))
+    }
 
     @Test
     fun `turns a thrown IOException into a network error`() =
