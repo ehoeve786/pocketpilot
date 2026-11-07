@@ -26,7 +26,7 @@ class ScopeTest {
 
     @Test
     fun `known set covers every scope in the spec`() {
-        assertEquals(16, Scope.KNOWN.size)
-        assertTrue(Scope.HOME_READ in Scope.KNOWN && Scope.HOME_CONTROL in Scope.KNOWN)
+        assertEquals(17, Scope.KNOWN.size)
+        assertTrue(Scope.HOME_READ in Scope.KNOWN && Scope.HOME_CONTROL in Scope.KNOWN && Scope.LOCATION_READ in Scope.KNOWN)
     }
 }

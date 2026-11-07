@@ -11,6 +11,7 @@ import app.pocketpilot.capability.accessibility.A11yScreenCapturer
 import app.pocketpilot.capability.accessibility.A11yScreenReader
 import app.pocketpilot.capability.api.AudioControl
 import app.pocketpilot.capability.api.DeviceInfoSource
+import app.pocketpilot.capability.api.LocationReader
 import app.pocketpilot.capability.api.SensorReader
 import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.screen.GlobalAction
@@ -22,6 +23,7 @@ import app.pocketpilot.capability.api.screen.ScreenSize
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidAudioControl
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
+import app.pocketpilot.capability.device.AndroidLocationReader
 import app.pocketpilot.capability.device.AndroidSensorReader
 import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
@@ -77,6 +79,7 @@ import app.pocketpilot.core.tools.AppStopTool
 import app.pocketpilot.core.tools.AudioControlTool
 import app.pocketpilot.core.tools.BatteryUsageTool
 import app.pocketpilot.core.tools.DeviceInfoTool
+import app.pocketpilot.core.tools.DeviceLocationTool
 import app.pocketpilot.core.tools.FilesCopyTool
 import app.pocketpilot.core.tools.FilesDeleteTool
 import app.pocketpilot.core.tools.FilesListTool
@@ -154,6 +157,16 @@ object AppModule {
     @Provides
     @IntoSet
     fun sensorReadTool(reader: SensorReader): ToolHandler = SensorReadTool(reader)
+
+    @Provides
+    @Singleton
+    fun locationReader(
+        @ApplicationContext context: Context,
+    ): LocationReader = AndroidLocationReader(context)
+
+    @Provides
+    @IntoSet
+    fun deviceLocationTool(reader: LocationReader): ToolHandler = DeviceLocationTool(reader)
 
     @Provides
     @Singleton

@@ -26,4 +26,5 @@
     <string name="feature_approvals_scope_task_run">Run agent tasks</string>
     <string name="feature_approvals_scope_home_read">See your Home Assistant devices and their state</string>
     <string name="feature_approvals_scope_home_control">Control your Home Assistant devices; locks, alarms and garage doors ask you each time</string>
+    <string name="feature_approvals_scope_location_read">See where your phone is</string>
 </resources>

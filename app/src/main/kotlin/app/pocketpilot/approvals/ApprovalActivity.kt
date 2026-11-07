@@ -117,7 +117,7 @@ class ApprovalActivity : ComponentActivity() {
         /** What a client that names no scopes gets preselected: reading only. Acting on the phone is the owner's choice. */
         val DEFAULT_SCOPES = setOf("screen:read", "apps:read", "device:read")
 
-        /** Scopes that act on the phone or change its settings and files, which the owner ticks by hand. */
+        /** Scopes that act on the phone, change its settings and files, or reveal where it is, which the owner ticks by hand. */
         val ACTING_SCOPES =
             setOf(
                 "ui:interact",
@@ -128,6 +128,7 @@ class ApprovalActivity : ComponentActivity() {
                 "files:write",
                 "task:run",
                 "home:control",
+                "location:read",
                 "shell:exec",
                 "termux:run",
             )

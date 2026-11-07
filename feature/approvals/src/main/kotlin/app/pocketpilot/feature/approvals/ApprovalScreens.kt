@@ -177,5 +177,6 @@ private fun scopeTitle(scope: String): String =
         "task:run" -> stringResource(R.string.feature_approvals_scope_task_run)
         "home:read" -> stringResource(R.string.feature_approvals_scope_home_read)
         "home:control" -> stringResource(R.string.feature_approvals_scope_home_control)
+        "location:read" -> stringResource(R.string.feature_approvals_scope_location_read)
         else -> scope
     }

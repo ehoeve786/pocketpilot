@@ -39,6 +39,7 @@ value class Scope(
         val TERMUX_RUN = Scope("termux:run")
         val HOME_READ = Scope("home:read")
         val HOME_CONTROL = Scope("home:control")
+        val LOCATION_READ = Scope("location:read")
 
         val KNOWN: Set<Scope> =
             setOf(
@@ -58,6 +59,7 @@ value class Scope(
                 TERMUX_RUN,
                 HOME_READ,
                 HOME_CONTROL,
+                LOCATION_READ,
             )
 
         /** Parses a space-separated OAuth scope string. */
