@@ -42,6 +42,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import java.time.ZoneId
 import java.util.Base64
 
 /**
@@ -55,6 +56,8 @@ class AgentRunner(
     private val sessions: SessionFactory,
     private val store: RunStore? = null,
     private val clock: Clock = Clock.System,
+    /** The phone's time zone, for the time sent with each message. */
+    private val zone: ZoneId = ZoneId.systemDefault(),
     /** Called when a run's session ends, so the policy engine can forget its confirmations. */
     private val onSessionEnd: (SessionId) -> Unit = {},
     /** Marks the run's [AgentTask.preApproved] tools as confirmed for its session, in the policy engine. */
@@ -92,7 +95,7 @@ class AgentRunner(
         mutableCurrent.value?.close()
         val session = sessions.agentSession(task.scopes)
         if (task.preApproved.isNotEmpty()) preConfirm(session.id, task.preApproved)
-        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork, health)
+        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork, health, zone)
         mutableCurrent.value = run
         run.launchIn(scope)
         return run
@@ -112,6 +115,8 @@ class AgentRun internal constructor(
     private val onSessionEnd: (SessionId) -> Unit,
     private val beforeScreenWork: suspend () -> Unit = {},
     private val health: ProviderHealth? = null,
+    /** The phone's time zone, for the time sent with each message. */
+    private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val id: String get() = session.id.value
 
@@ -240,7 +245,7 @@ class AgentRun internal constructor(
                     steps = s.steps + AgentStep(index = s.steps.size, atMillis = clock.nowMillis(), user = next),
                 )
             }
-            addToUserMessage(listOf(Part.Text(Prompts.followUp(next))))
+            addToUserMessage(listOf(Part.Text(Prompts.followUp(next, phoneTime()))))
         }
     }
 
@@ -289,10 +294,10 @@ class AgentRun internal constructor(
         val info = if (tools.has(DEVICE_INFO)) text(call(DEVICE_INFO)) else null
         // A chat may not need the phone at all, and PocketPilot is in front while the owner types, so
         // the model reads the screen itself when a message needs it.
-        if (task.conversation) return listOf(Part.Text(Prompts.firstMessage(goal, info, null, chat = true)))
+        if (task.conversation) return listOf(Part.Text(Prompts.firstMessage(goal, info, null, chat = true, now = phoneTime())))
         val snapshot = if (tools.has(SCREEN_SNAPSHOT)) text(call(SCREEN_SNAPSHOT)) else null
         // The screen goes in its own part so it can be dropped once a newer screen arrives.
-        return listOf(Part.Text(Prompts.firstMessage(goal, info, null))) +
+        return listOf(Part.Text(Prompts.firstMessage(goal, info, null, now = phoneTime()))) +
             listOfNotNull(snapshot?.let { Part.Text(Prompts.firstScreen(it)) }) +
             screenshot()
     }
@@ -623,6 +628,8 @@ class AgentRun internal constructor(
         while (candidate != null && candidate.toolMode != model.toolMode) candidate = candidate.fallback
         return candidate
     }
+
+    private fun phoneTime(): String = Prompts.phoneTime(clock.nowMillis(), zone)
 
     private fun note(text: String) {
         mutableState.update { s -> s.copy(steps = s.steps + AgentStep(index = s.steps.size, atMillis = clock.nowMillis(), note = text)) }

@@ -1,6 +1,10 @@
 package app.pocketpilot.agent.runtime
 
 import app.pocketpilot.agent.providers.api.ToolDef
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** The system prompt for a run. */
 internal object Prompts {
@@ -23,7 +27,7 @@ internal object Prompts {
                 To reach a screen inside an app, look it up with app.activities and open it with app.start_activity instead of navigating, for example a clock app's stopwatch.
                 Timers and alarms take one app.start_activity call with the clock app's package, never keypad taps: action android.intent.action.SET_TIMER with extras {"android.intent.extra.alarm.LENGTH": seconds, "android.intent.extra.alarm.SKIP_UI": true}, or android.intent.action.SET_ALARM with android.intent.extra.alarm.HOUR, android.intent.extra.alarm.MINUTES and SKIP_UI. SHOW_TIMERS and SHOW_ALARMS open those pages. Only if the call fails, use the screen.
                 For directions to the nearest place of a kind, such as a gas station or pharmacy, call app.directions once instead of searching and scrolling in Maps.
-                To find out why something misbehaves, read system state with adb.query (dumpsys, getprop, cmd ... status, ping and so on) and logs with adb.logs. For which apps drain the battery, call device.battery_usage instead of opening Settings.
+                To find out why something misbehaves, read system state with adb.query (dumpsys, getprop, cmd ... status, ping and so on) and logs with adb.logs. For which apps drain the battery, call device.battery_usage instead of opening Settings. For where the phone is, call device.location. The phone's time comes with each message from the owner.
                 When a task asks for a result rather than something to see on screen, use a command or a typed tool that produces it, and tap the screen only when no such tool can. For arithmetic, use shell.exec when it is available (for example echo $((128 * 46))) instead of tapping a calculator.
                 If shell.exec is available and no other tool can do the job, prefer it to tapping through the screen, one short command at a time; the owner confirms each command.
                 If you cannot find an option after two scrolls, use the app's search instead of scrolling further.
@@ -70,9 +74,12 @@ internal object Prompts {
         deviceInfo: String?,
         snapshot: String?,
         chat: Boolean = false,
+        /** The phone's date and time, from [phoneTime]; models have no clock of their own. */
+        now: String? = null,
     ): String =
         buildString {
-            appendLine(if (chat) followUp(goal) else "Task from the owner: $goal")
+            appendLine(if (chat) followUp(goal, now) else "Task from the owner: $goal")
+            if (!chat && now != null) appendLine(timeLine(now))
             deviceInfo?.let {
                 appendLine()
                 appendLine("Device:")
@@ -93,8 +100,24 @@ internal object Prompts {
         "The result you gave is not on the screen. Read the screen again, tap each key or field by its element ID in that snapshot, " +
             "check the display after each tap, and answer only with the number the display shows."
 
-    /** The owner's message in a chat. */
-    fun followUp(text: String): String = "Message from the owner: $text"
+    /** The owner's message in a chat, with the phone's time when given; [TextBudget] knows it by its start. */
+    fun followUp(
+        text: String,
+        now: String? = null,
+    ): String = "Message from the owner: $text" + now?.let { "\n" + timeLine(it) }.orEmpty()
+
+    /**
+     * The phone's local date and time with its zone, such as "Sat 7 Nov 2026, 16:34 MST (-07:00)". Sent with the task
+     * and each message, so the model can answer "what time is it" or plan "in an hour" without a tool call.
+     */
+    fun phoneTime(
+        millis: Long,
+        zone: ZoneId,
+    ): String = TIME.format(Instant.ofEpochMilli(millis).atZone(zone))
+
+    private fun timeLine(now: String) = "(Phone time: $now)"
+
+    private val TIME = DateTimeFormatter.ofPattern("EEE d MMM yyyy, HH:mm z (xxx)", Locale.ENGLISH)
 
     fun resumed(snapshot: String?): String =
         "The owner paused you, may have changed things by hand, and has now resumed. " +

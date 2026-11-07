@@ -43,4 +43,15 @@ class PromptsTest {
         assertTrue(prompt.contains("call them directly and never load them, in every turn"))
         assertTrue(prompt.indexOf("never load them") < prompt.indexOf("- shell.exec"))
     }
+
+    @Test
+    fun `each message from the owner carries the phone's time`() {
+        // UTC, so the test does not depend on a region's daylight-time rules in the machine's time zone data.
+        val now = Prompts.phoneTime(1_794_094_440_000, java.time.ZoneId.of("UTC"))
+        assertEquals("Sat 7 Nov 2026, 23:34 UTC (+00:00)", now)
+        assertEquals("Message from the owner: What time is it?\n(Phone time: $now)", Prompts.followUp("What time is it?", now))
+        // TextBudget finds the owner's messages by this start.
+        assertTrue(Prompts.followUp("hi", now).startsWith(Prompts.followUp("")))
+        assertTrue(Prompts.firstMessage("Turn on the lights", null, null, now = now).contains("(Phone time: $now)"))
+    }
 }

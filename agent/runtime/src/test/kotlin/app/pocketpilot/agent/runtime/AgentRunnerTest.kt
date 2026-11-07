@@ -624,7 +624,8 @@ class AgentRunnerTest {
             val history = provider.requests[1].messages
             assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER), history.map(Message::role))
             assertEquals("Hi, how can I help?", (history[1].parts.single() as Part.Text).text)
-            assertTrue((history[2].parts.single() as Part.Text).text.endsWith("Tap the button"))
+            // The owner's message, then the phone's time.
+            assertTrue((history[2].parts.single() as Part.Text).text.contains("Message from the owner: Tap the button\n(Phone time: "))
 
             run.close()
             val end = run.ended()
@@ -674,7 +675,7 @@ class AgentRunnerTest {
                     .filterIsInstance<Part.Text>()
                     .single()
                     .text
-                    .endsWith("Go on"),
+                    .contains("Message from the owner: Go on\n(Phone time: "),
                 "the message joins the last tool results",
             )
             run.stop()
