@@ -129,6 +129,11 @@ sealed interface ModelEvent {
         val reason: StopReason,
     ) : ModelEvent
 
+    /** Something the owner should see in the run log, such as a key that hit its limit; not part of the reply. */
+    data class Notice(
+        val text: String,
+    ) : ModelEvent
+
     data class Error(
         val code: ModelErrorCode,
         val message: String,

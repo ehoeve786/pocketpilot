@@ -93,9 +93,28 @@ class KeyRotatingProvider(
                 }
                 cool(index, failure)
                 if (!roundRobin) current.compareAndSet(index, (index + 1) % keys.size)
+                val next = usable.getOrNull(usable.indexOf(index) + 1)
+                // Shown in the run log, so the owner can see that a second key was tried and why the first one was not used.
+                if (next != null) emit(ModelEvent.Notice("Key ${index + 1} ${why(failure)}; trying key ${next + 1}"))
             }
-            last?.let { emit(it) }
+            last?.let { failure ->
+                val all = if (usable.size > 1) "All ${usable.size} keys failed. " else ""
+                emit(failure.copy(message = all + failure.message))
+            }
         }
+
+    /** Why [failure] skipped a key, with the limit's name when the adapter gave one, as Gemini does. */
+    private fun why(failure: ModelEvent.Error): String {
+        val reason =
+            when (failure.code) {
+                ModelErrorCode.RATE_LIMIT -> "hit its rate limit"
+                ModelErrorCode.QUOTA -> "is out of quota"
+                else -> "was refused"
+            }
+        // An adapter that knows which limit it was puts that first, as one sentence; a raw "HTTP 429: …" says nothing more.
+        val detail = failure.message.substringBefore(". ", "").takeIf { it.isNotEmpty() && !it.startsWith("HTTP") }
+        return if (detail == null) reason else "$reason: $detail"
+    }
 
     /**
      * Leaves [index] alone for as long as its error calls for. A key refused for authentication stays refused until

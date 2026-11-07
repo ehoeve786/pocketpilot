@@ -487,6 +487,7 @@ class AgentRun internal constructor(
                         is ModelEvent.Usage -> addUsage(event)
                         is ModelEvent.Stop -> stop = event.reason
                         is ModelEvent.Error -> error = event
+                        is ModelEvent.Notice -> note(event.text)
                     }
                 }
             } catch (e: CancellationException) {
