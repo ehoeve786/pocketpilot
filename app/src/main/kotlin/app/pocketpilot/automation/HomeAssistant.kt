@@ -28,6 +28,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.io.Reader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -79,7 +80,8 @@ class HomeAssistant(
             emptyList()
         } else {
             runCatching {
-                AutomationJson.json.parseToJsonElement(request("GET", "/api/states", null)).jsonArray.mapNotNull { element ->
+                val reply = request("GET", "/api/states", null, MAX_LIST_CHARS)
+                AutomationJson.json.parseToJsonElement(reply).jsonArray.mapNotNull { element ->
                     val entity = element.jsonObject
                     val id = entity["entity_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                     val name =
@@ -90,8 +92,14 @@ class HomeAssistant(
                             ?.contentOrNull
                     PickOption(id, name ?: id, id.takeIf { name != null })
                 }
-            }.getOrDefault(emptyList()).sortedBy { it.value }
+            }.listedOr("entities")
         }
+
+    /** The list, sorted; or none, with the reason in the log, so a failure is not just an empty list. */
+    private fun Result<List<PickOption>>.listedOr(what: String): List<PickOption> {
+        exceptionOrNull()?.let { log.warning("Home Assistant $what could not be listed: ${it.message}") }
+        return getOrDefault(emptyList()).sortedBy { it.value }
+    }
 
     /** Every service as "domain.service", for the builder's action list. */
     suspend fun services(): List<PickOption> =
@@ -99,12 +107,13 @@ class HomeAssistant(
             emptyList()
         } else {
             runCatching {
-                AutomationJson.json.parseToJsonElement(request("GET", "/api/services", null)).jsonArray.flatMap { domain ->
+                val reply = request("GET", "/api/services", null, MAX_LIST_CHARS)
+                AutomationJson.json.parseToJsonElement(reply).jsonArray.flatMap { domain ->
                     val json = domain.jsonObject
                     val name = json["domain"]?.jsonPrimitive?.contentOrNull ?: return@flatMap emptyList()
                     (json["services"]?.jsonObject?.keys ?: emptySet()).map { PickOption("$name.$it", "$name.$it") }
                 }
-            }.getOrDefault(emptyList()).sortedBy { it.value }
+            }.listedOr("actions")
         }
 
     /**
@@ -257,10 +266,15 @@ class HomeAssistant(
         }
     }
 
+    /**
+     * Sends [method] to [path] and returns the reply, which may be at most [maxChars] long. A longer reply is
+     * refused rather than cut short: cut-off JSON does not parse, and the lists would come back empty.
+     */
     private suspend fun request(
         method: String,
         path: String,
         body: String?,
+        maxChars: Int = MAX_REPLY_CHARS,
     ): String {
         val base = baseUrl() ?: throw AutomationFailure(NOT_SET_UP)
         val token = token() ?: throw AutomationFailure(NOT_SET_UP)
@@ -280,7 +294,13 @@ class HomeAssistant(
                 }
                 val status = connection.responseCode
                 val stream = if (status >= HTTP_ERROR) connection.errorStream else connection.inputStream
-                val reply = stream?.bufferedReader()?.use { it.readText().take(MAX_REPLY_CHARS) }.orEmpty()
+                val reply =
+                    if (stream == null) {
+                        ""
+                    } else {
+                        stream.bufferedReader().use { it.readAtMost(maxChars) }
+                            ?: throw AutomationFailure("Home Assistant's reply is over $maxChars characters")
+                    }
                 when {
                     status == HTTP_UNAUTHORIZED -> throw AutomationFailure(TOKEN_REFUSED)
                     status == HTTP_NOT_FOUND -> throw AutomationFailure("Home Assistant has no such entity or action")
@@ -316,7 +336,22 @@ class HomeAssistant(
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_NOT_FOUND = 404
         const val MAX_REPLY_CHARS = 100_000
+
+        /** Every entity or action: a home with a thousand entities sends about half a megabyte. */
+        const val MAX_LIST_CHARS = 8_000_000
         const val MAX_ERROR_CHARS = 200
         val SERVICE_PART = Regex("[a-z0-9_]+")
+    }
+}
+
+/** Reads the rest of this reader, or returns null once it holds more than [max] characters, without reading further. */
+internal fun Reader.readAtMost(max: Int): String? {
+    val out = StringBuilder()
+    val buffer = CharArray(8 * 1024)
+    while (true) {
+        val n = read(buffer)
+        if (n < 0) return out.toString()
+        if (out.length + n > max) return null
+        out.appendRange(buffer, 0, n)
     }
 }
