@@ -2,8 +2,8 @@ package app.pocketpilot.core.model
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class ScopeTest {
     @Test
