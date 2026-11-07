@@ -17,6 +17,7 @@ import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -79,12 +80,9 @@ class HomeEntitiesTool(
         session: Session,
     ): ToolResult {
         val words =
-            call.arguments
-                .string("query")
-                .orEmpty()
-                .lowercase()
-                .split(' ', '_', '.')
-                .filter(String::isNotBlank)
+            searchable(call.arguments.string("query").orEmpty())
+                .split(' ')
+                .filter { it.isNotBlank() && it !in FILLER }
         val domain =
             call.arguments
                 .string("domain")
@@ -97,7 +95,7 @@ class HomeEntitiesTool(
                 .reach { home.entities() }
                 .filter { domain == null || it.domain == domain }
                 .filter { entity ->
-                    val text = "${entity.id} ${entity.name}".lowercase().replace('_', ' ')
+                    val text = searchable("${entity.id} ${entity.name}")
                     words.all { it in text }
                 }.sortedBy { it.id }
         if (matches.isEmpty()) return ToolResult.success("No entities match. Try fewer words, or leave out domain.")
@@ -108,6 +106,22 @@ class HomeEntitiesTool(
     private companion object {
         const val DEFAULT_LIMIT = 30
         const val MAX_LIMIT = 100
+
+        /** Words a model puts in a query that no entity name needs, as in "the light in the bedroom". */
+        val FILLER = setOf("the", "a", "an", "in", "on", "of", "my", "at", "to")
+
+        /**
+         * Lower case, apostrophes dropped and separators turned into spaces, so "Kaleb's light" finds an entity named
+         * "Kaleb’s Light" (a curly apostrophe) with the id light.kalebs_light.
+         */
+        fun searchable(text: String): String =
+            text
+                .lowercase()
+                .replace(APOSTROPHES, "")
+                .replace(SEPARATORS, " ")
+
+        val APOSTROPHES = Regex("['’‘`´]")
+        val SEPARATORS = Regex("[_.\\-]")
     }
 }
 
@@ -220,12 +234,24 @@ open class HomeControlTool(
             )
         }
         home.reach { home.call(service, entity.id, data.toString()) }
-        val after = runCatching { home.entity(entity.id) }.getOrNull()
-        return ToolResult.success("Called $service on ${entity.id}. Now: ${(after ?: entity).state}")
+        // Many devices report their new state a moment after the action, so a read straight away can show the old one.
+        var after = entity.state
+        repeat(SETTLE_READS) {
+            delay(SETTLE_STEP_MS)
+            after = runCatching { home.entity(entity.id)?.state }.getOrNull() ?: after
+            if (after != entity.state) return ToolResult.success("Called $service on ${entity.id}. Now: $after")
+        }
+        return ToolResult.success(
+            "Called $service on ${entity.id}. Now: $after (unchanged so far; some devices take a few seconds to report)",
+        )
     }
 
     private companion object {
         val SERVICE = Regex("^[A-Za-z0-9_]+\\.[A-Za-z0-9_]+$")
+
+        /** Up to two seconds for the new state to appear. */
+        const val SETTLE_READS = 8
+        const val SETTLE_STEP_MS = 250L
     }
 }
 

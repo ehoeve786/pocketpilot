@@ -35,12 +35,26 @@ class HomeToolsTest {
                 "switch.fan" to HomeEntity("switch.fan", "Fan", "off"),
                 "lock.front_door" to HomeEntity("lock.front_door", "Front Door", "locked"),
                 "cover.garage" to HomeEntity("cover.garage", "Garage", "closed", mapOf("device_class" to "\"garage\"")),
+                "light.bedroom_kalebs_light" to HomeEntity("light.bedroom_kalebs_light", "Kaleb’s Light", "off"),
             )
         val calls = mutableListOf<Triple<String, String, String>>()
 
+        /** How many reads a call's new state takes to show, like a plug that reports a moment late. */
+        var reportAfterReads = 0
+        private var pending: Pair<String, String>? = null
+        private var readsLeft = 0
+
         override suspend fun entities() = entities.values.toList()
 
-        override suspend fun entity(id: String) = entities[id]
+        override suspend fun entity(id: String): HomeEntity? {
+            pending?.takeIf { it.first == id }?.let { (entity, state) ->
+                if (readsLeft-- <= 0) {
+                    entities[entity] = entities.getValue(entity).copy(state = state)
+                    pending = null
+                }
+            }
+            return entities[id]
+        }
 
         override suspend fun call(
             service: String,
@@ -54,7 +68,8 @@ class HomeToolsTest {
                     "unlock" -> "unlocked"
                     else -> entities.getValue(entity).state
                 }
-            entities[entity] = entities.getValue(entity).copy(state = now)
+            pending = entity to now
+            readsLeft = reportAfterReads
             return "[]"
         }
     }
@@ -183,5 +198,53 @@ class HomeToolsTest {
             val result = dispatcher.dispatch(session, "home.entities", buildJsonObject {})
             assertEquals(ToolErrorCode.CAPABILITY_UNAVAILABLE, result.errorCode)
             assertTrue(result.recoveryHint.orEmpty().contains("Automations settings"))
+        }
+
+    @Test
+    fun `finds a name with a curly apostrophe from a query with a straight one and filler words`() =
+        runTest {
+            val result =
+                dispatcher.dispatch(
+                    session,
+                    "home.entities",
+                    buildJsonObject {
+                        put("domain", "light")
+                        put("query", "Kaleb's light in the bedroom")
+                    },
+                )
+            val text = result.content.toString()
+            assertTrue("light.bedroom_kalebs_light (Kaleb’s Light): off" in text, text)
+            assertFalse("living_room" in text)
+        }
+
+    @Test
+    fun `waits for a device that reports its new state late`() =
+        runTest {
+            home.reportAfterReads = 3
+            val result =
+                dispatcher.dispatch(
+                    session,
+                    "home.control",
+                    buildJsonObject {
+                        put("service", "light.turn_on")
+                        put("entity", "light.bedroom_kalebs_light")
+                    },
+                )
+            assertTrue("Now: on" in result.content.toString(), result.content.toString())
+        }
+
+    @Test
+    fun `says so when the state has not changed yet`() =
+        runTest {
+            val result =
+                dispatcher.dispatch(
+                    session,
+                    "home.control",
+                    buildJsonObject {
+                        put("service", "switch.toggle")
+                        put("entity", "switch.fan")
+                    },
+                )
+            assertTrue("Now: off (unchanged so far" in result.content.toString(), result.content.toString())
         }
 }
