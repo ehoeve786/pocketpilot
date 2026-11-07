@@ -85,15 +85,22 @@ class HomeEntitiesTool(
                 .lowercase()
                 .split(' ', '_', '.')
                 .filter(String::isNotBlank)
-        val domain = call.arguments.string("domain")?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
+        val domain =
+            call.arguments
+                .string("domain")
+                ?.trim()
+                ?.lowercase()
+                ?.takeIf(String::isNotEmpty)
         val limit = (call.arguments.int("limit") ?: DEFAULT_LIMIT).coerceIn(1, MAX_LIMIT)
         val matches =
-            home.reach { home.entities() }
+            home
+                .reach { home.entities() }
                 .filter { domain == null || it.domain == domain }
                 .filter { entity ->
                     val text = "${entity.id} ${entity.name}".lowercase().replace('_', ' ')
                     words.all { it in text }
-                }.sortedBy { it.id }
+                }
+                .sortedBy { it.id }
         if (matches.isEmpty()) return ToolResult.success("No entities match. Try fewer words, or leave out domain.")
         val more = if (matches.size > limit) "\n…and ${matches.size - limit} more; narrow the query." else ""
         return ToolResult.success(matches.take(limit).joinToString("\n") { it.line() } + more)
@@ -135,7 +142,9 @@ class HomeStateTool(
         val id = call.arguments.entityId()
         val entity = home.reach { home.entity(id) } ?: notFound(id)
         val attributes =
-            entity.attributes.entries.joinToString("\n") { (key, value) -> "$key: $value" }.take(MAX_ATTRIBUTES)
+            entity.attributes.entries
+                .joinToString("\n") { (key, value) -> "$key: $value" }
+                .take(MAX_ATTRIBUTES)
         return ToolResult.success("${entity.line()}\n$attributes".trimEnd())
     }
 
@@ -195,7 +204,11 @@ open class HomeControlTool(
         call: ToolCall,
         session: Session,
     ): ToolResult {
-        val service = call.arguments.string("service")?.trim().orEmpty()
+        val service =
+            call.arguments
+                .string("service")
+                ?.trim()
+                .orEmpty()
         if (!SERVICE.matches(service)) invalid("Give service as domain.action, such as light.turn_on")
         val id = call.arguments.entityId()
         val data = call.arguments["data"]?.let { it as? JsonObject ?: invalid("data must be an object") } ?: JsonObject(emptyMap())
