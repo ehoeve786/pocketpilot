@@ -81,11 +81,18 @@ internal class AgentTools(
 
     /** Loads the tools named in a [LOAD] call and says which. */
     fun load(names: List<String>): String {
-        val found = names.mapNotNull { resolve(it.trim()) }
-        found.forEach(::markUsed)
+        val found = names.mapNotNull { resolve(it.trim()) }.distinct()
+        // Some models load tools they already have, a step per turn; saying so teaches them to call it directly.
+        val already = found.filter { it.name in loaded }
+        val fresh = found - already.toSet()
+        fresh.forEach(::markUsed)
         val unknown = names.filter { resolve(it.trim()) == null }
         return buildString {
-            if (found.isNotEmpty()) append("Loaded ${found.joinToString { it.name }}; their definitions are in your tools now.")
+            if (fresh.isNotEmpty()) append("Loaded ${fresh.joinToString { it.name }}; their definitions are in your tools now.")
+            if (already.isNotEmpty()) {
+                append(" ${already.joinToString { it.name }} ${if (already.size == 1) "is" else "are"} already in your tools: ")
+                append("call ${if (already.size == 1) "it" else "them"} directly, without loading.")
+            }
             if (unknown.isNotEmpty()) append(" No tool named ${unknown.joinToString()}.")
         }.trim().ifEmpty { "Name the tools to load." }
     }
