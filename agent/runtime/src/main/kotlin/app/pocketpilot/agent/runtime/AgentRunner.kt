@@ -95,7 +95,7 @@ class AgentRunner(
         mutableCurrent.value?.close()
         val session = sessions.agentSession(task.scopes)
         if (task.preApproved.isNotEmpty()) preConfirm(session.id, task.preApproved)
-        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork, health)
+        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork, health, zone)
         mutableCurrent.value = run
         run.launchIn(scope)
         return run
@@ -115,6 +115,8 @@ class AgentRun internal constructor(
     private val onSessionEnd: (SessionId) -> Unit,
     private val beforeScreenWork: suspend () -> Unit = {},
     private val health: ProviderHealth? = null,
+    /** The phone's time zone, for the time sent with each message. */
+    private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val id: String get() = session.id.value
 
