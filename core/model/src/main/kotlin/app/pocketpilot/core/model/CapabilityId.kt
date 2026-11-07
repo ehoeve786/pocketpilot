@@ -15,4 +15,5 @@ enum class CapabilityId {
     RUN_SHELL,
     RUN_TERMUX,
     READ_FILES,
+    HOME_ASSISTANT,
 }

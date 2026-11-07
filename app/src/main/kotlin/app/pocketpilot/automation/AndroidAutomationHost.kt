@@ -574,7 +574,7 @@ class AndroidAutomationHost(
         attribute: String,
     ): String {
         if (entity.isBlank()) throw AutomationFailure("Give the entity ID")
-        val json = homeAssistant.entity(entity)
+        val json = homeAssistant.entityJson(entity)
         if (attribute.isBlank()) return json["state"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val value = (json["attributes"] as? JsonObject)?.get(attribute) ?: throw AutomationFailure("$entity has no attribute $attribute")
         return (value as? JsonPrimitive)?.contentOrNull ?: value.toString()

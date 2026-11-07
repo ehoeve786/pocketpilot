@@ -3,6 +3,7 @@ package app.pocketpilot.core.model
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class ScopeTest {
     @Test
@@ -25,6 +26,7 @@ class ScopeTest {
 
     @Test
     fun `known set covers every scope in the spec`() {
-        assertEquals(14, Scope.KNOWN.size)
+        assertEquals(16, Scope.KNOWN.size)
+        assertTrue(Scope.HOME_READ in Scope.KNOWN && Scope.HOME_CONTROL in Scope.KNOWN)
     }
 }

@@ -75,6 +75,7 @@
     <string name="tools_group_settings">Settings</string>
     <string name="tools_group_notifications">Notifications</string>
     <string name="tools_group_files">Files</string>
+    <string name="tools_group_home">Home Assistant</string>
     <string name="tools_group_diagnostics">Diagnostics</string>
     <string name="tools_group_shell">Shell</string>
     <string name="tools_group_other">Other</string>

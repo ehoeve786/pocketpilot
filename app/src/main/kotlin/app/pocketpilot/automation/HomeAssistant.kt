@@ -1,6 +1,9 @@
 package app.pocketpilot.automation
 
 import app.pocketpilot.agent.providers.api.keyMayBeSentTo
+import app.pocketpilot.capability.api.BackendIds
+import app.pocketpilot.capability.api.home.HomeControl
+import app.pocketpilot.capability.api.home.HomeEntity
 import app.pocketpilot.core.automation.AutomationFailure
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.PickOption
@@ -16,6 +19,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,7 +52,7 @@ class HomeAssistant(
     private val secrets: SecretStore,
     http: HttpClient,
     private val scope: CoroutineScope,
-) {
+) : HomeControl {
     private val client = http.config { install(WebSockets) { pingIntervalMillis = PING_MS } }
     private var watcher: Job? = null
     private var watched: Set<String> = emptySet()
@@ -53,14 +61,24 @@ class HomeAssistant(
 
     val configured: Boolean get() = baseUrl() != null && token() != null
 
+    override val backendId: String = BackendIds.HOME_ASSISTANT
+
+    /** Changes when a token is saved or removed, which the secret store does not announce. */
+    private val tokenChanges = MutableStateFlow(0)
+
+    /** True once the address and a token are set; until then the `home.*` tools say how to set it up. */
+    override val available: StateFlow<Boolean> =
+        combine(store.data, tokenChanges) { _, _ -> configured }.stateIn(scope, SharingStarted.Eagerly, configured)
+
     fun saveToken(token: String) {
         if (token.isBlank()) secrets.remove(TOKEN) else secrets.put(TOKEN, token.trim())
+        tokenChanges.value++
     }
 
     val hasToken: Boolean get() = token() != null
 
     /** The entity's state and attributes, as Home Assistant returns them. */
-    suspend fun entity(entity: String): JsonObject {
+    suspend fun entityJson(entity: String): JsonObject {
         val reply = request("GET", "/api/states/${URLEncoder.encode(entity.trim(), "UTF-8")}", null)
         return runCatching { AutomationJson.json.parseToJsonElement(reply).jsonObject }.getOrNull()
             ?: throw AutomationFailure("Home Assistant sent an unexpected reply for $entity")
@@ -71,29 +89,52 @@ class HomeAssistant(
         if (!configured) {
             null
         } else {
-            runCatching { entity(entity)["state"]?.jsonPrimitive?.contentOrNull }.getOrNull()
+            runCatching { entityJson(entity)["state"]?.jsonPrimitive?.contentOrNull }.getOrNull()
         }
 
     /** Every entity, with its friendly name when it has one, for the builder's entity list. */
-    suspend fun entities(): List<PickOption> =
+    suspend fun entityOptions(): List<PickOption> =
         if (!configured) {
             emptyList()
         } else {
             runCatching {
-                val reply = request("GET", "/api/states", null, MAX_LIST_CHARS)
-                AutomationJson.json.parseToJsonElement(reply).jsonArray.mapNotNull { element ->
-                    val entity = element.jsonObject
-                    val id = entity["entity_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                    val name =
-                        entity["attributes"]
-                            ?.jsonObject
-                            ?.get("friendly_name")
-                            ?.jsonPrimitive
-                            ?.contentOrNull
-                    PickOption(id, name ?: id, id.takeIf { name != null })
-                }
+                entities().map { e -> PickOption(e.id, e.name, e.id.takeIf { e.name != e.id }) }
             }.listedOr("entities")
         }
+
+    override suspend fun entities(): List<HomeEntity> {
+        val reply = request("GET", "/api/states", null, MAX_LIST_CHARS)
+        return AutomationJson.json
+            .parseToJsonElement(reply)
+            .jsonArray
+            .mapNotNull { (it as? JsonObject)?.let(::homeEntity) }
+    }
+
+    override suspend fun entity(id: String): HomeEntity? =
+        try {
+            homeEntity(entityJson(id))
+        } catch (e: AutomationFailure) {
+            if (e.message == NO_SUCH_ENTITY) null else throw e
+        }
+
+    override suspend fun call(
+        service: String,
+        entity: String,
+        dataJson: String,
+    ): String {
+        val data =
+            runCatching { AutomationJson.json.parseToJsonElement(dataJson.ifBlank { "{}" }).jsonObject }.getOrNull()
+                ?: throw AutomationFailure("data must be a JSON object, such as {\"brightness_pct\": 40}")
+        return call(service, entity, data)
+    }
+
+    private fun homeEntity(json: JsonObject): HomeEntity? {
+        val id = json["entity_id"]?.jsonPrimitive?.contentOrNull ?: return null
+        val attributes = json["attributes"] as? JsonObject ?: JsonObject(emptyMap())
+        val name = (attributes["friendly_name"] as? JsonPrimitive)?.contentOrNull ?: id
+        val state = (json["state"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        return HomeEntity(id, name, state, attributes.mapValues { it.value.toString() })
+    }
 
     /** The list, sorted; or none, with the reason in the log, so a failure is not just an empty list. */
     private fun Result<List<PickOption>>.listedOr(what: String): List<PickOption> {
@@ -303,7 +344,7 @@ class HomeAssistant(
                     }
                 when {
                     status == HTTP_UNAUTHORIZED -> throw AutomationFailure(TOKEN_REFUSED)
-                    status == HTTP_NOT_FOUND -> throw AutomationFailure("Home Assistant has no such entity or action")
+                    status == HTTP_NOT_FOUND -> throw AutomationFailure(NO_SUCH_ENTITY)
                     status >= HTTP_ERROR -> throw AutomationFailure("Home Assistant answered HTTP $status: ${reply.take(MAX_ERROR_CHARS)}")
                 }
                 reply
@@ -326,6 +367,7 @@ class HomeAssistant(
     private companion object {
         const val TOKEN = "home_assistant_token"
         const val TOKEN_REFUSED = "Home Assistant refused the access token"
+        const val NO_SUCH_ENTITY = "Home Assistant has no such entity or action"
         const val MAX_REFUSALS = 3
         const val NOT_SET_UP = "Home Assistant is not set up; add its address and a token under Automations settings"
         const val PING_MS = 30_000L
