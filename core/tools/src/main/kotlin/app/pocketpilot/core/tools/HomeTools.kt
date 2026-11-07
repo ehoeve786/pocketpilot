@@ -99,8 +99,7 @@ class HomeEntitiesTool(
                 .filter { entity ->
                     val text = "${entity.id} ${entity.name}".lowercase().replace('_', ' ')
                     words.all { it in text }
-                }
-                .sortedBy { it.id }
+                }.sortedBy { it.id }
         if (matches.isEmpty()) return ToolResult.success("No entities match. Try fewer words, or leave out domain.")
         val more = if (matches.size > limit) "\n…and ${matches.size - limit} more; narrow the query." else ""
         return ToolResult.success(matches.take(limit).joinToString("\n") { it.line() } + more)
