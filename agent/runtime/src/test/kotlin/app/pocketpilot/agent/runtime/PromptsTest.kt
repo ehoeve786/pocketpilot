@@ -46,8 +46,9 @@ class PromptsTest {
 
     @Test
     fun `each message from the owner carries the phone's time`() {
-        val now = Prompts.phoneTime(1_794_094_440_000, java.time.ZoneId.of("America/Edmonton"))
-        assertEquals("Sat 7 Nov 2026, 16:34 MST (-07:00)", now)
+        // UTC, so the test does not depend on a region's daylight-time rules in the machine's time zone data.
+        val now = Prompts.phoneTime(1_794_094_440_000, java.time.ZoneId.of("UTC"))
+        assertEquals("Sat 7 Nov 2026, 23:34 UTC (+00:00)", now)
         assertEquals("Message from the owner: What time is it?\n(Phone time: $now)", Prompts.followUp("What time is it?", now))
         // TextBudget finds the owner's messages by this start.
         assertTrue(Prompts.followUp("hi", now).startsWith(Prompts.followUp("")))
