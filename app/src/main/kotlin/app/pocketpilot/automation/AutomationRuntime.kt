@@ -197,7 +197,7 @@ class AutomationRuntime(
                     }
 
                     PickSource.HA_ENTITY -> {
-                        homeAssistant.entities()
+                        homeAssistant.entityOptions()
                     }
 
                     PickSource.HA_SERVICE -> {

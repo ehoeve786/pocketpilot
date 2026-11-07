@@ -24,4 +24,6 @@
     <string name="feature_approvals_scope_files_read">Read files in folders you share</string>
     <string name="feature_approvals_scope_files_write">Write files in folders you share</string>
     <string name="feature_approvals_scope_task_run">Run agent tasks</string>
+    <string name="feature_approvals_scope_home_read">See your Home Assistant devices and their state</string>
+    <string name="feature_approvals_scope_home_control">Control your Home Assistant devices; locks, alarms and garage doors ask you each time</string>
 </resources>

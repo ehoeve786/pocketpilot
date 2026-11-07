@@ -35,6 +35,10 @@ import app.pocketpilot.core.orchestrator.ToolHandler
 import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
+import app.pocketpilot.core.tools.HomeControlSecureTool
+import app.pocketpilot.core.tools.HomeControlTool
+import app.pocketpilot.core.tools.HomeEntitiesTool
+import app.pocketpilot.core.tools.HomeStateTool
 import app.pocketpilot.core.tools.NotifyPostTool
 import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.security.ShellSwitch
@@ -189,4 +193,10 @@ object AutomationModule {
             AutomationUpdateTool(store, profile.shellExecAvailable, notifier::changed) { notifier.proposed(it) },
             AutomationRunTool(store) { runtime.get().engine },
         )
+
+    /** home.*: the owner's Home Assistant for the agent and connected apps; they say how to set it up until it is. */
+    @Provides
+    @ElementsIntoSet
+    fun homeTools(home: HomeAssistant): Set<ToolHandler> =
+        setOf(HomeEntitiesTool(home), HomeStateTool(home), HomeControlTool(home), HomeControlSecureTool(home))
 }

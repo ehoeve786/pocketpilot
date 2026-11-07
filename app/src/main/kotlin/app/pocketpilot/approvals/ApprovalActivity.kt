@@ -127,6 +127,7 @@ class ApprovalActivity : ComponentActivity() {
                 "settings:write",
                 "files:write",
                 "task:run",
+                "home:control",
                 "shell:exec",
                 "termux:run",
             )

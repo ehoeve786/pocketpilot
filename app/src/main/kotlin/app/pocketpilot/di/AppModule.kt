@@ -4,6 +4,7 @@ import android.content.Context
 import app.pocketpilot.BuildConfig
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.approvals.ApprovalCenter
+import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.A11yInputController
 import app.pocketpilot.capability.accessibility.A11yScreenCapturer
@@ -397,6 +398,7 @@ object AppModule {
         shizukuSettings: ShizukuSettingsController,
         shizukuShell: ShizukuShellRunner,
         sharedFolders: SafFileStore,
+        homeAssistant: HomeAssistant,
         scope: CoroutineScope,
     ): CapabilityGraph =
         CapabilityGraph(
@@ -409,6 +411,7 @@ object AppModule {
                 CapabilityId.RUN_SHELL to listOf(shizukuShell),
                 CapabilityId.READ_NOTIFICATIONS to listOf(ListenerNotificationSource),
                 CapabilityId.READ_FILES to listOf(sharedFolders),
+                CapabilityId.HOME_ASSISTANT to listOf(homeAssistant),
             ),
             scope,
         )

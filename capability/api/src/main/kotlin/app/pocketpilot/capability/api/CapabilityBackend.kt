@@ -20,4 +20,5 @@ object BackendIds {
     const val PACKAGE_MANAGER = "package_manager"
     const val NOTIFICATION_LISTENER = "notification_listener"
     const val SHARED_FOLDERS = "shared_folders"
+    const val HOME_ASSISTANT = "home_assistant"
 }

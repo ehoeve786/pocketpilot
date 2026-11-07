@@ -93,6 +93,7 @@ private fun capabilityLabel(id: CapabilityId): String =
             CapabilityId.RUN_SHELL -> R.string.capability_run_shell
             CapabilityId.READ_NOTIFICATIONS -> R.string.capability_read_notifications
             CapabilityId.READ_FILES -> R.string.capability_read_files
+            CapabilityId.HOME_ASSISTANT -> R.string.capability_home_assistant
             else -> R.string.capability_other
         },
     )
@@ -105,5 +106,6 @@ private fun backendLabel(id: String): String =
         BackendIds.PACKAGE_MANAGER -> stringResource(R.string.backend_package_manager)
         BackendIds.NOTIFICATION_LISTENER -> stringResource(R.string.backend_notification_listener)
         BackendIds.SHARED_FOLDERS -> stringResource(R.string.backend_shared_folders)
+        BackendIds.HOME_ASSISTANT -> stringResource(R.string.backend_home_assistant)
         else -> id
     }

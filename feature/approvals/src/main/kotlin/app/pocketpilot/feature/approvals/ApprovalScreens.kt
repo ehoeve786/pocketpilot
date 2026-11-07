@@ -175,5 +175,7 @@ private fun scopeTitle(scope: String): String =
         "files:read" -> stringResource(R.string.feature_approvals_scope_files_read)
         "files:write" -> stringResource(R.string.feature_approvals_scope_files_write)
         "task:run" -> stringResource(R.string.feature_approvals_scope_task_run)
+        "home:read" -> stringResource(R.string.feature_approvals_scope_home_read)
+        "home:control" -> stringResource(R.string.feature_approvals_scope_home_control)
         else -> scope
     }

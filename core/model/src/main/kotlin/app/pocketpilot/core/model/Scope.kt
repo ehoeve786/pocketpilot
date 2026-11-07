@@ -37,6 +37,8 @@ value class Scope(
         val TASK_RUN = Scope("task:run")
         val SHELL_EXEC = Scope("shell:exec")
         val TERMUX_RUN = Scope("termux:run")
+        val HOME_READ = Scope("home:read")
+        val HOME_CONTROL = Scope("home:control")
 
         val KNOWN: Set<Scope> =
             setOf(
@@ -54,6 +56,8 @@ value class Scope(
                 TASK_RUN,
                 SHELL_EXEC,
                 TERMUX_RUN,
+                HOME_READ,
+                HOME_CONTROL,
             )
 
         /** Parses a space-separated OAuth scope string. */

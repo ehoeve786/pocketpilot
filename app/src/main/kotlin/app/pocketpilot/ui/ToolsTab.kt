@@ -423,6 +423,7 @@ private enum class ToolGroup(
     SETTINGS(R.string.tools_group_settings),
     NOTIFICATIONS(R.string.tools_group_notifications),
     FILES(R.string.tools_group_files),
+    HOME(R.string.tools_group_home),
     DIAGNOSTICS(R.string.tools_group_diagnostics),
     SHELL(R.string.tools_group_shell),
     OTHER(R.string.tools_group_other),
@@ -442,6 +443,7 @@ private fun toolGroup(spec: ToolSpec): ToolGroup =
                 "settings" -> ToolGroup.SETTINGS
                 "notify" -> ToolGroup.NOTIFICATIONS
                 "files" -> ToolGroup.FILES
+                "home" -> ToolGroup.HOME
                 "adb", "device" -> ToolGroup.DIAGNOSTICS
                 "shell" -> ToolGroup.SHELL
                 else -> ToolGroup.OTHER
