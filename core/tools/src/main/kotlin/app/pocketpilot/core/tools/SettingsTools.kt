@@ -26,7 +26,8 @@ class SettingsGetTool(
         ToolSpec(
             name = "settings.get",
             title = "Read a setting",
-            description = "Reads a device setting directly, without opening the Settings app. Keys and values: $KEY_LIST.",
+            // The keys are in the schema's enum and settings.set lists their values; repeating them here costs every request.
+            description = "Reads a device setting directly, without opening the Settings app. Returns its current value.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"key":{"type":"string","enum":[$KEYS]}},

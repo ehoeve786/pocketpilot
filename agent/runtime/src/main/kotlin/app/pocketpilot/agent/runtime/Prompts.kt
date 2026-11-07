@@ -47,7 +47,9 @@ internal object Prompts {
             if (catalog.isNotBlank()) {
                 appendLine()
                 appendLine(
-                    "More tools. Before you call one, load its full definition with ${AgentTools.LOAD}, passing its name " +
+                    "Tools whose full definitions you already have are ready: call them directly and never load them, " +
+                        "in every turn. Only the tools listed below need loading. " +
+                        "More tools. Before you call one, load its full definition with ${AgentTools.LOAD}, passing its name " +
                         "in names, such as [\"device.battery_usage\"]. " +
                         if (toolMode == ToolMode.NATIVE) {
                             "Calling a tool that is not loaded fails."

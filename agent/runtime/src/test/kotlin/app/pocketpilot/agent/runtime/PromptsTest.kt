@@ -36,4 +36,11 @@ class PromptsTest {
         assertTrue(prompt.contains("terminal action"))
         assertTrue(prompt.contains("never give a calculation"))
     }
+
+    @Test
+    fun `tools the model already has are not to be loaded`() {
+        val prompt = Prompts.system(ToolMode.NATIVE, emptyList(), catalog = "- shell.exec: Run a command")
+        assertTrue(prompt.contains("call them directly and never load them, in every turn"))
+        assertTrue(prompt.indexOf("never load them") < prompt.indexOf("- shell.exec"))
+    }
 }
