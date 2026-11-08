@@ -47,7 +47,10 @@ class PocketPilotA11yService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         A11yBridge.onEvent(event)
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+        // Without buttons on screen the shade lookup is wasted; [startShadeCheck] runs it when buttons go up.
+        if (A11yOverlay.buttonsShown() > 0 &&
+            (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+        ) {
             hideButtonsWhileShadeIsDown()
         }
     }
