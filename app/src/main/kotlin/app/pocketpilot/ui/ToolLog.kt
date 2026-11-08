@@ -35,6 +35,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.pocketpilot.R
 import app.pocketpilot.core.audit.AuditDecision
 import app.pocketpilot.core.audit.AuditEvent
@@ -91,15 +94,19 @@ internal fun LogFilterRow(
     }
 }
 
-/** The current time, ticking every second, for relative times and the "call in flight" pulse. */
+/** The current time, ticking every second while the app is in front, for relative times and the "call in flight" pulse. */
 @Composable
-internal fun rememberNow(): State<Long> =
-    produceState(System.currentTimeMillis()) {
-        while (true) {
-            delay(TICK_MS)
-            value = System.currentTimeMillis()
+internal fun rememberNow(): State<Long> {
+    val owner = LocalLifecycleOwner.current
+    return produceState(System.currentTimeMillis(), owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                value = System.currentTimeMillis()
+                delay(TICK_MS)
+            }
         }
     }
+}
 
 /**
  * One call in a tool log: who called (their initial), the tool in monospace with its outcome, and the
