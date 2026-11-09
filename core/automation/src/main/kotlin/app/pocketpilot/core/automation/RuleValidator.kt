@@ -120,6 +120,7 @@ object RuleValidator {
             }
             if (def.sideloadOnly && !sideload) problems += "${def.title} is only in the sideload build"
             missing(def.fields, step.params).forEach { problems += "${def.title}: set ${it.label}" }
+            schedule(def.title, def.fields, step.params, problems)
             if (def.conditional && def.type != "flow.while" && step.constraints.isEmpty && def.type != "flow.wait_until") {
                 problems += "${def.title}: add a condition"
             }
@@ -170,7 +171,7 @@ object RuleValidator {
         if (Place.coordinates(params["at"].orEmpty()) == null) problems += "$title: give the place as latitude, longitude"
     }
 
-    /** Times and days the schedule cannot read, which would otherwise never fire or fall back to some other day. */
+    /** Times, days and colours that cannot be read, which would otherwise never fire, fall back to some other day or fail the run. */
     private fun schedule(
         title: String,
         fields: List<FieldDef>,
