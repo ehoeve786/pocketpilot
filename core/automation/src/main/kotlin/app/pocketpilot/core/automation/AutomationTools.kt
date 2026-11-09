@@ -119,6 +119,7 @@ class AutomationCatalogTool(
                             if (f.choices.isNotEmpty()) append(" [").append(f.choices.joinToString("|") { it.value }).append(']')
                             if (f.kind == FieldKind.APP) append(" packages")
                             if (f.kind == FieldKind.TIME) append(" HH:mm")
+                            if (f.kind == FieldKind.COLOR) append(" #RRGGBB")
                         }
                     },
                 )

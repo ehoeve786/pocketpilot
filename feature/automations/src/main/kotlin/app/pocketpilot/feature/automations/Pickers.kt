@@ -2,6 +2,7 @@ package app.pocketpilot.feature.automations
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -55,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.Category
 import app.pocketpilot.core.automation.Choice
+import app.pocketpilot.core.automation.ColorText
 import app.pocketpilot.core.automation.FieldDef
 import app.pocketpilot.core.automation.FieldKind
 import app.pocketpilot.core.automation.PickOption
@@ -401,6 +405,10 @@ private fun FieldEditor(
             }
         }
 
+        FieldKind.COLOR -> {
+            ColorField(label, value, onChange)
+        }
+
         FieldKind.DAYS -> {
             val selected =
                 value
@@ -498,6 +506,81 @@ private fun FieldEditor(
 }
 
 private const val TOOL_SUGGESTIONS = 8
+
+/** Common colours for a floating text, its background and its words, with a see-through black for backgrounds. */
+private val SWATCHES =
+    listOf(
+        "#000000",
+        "#80000000",
+        "#424242",
+        "#9E9E9E",
+        "#FFFFFF",
+        "#E53935",
+        "#FB8C00",
+        "#FDD835",
+        "#43A047",
+        "#00897B",
+        "#1E88E5",
+        "#3949AB",
+        "#8E24AA",
+        "#D81B60",
+        "#6D4C41",
+    )
+
+/** A colour setting: tap a swatch, or type any "#RRGGBB" or "#AARRGGBB" below it. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+) {
+    val current = ColorText.argb(value)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SWATCHES.forEach { hex ->
+                val argb = ColorText.argb(hex) ?: return@forEach
+                val selected = argb == current
+                Box(
+                    modifier =
+                        Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(argb))
+                            .border(
+                                width = if (selected) 3.dp else 1.dp,
+                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                shape = CircleShape,
+                            ).clickable { onChange(ColorText.format(argb)) },
+                )
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(current?.let { Color(it) } ?: Color.Transparent)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+            )
+            OutlinedTextField(
+                value = value,
+                onValueChange = onChange,
+                label = { Text(stringResource(R.string.feature_automations_color_custom)) },
+                placeholder = { Text("#RRGGBB") },
+                isError = value.isNotBlank() && current == null && !value.contains('{'),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
 
 /** Package names as text, with a searchable list of installed apps to tick. */
 @OptIn(ExperimentalMaterial3Api::class)

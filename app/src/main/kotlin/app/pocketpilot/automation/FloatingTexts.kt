@@ -6,6 +6,7 @@ import android.os.PowerManager
 import android.view.Gravity
 import app.pocketpilot.capability.accessibility.A11yFloatingText
 import app.pocketpilot.core.automation.AutomationFailure
+import app.pocketpilot.core.automation.ColorText
 import app.pocketpilot.core.automation.LiveText
 import app.pocketpilot.core.automation.Stopwatch
 import app.pocketpilot.core.common.Clock
@@ -162,8 +163,7 @@ class FloatingTexts(
     ): Int {
         val text = value?.trim().orEmpty()
         if (text.isEmpty()) return default
-        return runCatching { Color.parseColor(if (text.startsWith("#")) text else "#$text") }
-            .getOrElse { throw AutomationFailure("$name must be a colour such as #000000 or #80FFFFFF, not $text") }
+        return ColorText.argb(text) ?: throw AutomationFailure("$name must be a colour such as #000000 or #80FFFFFF, not $text")
     }
 
     private fun number(
