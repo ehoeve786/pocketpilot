@@ -691,6 +691,60 @@ internal object Actions {
                     kind = ActionKind.Native,
                     sentence = { p -> "Show \"${p.p("text").take(30)}\"" },
                 ),
+                ActionDef(
+                    type = "overlay.text",
+                    category = Category.SCREEN,
+                    title = "Floating text",
+                    description =
+                        "Shows text over other apps until a later step hides it, such as a live stopwatch. In the text, " +
+                            "{stopwatch:name} counts up, {countdown:name:seconds} counts down to zero from that stopwatch's " +
+                            "start, and {clock} is the time; these update every second. Show again with the same " +
+                            "identifier to change it. Needs PocketPilot's Accessibility service.",
+                    fields =
+                        listOf(
+                            choiceField(
+                                "mode",
+                                "Do",
+                                listOf(Choice("show", "Show or change"), Choice("hide", "Hide"), Choice("hide_all", "Hide all")),
+                            ),
+                            textField("id", "Identifier", default = "1", hint = "Names this text, so a later step can change or hide it"),
+                            FieldDef(
+                                "text",
+                                "Text",
+                                FieldKind.MULTILINE,
+                                required = false,
+                                hint = "Such as: Unassign in {countdown:uber_order:1200}",
+                            ),
+                            choiceField(
+                                "align",
+                                "Alignment",
+                                listOf(Choice("center", "Centre"), Choice("left", "Left"), Choice("right", "Right")),
+                            ),
+                            textField("background", "Background colour", default = "#000000", hint = "#RRGGBB"),
+                            textField("color", "Text colour", default = "#FFFFFF", hint = "#RRGGBB"),
+                            numberField("size", "Text size", default = "14"),
+                            numberField("padding", "Padding", default = "8"),
+                            numberField("corners", "Rounded corners", default = "12"),
+                            FieldDef("opacity", "Opacity", FieldKind.PERCENT, default = "100"),
+                            FieldDef("x", "Across the screen", FieldKind.PERCENT, default = "50"),
+                            FieldDef("y", "Down the screen", FieldKind.PERCENT, default = "50"),
+                            FieldDef("width", "Maximum width", FieldKind.PERCENT, default = "90"),
+                            FieldDef("move", "Touch to move", FieldKind.BOOLEAN, default = "true"),
+                            FieldDef("hide_on_tap", "Hide on tap", FieldKind.BOOLEAN, default = "false"),
+                            numberField("auto_hide", "Hide after (seconds)", default = "0", hint = "0 keeps it until a step hides it"),
+                            FieldDef("tap_rule", "Rule to run on tap", FieldKind.RULE, required = false),
+                            FieldDef("long_rule", "Rule to run on long press", FieldKind.RULE, required = false),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Native,
+                    sentence = { p ->
+                        when (p.p("mode")) {
+                            "hide" -> "Hide floating text ${p.p("id")}"
+                            "hide_all" -> "Hide all floating text"
+                            else -> "Show floating text \"${p.p("text").take(30)}\""
+                        }
+                    },
+                ),
                 // Files and data
                 ActionDef(
                     type = "files.write",
