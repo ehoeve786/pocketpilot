@@ -36,6 +36,7 @@ import app.pocketpilot.agent.runtime.ProviderState
 import app.pocketpilot.approvals.ApprovalActivity
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.approvals.ApprovalItem
+import app.pocketpilot.automation.AutomationNotifier
 import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.automation.EventKey
 import app.pocketpilot.automation.HomeAssistant
@@ -166,6 +167,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var toolModes: ToolModeStore
 
     @Inject lateinit var automations: AutomationRuntime
+
+    @Inject lateinit var automationNotifier: AutomationNotifier
 
     @Inject lateinit var homeAssistant: HomeAssistant
 
@@ -363,6 +366,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumes.intValue++
+        automationNotifier.dropChanged()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
