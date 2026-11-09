@@ -176,8 +176,7 @@ object AutomationModule {
                 shizuku.state,
                 emit,
             )
-        }
-            .also { runtime = it }
+        }.also { runtime = it }
     }
 
     /**
