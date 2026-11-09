@@ -49,7 +49,8 @@ object RuleValidator {
         ) {
             reads.forEach { name ->
                 val base = name.substringBefore('.')
-                if (base in known || base in BUILT_IN) return@forEach
+                // {stopwatch:x}, {countdown:x:60} and {clock} are filled in by a floating text as it shows, not by a step.
+                if (base in known || base in BUILT_IN || LiveText.isLive("{$name}")) return@forEach
                 warnings +=
                     if (base in setAnywhere) {
                         "$title reads {$name} before a step sets it"

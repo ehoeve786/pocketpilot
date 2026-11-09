@@ -7,6 +7,7 @@ import app.pocketpilot.automation.AndroidAutomationHost
 import app.pocketpilot.automation.AutomationNotifier
 import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.automation.Calendars
+import app.pocketpilot.automation.FloatingTexts
 import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.automation.PhoneState
 import app.pocketpilot.automation.PlaceAlerts
@@ -125,6 +126,10 @@ object AutomationModule {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
         val calendars = Calendars(context)
         val places = PlaceWatcher(context, placeAlerts)
+        // A floating text's tap starts a rule through the runtime, which needs the host first.
+        var runtime: AutomationRuntime? = null
+        val floatingTexts =
+            FloatingTexts(context, scope, { store.data.value.stopwatches }, { id -> runtime?.startRule(id, "Floating text tapped") })
         val host =
             AndroidAutomationHost(
                 context = context,
@@ -143,6 +148,7 @@ object AutomationModule {
                 screenCapturer = capturer,
                 imagePipeline = imaging,
                 confirmer = approvals,
+                floatingTexts = floatingTexts,
                 // Sideload-only triggers and conditions follow the distribution, not the shell capability.
                 sideload = profile.flavor != Flavor.PLAY,
             )
@@ -170,7 +176,7 @@ object AutomationModule {
                 shizuku.state,
                 emit,
             )
-        }
+        }.also { runtime = it }
     }
 
     /**

@@ -95,6 +95,7 @@ class AndroidAutomationHost(
     private val screenCapturer: ScreenCapturer,
     private val imagePipeline: ImagePipeline,
     private val confirmer: Confirmer,
+    private val floatingTexts: FloatingTexts,
     override val sideload: Boolean,
     private val clock: Clock = Clock.System,
 ) : AutomationHost {
@@ -264,6 +265,8 @@ class AndroidAutomationHost(
             "ha.call" -> return homeAssistant.call(params.p("service"), params.p("entity"), jsonObject(params["data"]))
 
             "ha.get" -> return homeGet(params.p("entity"), params.p("attribute"))
+
+            "overlay.text" -> withContext(Dispatchers.Main) { floatingTexts.handle(params) }
 
             "calendar.add" -> return calendarAdd(params)
 

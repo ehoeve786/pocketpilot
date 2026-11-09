@@ -135,6 +135,14 @@ class AutomationRuntime(
 
     fun onEvent(event: TriggerEvent) = engine.onEvent(event)
 
+    /** Starts rule [id] for [reason], as a floating text's tap does, when it is on and accepted. */
+    fun startRule(
+        id: String,
+        reason: String,
+    ) {
+        store.rule(id)?.takeIf { it.enabled && !it.pending }?.let { engine.start(it, reason) }
+    }
+
     /** The phone entered or left the place with [key], from a proximity alert. */
     fun onPlace(
         key: String,
