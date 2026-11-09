@@ -184,6 +184,10 @@ object RuleValidator {
                     if (parseTime(value) == null) problems += "$title: give ${field.label} as HH:MM, like 08:30"
                 }
 
+                FieldKind.COLOR -> {
+                    if (ColorText.argb(value) == null) problems += "$title: give ${field.label} as #RRGGBB, like #000000"
+                }
+
                 FieldKind.DAYS -> {
                     val unknown = value.split(',').map { it.trim() }.filter { it.isNotEmpty() && !isDay(it) }
                     if (unknown.isNotEmpty()) problems += "$title: ${unknown.joinToString()} is not a day; list days like mon, tue, fri"

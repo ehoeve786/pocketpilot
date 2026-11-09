@@ -23,6 +23,9 @@ enum class FieldKind {
     /** A number from 0 to 100, set with a slider. */
     PERCENT,
 
+    /** A colour as "#RRGGBB", or "#AARRGGBB" with transparency, picked from swatches or typed. */
+    COLOR,
+
     /** Weekdays as "mon,tue,wed"; empty means every day. */
     DAYS,
 
