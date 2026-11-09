@@ -47,11 +47,18 @@ private data class SharedRule(
     val variables: Map<String, String> = emptyMap(),
     val variableTypes: Map<String, VariableType> = emptyMap(),
     val maxRunMinutes: Int = Rule.DEFAULT_RUN_MINUTES,
+    // Ids differ per phone, so the rules it names travel by name: the receiver links each to its own rule of that name.
+    val ruleNames: Map<String, String> = emptyMap(),
 )
 
-/** The rule as the JSON text of a shared file. Variables named like credentials stay home, as step settings do. */
-fun Rule.shareFileJson(): String {
+/**
+ * The rule as the JSON text of a shared file. Variables named like credentials stay home, as step settings do.
+ * [nameOf] names the other rules it refers to, so the receiving phone can find its own copies.
+ */
+fun Rule.shareFileJson(nameOf: (String) -> String? = { null }): String {
     val kept = variables.filterKeys { !isSecretVariable(it) }
+    val refs = mutableSetOf<String>()
+    mapRuleRefs { it.also(refs::add) }
     val shared =
         SharedRule(
             name,
@@ -64,6 +71,7 @@ fun Rule.shareFileJson(): String {
             kept,
             variableTypes.filterKeys { it in kept },
             maxRunMinutes,
+            refs.mapNotNull { id -> nameOf(id)?.let { id to it } }.toMap(),
         )
     return AutomationJson.json.encodeToString(SharedRule.serializer(), shared)
 }
@@ -105,26 +113,39 @@ fun Rule.withoutCredentialParams(): Rule = copy(actions = withoutCredentials(act
 fun parseSharedRule(
     json: String,
     newId: () -> String,
-): Rule? =
+): Rule? = parseShared(json, newId) { null }?.first
+
+/** The shared rule with each rule it names linked by [idOf] to this phone's rule, and the names [idOf] did not find. */
+private fun parseShared(
+    json: String,
+    newId: () -> String,
+    idOf: (String) -> String?,
+): Pair<Rule, List<String>>? =
     runCatching {
         val shared = AutomationJson.json.decodeFromString(SharedRule.serializer(), json)
         val name = shared.name.trim()
         if (name.isEmpty()) return@runCatching null
-        Rule(
-            id = newId(),
-            name = name,
-            enabled = false,
-            triggers = shared.triggers,
-            constraints = shared.constraints,
-            actions = shared.actions,
-            runAs = shared.runAs,
-            agentPrompt = shared.agentPrompt,
-            category = shared.category.trim(),
-            variables = shared.variables,
-            variableTypes = shared.variableTypes,
-            maxRunMinutes = shared.maxRunMinutes.coerceIn(0, Rule.MAX_RUN_MINUTES),
-            proposedBy = SHARED_RULE_PROPOSER,
-        )
+        val missing = linkedSetOf<String>()
+        val rule =
+            Rule(
+                id = newId(),
+                name = name,
+                enabled = false,
+                triggers = shared.triggers,
+                constraints = shared.constraints,
+                actions = shared.actions,
+                runAs = shared.runAs,
+                agentPrompt = shared.agentPrompt,
+                category = shared.category.trim(),
+                variables = shared.variables,
+                variableTypes = shared.variableTypes,
+                maxRunMinutes = shared.maxRunMinutes.coerceIn(0, Rule.MAX_RUN_MINUTES),
+                proposedBy = SHARED_RULE_PROPOSER,
+            ).mapRuleRefs { id ->
+                val refName = shared.ruleNames[id] ?: return@mapRuleRefs id
+                idOf(refName) ?: id.also { missing += refName }
+            }
+        rule to missing.toList()
     }.getOrNull()
 
 /**
@@ -137,17 +158,60 @@ data class SharedRuleCheck(
     val warnings: List<String>,
 )
 
-/** Parses a shared file and checks it against this phone's catalog and [globals]; null when it is not a rule. */
+/**
+ * Parses a shared file and checks it against this phone's catalog and [globals]; null when it is not a rule.
+ * [idOf] finds this phone's rule of a name, for the rules the shared one turns on, runs or checks.
+ */
 fun checkSharedRule(
     json: String,
     newId: () -> String,
     sideload: Boolean,
     globals: Set<String>,
+    idOf: (String) -> String? = { null },
 ): SharedRuleCheck? {
-    val rule = parseSharedRule(json, newId) ?: return null
+    val (rule, missing) = parseShared(json, newId, idOf) ?: return null
     return SharedRuleCheck(
         rule = rule,
         problems = RuleValidator.problems(rule, sideload),
-        warnings = RuleValidator.variableWarnings(rule, globals),
+        warnings =
+            RuleValidator.variableWarnings(rule, globals) +
+                missing.map { "It uses the rule \"$it\", which this phone does not have" },
     )
 }
+
+/**
+ * The rule with each reference to another rule (the "rule" setting of a trigger, condition or step, such as
+ * "Turn a rule on or off") replaced by [transform].
+ */
+internal fun Rule.mapRuleRefs(transform: (String) -> String): Rule {
+    fun params(map: Map<String, String>) =
+        map.mapValues { (key, value) -> if (key == RULE_REF && value.isNotBlank()) transform(value) else value }
+
+    fun group(g: ConstraintGroup): ConstraintGroup =
+        g.copy(
+            items =
+                g.items.map {
+                    when (it) {
+                        is ConstraintNode.Check -> it.copy(spec = it.spec.copy(params = params(it.spec.params)))
+                        is ConstraintNode.Group -> it.copy(group = group(it.group))
+                    }
+                },
+        )
+
+    fun steps(list: List<ActionStep>): List<ActionStep> =
+        list.map {
+            it.copy(
+                params = params(it.params),
+                constraints = group(it.constraints),
+                children = steps(it.children),
+                elseChildren = steps(it.elseChildren),
+            )
+        }
+    return copy(
+        triggers = triggers.map { it.copy(params = params(it.params)) },
+        constraints = group(constraints),
+        actions = steps(actions),
+    )
+}
+
+private const val RULE_REF = "rule"

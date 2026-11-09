@@ -247,7 +247,10 @@ class MainActivity : ComponentActivity() {
         val json = runCatching { contentResolver.openInputStream(uri)?.use(::readCapped) }.getOrNull()
         val check =
             json?.let {
-                checkSharedRule(it, { ruleStore.newId() }, policyProfile.shellExecAvailable, ruleStore.data.value.variables.keys)
+                val data = ruleStore.data.value
+                checkSharedRule(it, { ruleStore.newId() }, policyProfile.shellExecAvailable, data.variables.keys) { name ->
+                    data.rules.firstOrNull { rule -> !rule.pending && rule.name.trim().equals(name.trim(), ignoreCase = true) }?.id
+                }
             }
         if (check == null) {
             Toast.makeText(this, R.string.app_shared_rule_unreadable, Toast.LENGTH_LONG).show()

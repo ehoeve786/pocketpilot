@@ -309,6 +309,7 @@ private fun RulesList(
                         onAddIcon = actions.addIcon,
                         onStop = { actions.stop(rule.id) },
                         onPinnedChange = { actions.setPinned(rule.id, it) },
+                        ruleName = { id -> rules.firstOrNull { it.id == id }?.name },
                     )
                 }
             }

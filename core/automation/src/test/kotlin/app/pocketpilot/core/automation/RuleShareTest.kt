@@ -126,4 +126,30 @@ class RuleShareTest {
         assertNull(parseSharedRule("hello there") { "x" })
         assertNull(parseSharedRule("{\"unrelated\":true}") { "x" })
     }
+
+    @Test
+    fun `rules a shared rule uses are linked by name to the receiver's own rules`() {
+        val toggle =
+            rule.copy(
+                triggers = listOf(TriggerSpec("rule.finished", mapOf("rule" to "a1"))),
+                constraints = ConstraintGroup.of(ConstraintSpec("rule.enabled", mapOf("rule" to "a1"))),
+                actions =
+                    listOf(
+                        ActionStep(
+                            "flow.if",
+                            constraints = ConstraintGroup.of(ConstraintSpec("rule.running", mapOf("rule" to "a2"))),
+                            children = listOf(ActionStep("flow.set_rule", mapOf("rule" to "a2", "state" to "off"))),
+                        ),
+                    ),
+            )
+        val file = toggle.shareFileJson(mapOf("a1" to "Auto accept", "a2" to "Unassign")::get)
+        val check = checkSharedRule(file, { "new" }, sideload = true, globals = emptySet(), idOf = mapOf("Auto accept" to "b1")::get)!!
+        val received = check.rule
+        assertEquals("b1", received.triggers.single().params["rule"])
+        assertEquals("b1", (received.constraints.items.single() as ConstraintNode.Check).spec.params["rule"])
+        val step = received.actions.single()
+        assertEquals("a2", (step.constraints.items.single() as ConstraintNode.Check).spec.params["rule"])
+        assertEquals("a2", step.children.single().params["rule"])
+        assertEquals(listOf("It uses the rule \"Unassign\", which this phone does not have"), check.warnings)
+    }
 }
