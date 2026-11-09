@@ -91,6 +91,7 @@ fun AutomationRuleCard(
     onStop: () -> Unit,
     onPinnedChange: (Boolean) -> Unit,
     onAddIcon: (String) -> Unit,
+    ruleName: (String) -> String?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -115,7 +116,7 @@ fun AutomationRuleCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { context.shareRule(rule) }) {
+                IconButton(onClick = { context.shareRule(rule, ruleName) }) {
                     Icon(
                         painterResource(R.drawable.feature_automations_ic_share),
                         contentDescription = stringResource(R.string.feature_automations_share),

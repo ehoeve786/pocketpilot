@@ -14,9 +14,12 @@ private const val MAX_FILE_NAME_LENGTH = 64
 
 /**
  * Opens the system share sheet with [rule] as a `.pocketpilot` file that PocketPilot opens as a proposal,
- * and its readable text as the message body.
+ * and its readable text as the message body. [nameOf] names the other rules it uses, so the receiver can find its own.
  */
-fun Context.shareRule(rule: Rule) {
+fun Context.shareRule(
+    rule: Rule,
+    nameOf: (String) -> String?,
+) {
     val dir = File(cacheDir, "shared").apply { mkdirs() }
     // Earlier shares are removed so rule files, which include agent prompts, do not pile up in the cache.
     dir.listFiles()?.forEach { it.delete() }
@@ -27,7 +30,7 @@ fun Context.shareRule(rule: Rule) {
             .take(MAX_FILE_NAME_LENGTH)
             .ifBlank { "rule" }
     val file = File(dir, "$baseName.pocketpilot")
-    file.writeText(rule.shareFileJson())
+    file.writeText(rule.shareFileJson(nameOf))
     val uri = FileProvider.getUriForFile(this, "$packageName.shared", file)
     val send =
         Intent(Intent.ACTION_SEND)
