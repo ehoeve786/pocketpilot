@@ -926,6 +926,17 @@ class AutomationEngineTest {
     }
 
     @Test
+    fun `a busy rule keeps its newest runs without pushing out other rules' runs`() {
+        val store = RuleStore(MemoryPersistence(), clock)
+        store.addRun(RunRecord("quiet", "q", "q", "Run button", 0, 0, RunOutcome.OK))
+        repeat(RuleStore.MAX_RUNS) { store.addRun(RunRecord("busy$it", "b", "b", "Run button", 0, 0, RunOutcome.OK)) }
+        val runs = store.data.value.runs
+        assertEquals(RuleStore.MAX_RUNS_PER_RULE, runs.count { it.ruleId == "b" })
+        assertEquals("busy${RuleStore.MAX_RUNS - 1}", runs.first().id)
+        assertTrue(runs.any { it.id == "quiet" })
+    }
+
+    @Test
     fun `history returns a rule's newest runs with their step lines`() =
         runTest {
             val store = RuleStore(MemoryPersistence(), clock)

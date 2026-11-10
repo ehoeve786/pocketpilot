@@ -154,7 +154,10 @@ class RuleStore(
 
     fun setSettings(settings: AutomationSettings) = update { it.copy(settings = settings) }
 
-    /** Saves a finished run, keeping the newest [MAX_RUNS] and at most [MAX_HISTORY_CHARS] of their log lines. */
+    /**
+     * Saves a finished run, keeping the newest [MAX_RUNS], at most [MAX_RUNS_PER_RULE] of each rule, and at most
+     * [MAX_HISTORY_CHARS] of their log lines.
+     */
     fun addRun(
         record: RunRecord,
         day: String = "",
@@ -295,10 +298,16 @@ class RuleStore(
 
     private fun keptRuns(runs: List<RunRecord>): List<RunRecord> {
         var total = 0
-        return runs.take(MAX_RUNS).takeWhile { run ->
-            total += run.lines.sumOf { it.length } + run.variables.entries.sumOf { it.key.length + it.value.length }
-            total <= MAX_HISTORY_CHARS
-        }
+        val perRule = HashMap<String, Int>()
+        return runs
+            .asSequence()
+            // A rule that runs all the time keeps its newest runs without pushing out every other rule's.
+            .filter { perRule.merge(it.ruleId, 1, Int::plus)!! <= MAX_RUNS_PER_RULE }
+            .take(MAX_RUNS)
+            .takeWhile { run ->
+                total += run.lines.sumOf { it.length } + run.variables.entries.sumOf { it.key.length + it.value.length }
+                total <= MAX_HISTORY_CHARS
+            }.toList()
     }
 
     companion object {
@@ -306,6 +315,7 @@ class RuleStore(
         const val SECRET_REF = "@secret:"
 
         const val MAX_RUNS = 200
+        const val MAX_RUNS_PER_RULE = 20
         const val MAX_HISTORY_CHARS = 256 * 1024
     }
 }
