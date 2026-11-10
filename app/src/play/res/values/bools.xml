@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Google Play limits isAccessibilityTool to apps whose main purpose is helping people with disabilities. -->
-    <bool name="capability_accessibility_is_tool">false</bool>
-</resources>

@@ -62,8 +62,7 @@ jobs:
       - name: Unit tests
         run: |
           set -o pipefail
-          # Only the oss flavor ships, so the app's tests run for oss debug alone; the libraries have no flavors.
-          ./gradlew test -x :app:test :app:testOssDebugUnitTest 2>&1 | tee unit-tests.log
+          ./gradlew test 2>&1 | tee unit-tests.log
 
       - name: Surface unit test failures
         if: failure()
@@ -76,16 +75,16 @@ jobs:
           done
 
       - name: Android lint
-        run: ./gradlew :app:lintOssDebug
+        run: ./gradlew :app:lintDebug
 
-      - name: Assemble the oss debug APK
-        run: ./gradlew :app:assembleOssDebug
+      - name: Assemble the debug APK
+        run: ./gradlew :app:assembleDebug
 
-      - name: Upload the oss debug APK for on-device checks
+      - name: Upload the debug APK for on-device checks
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pocketpilot-oss-debug
-          path: app/build/outputs/apk/oss/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
 

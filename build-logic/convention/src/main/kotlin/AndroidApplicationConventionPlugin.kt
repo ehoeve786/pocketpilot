@@ -1,5 +1,4 @@
 import app.pocketpilot.buildlogic.PocketPilotSdk
-import app.pocketpilot.buildlogic.configureFlavors
 import app.pocketpilot.buildlogic.configureKotlinAndroid
 import app.pocketpilot.buildlogic.configureKtlint
 import com.android.build.api.dsl.ApplicationExtension
@@ -17,7 +16,6 @@ abstract class AndroidApplicationConventionPlugin : Plugin<Project> {
             extensions.configure<ApplicationExtension> {
                 configureKotlinAndroid(this)
                 defaultConfig.targetSdk = PocketPilotSdk.TARGET
-                configureFlavors()
                 buildTypes.getByName("debug").applicationIdSuffix = ".debug"
                 buildTypes.getByName("release").apply {
                     isMinifyEnabled = true

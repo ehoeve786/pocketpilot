@@ -9,27 +9,21 @@ PocketPilot turns an Android phone into an MCP server that any AI client can dri
 Requirements: JDK 17 or newer and the Android SDK (API 36).
 
 ```sh
-./gradlew :app:assembleOssDebug   # open-source build
-./gradlew :app:assembleDebug      # all three flavors: oss, pro, play
+./gradlew :app:assembleDebug      # debug APK
+./gradlew :app:assembleRelease    # release APK (signed when the release key is set)
 ./gradlew checkModuleGraph        # module dependency rules
 ./gradlew ktlintCheck test        # style and unit tests
 ```
 
-## Flavors
+## Application ID
 
-| Flavor | Contents | Application ID |
-|---|---|---|
-| `oss` | All open modules | `app.pocketpilot.oss` |
-| `pro` | oss plus closed Pro modules from `pro/` (a private submodule, optional) | `app.pocketpilot.pro` |
-| `play` | pro minus anything Play policy forbids, plus Play Billing | `app.pocketpilot` |
-
-Debug builds add `.debug`, so they install next to release builds.
+The app has no product flavors. It is the open-source distribution, `app.pocketpilot.oss`; debug builds add `.debug`, so they install next to release builds. The pro and play flavors were removed.
 
 ## Layout
 
 | Path | What lives there |
 |---|---|
-| `app/` | The Android app: activity, DI graph, flavor wiring, automation host |
+| `app/` | The Android app: activity, DI graph, automation host |
 | `core/` | Domain and engine: `model` and `common` (pure Kotlin), `orchestrator` (routes MCP calls), `capabilities`, `policy`, `tools`, `automation` (rules engine), `audit`, `imaging`, `designsystem` |
 | `capability/` | Phone access: `shizuku`, `accessibility`, `screencapture`, `files`, `notifications`, `apps`, `device`, `api` |
 | `server/` | MCP over HTTP (`mcp`, `http`) and OAuth for remote clients (`oauth`) |
