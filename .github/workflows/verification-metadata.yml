@@ -38,7 +38,7 @@ jobs:
 
       # The tasks below resolve the same configurations as ci.yml, so every dependency it uses is recorded.
       - name: Write verification metadata
-        run: ./gradlew --write-verification-metadata sha256 checkModuleGraph :app:assembleDebug test :app:lintOssDebug
+        run: ./gradlew --write-verification-metadata sha256 checkModuleGraph :app:assembleDebug test :app:lintDebug
 
       - name: Upload the metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

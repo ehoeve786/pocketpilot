@@ -75,16 +75,16 @@ jobs:
           done
 
       - name: Android lint
-        run: ./gradlew :app:lintOssDebug
+        run: ./gradlew :app:lintDebug
 
-      - name: Assemble every flavor
+      - name: Assemble the debug APK
         run: ./gradlew :app:assembleDebug
 
-      - name: Upload the oss debug APK for on-device checks
+      - name: Upload the debug APK for on-device checks
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pocketpilot-oss-debug
-          path: app/build/outputs/apk/oss/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
 

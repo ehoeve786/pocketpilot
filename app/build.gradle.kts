@@ -14,7 +14,8 @@ android {
     namespace = "app.pocketpilot"
 
     defaultConfig {
-        applicationId = "app.pocketpilot"
+        // The ".oss" ending was the oss flavor's suffix. It stays now that oss is the only build, so installed apps update.
+        applicationId = "app.pocketpilot.oss"
         versionCode = commitCount.get()
         versionName = "0.1.${commitCount.get()}"
     }
@@ -51,11 +52,6 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
-    }
-
-    // Code that needs Google Play services, shared by the two flavors that ship it.
-    sourceSets {
-        listOf("pro", "play").forEach { flavor -> getByName(flavor).kotlin.directories.add("src/gms/kotlin") }
     }
 
     packaging {
@@ -119,9 +115,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)
-
-    "proImplementation"(libs.play.services.location)
-    "playImplementation"(libs.play.services.location)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test.junit)
