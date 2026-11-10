@@ -39,10 +39,15 @@ class AutomationNotifier(
     }
 
     /** Removes the notification of each proposal no longer waiting, so accepting or declining one clears it. */
-    fun dropProposalsExcept(waiting: Set<String>) {
+    fun dropProposalsExcept(waiting: Set<String>) = drop { it.startsWith(PROPOSAL) && it.removePrefix(PROPOSAL) !in waiting }
+
+    /** Removes the "rule changed" notices, once the owner opens the app where the changes show. */
+    fun dropChanged() = drop { it.startsWith(CHANGED) }
+
+    private fun drop(tagged: (String) -> Boolean) {
         runCatching {
             manager.activeNotifications
-                .filter { it.tag?.startsWith(PROPOSAL) == true && it.tag.removePrefix(PROPOSAL) !in waiting }
+                .filter { it.tag?.let(tagged) == true }
                 .forEach { manager.cancel(it.tag, it.id) }
         }
     }
@@ -55,7 +60,7 @@ class AutomationNotifier(
         show(
             CHANNEL_PROPOSALS,
             R.string.automation_channel_proposals,
-            "changed:${rule.id}",
+            CHANGED + rule.id,
             context.getString(R.string.automation_changed_title, shownClientName(by)),
             rule.name,
             openIntent(MainActivity.OPEN_AUTOMATIONS),
@@ -111,6 +116,7 @@ class AutomationNotifier(
         const val CHANNEL_PROPOSALS = "automation-proposals"
         const val NOTIFICATION_ID = 7
         const val PROPOSAL = "proposal:"
+        const val CHANGED = "changed:"
     }
 }
 
