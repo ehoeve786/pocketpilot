@@ -234,7 +234,6 @@ internal fun ruleSettings(rule: Rule): JsonObject? {
         put("actions", JsonArray(rule.actions.map { stepSettings(it) }))
         put("runAs", if (rule.runAs == RunMode.AGENT) "agent" else "direct")
         if (rule.agentPrompt.isNotEmpty()) put("agentPrompt", rule.agentPrompt)
-        if (rule.maxRunMinutes != Rule.DEFAULT_RUN_MINUTES) put("maxRunMinutes", rule.maxRunMinutes)
         if (rule.variables.isNotEmpty()) put("variables", JsonObject(rule.variables.mapValues { JsonPrimitive(it.value) }))
         val types = rule.variableTypes.filter { it.key in rule.variables && it.value != VariableType.STRING }
         if (types.isNotEmpty()) put("variableTypes", JsonObject(types.mapValues { JsonPrimitive(it.value.label) }))
@@ -297,8 +296,6 @@ data class ProposedRule(
     val variables: Map<String, String> = emptyMap(),
     /** The type of each starting value by name (Boolean, Integer, String, Decimal, Dictionary, Array, Colour). */
     val variableTypes: Map<String, String> = emptyMap(),
-    /** Minutes a run may last; 0 for as long as its loops and waits allow. */
-    val maxRunMinutes: Int = Rule.DEFAULT_RUN_MINUTES,
 )
 
 @Serializable
@@ -346,7 +343,7 @@ class AutomationProposeTool(
             "Suggests an automation for the owner to accept on the phone; it does nothing until then. Get the types " +
                 "and settings from automation.catalog. Shape: {name, triggers:[{type, params}], conditions:[{type, params}], " +
                 "conditionMode: all|any|none|one, actions:[{type, params, conditions, actions (inside flow.if/repeat/while), " +
-                "elseActions, continueOnError}], runAs: direct|agent, agentPrompt, maxRunMinutes (default 30, 0 for no limit)}. " +
+                "elseActions, continueOnError}], runAs: direct|agent, agentPrompt}. " +
                 "Settings are strings; {trigger.<name>} " +
                 "and other variables are filled in when it runs. Returns the proposal id; read the outcome with automation.list. " +
                 "To change a rule the owner already has, use automation.update instead.",
@@ -437,8 +434,7 @@ class AutomationUpdateTool(
         val behaviourChanged =
             changed.runAs != current.runAs ||
                 changed.agentPrompt != current.agentPrompt ||
-                changed.variables != current.variables ||
-                changed.maxRunMinutes != current.maxRunMinutes
+                changed.variables != current.variables
         val reviewed = shellChanged || changed.triggers != current.triggers || behaviourChanged || needsReview(current, changed)
         if (current.pending || !reviewed) {
             store.change(id, changed.copy(proposedBy = current.proposedBy))
@@ -540,9 +536,6 @@ private fun validRule(
             actions = proposed.actions.map { it.toStep() },
             runAs = if (proposed.runAs.equals("agent", ignoreCase = true)) RunMode.AGENT else RunMode.DIRECT,
             agentPrompt = proposed.agentPrompt,
-            maxRunMinutes =
-                proposed.maxRunMinutes.takeIf { it in 0..Rule.MAX_RUN_MINUTES }
-                    ?: invalid("maxRunMinutes is 0 to ${Rule.MAX_RUN_MINUTES}"),
             variables = values,
             variableTypes = types,
             proposedBy = principal,
@@ -569,8 +562,7 @@ private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"typ
     "actions":{"type":"array","items":{"type":"object"},"description":"Steps inside flow.if, repeat or while, shaped like this one."},
     "elseActions":{"type":"array","items":{"type":"object"},"description":"Steps for the else branch of flow.if."},
     "continueOnError":{"type":"boolean"}},"required":["type"]}},
-    "runAs":{"type":"string","enum":["direct","agent"]},"agentPrompt":{"type":"string"},
-    "maxRunMinutes":{"type":"integer","minimum":0,"maximum":1440,"description":"Minutes a run may last (default 30); 0: no limit"}"""
+    "runAs":{"type":"string","enum":["direct","agent"]},"agentPrompt":{"type":"string"}"""
 
 /** `automation.run`: runs a rule whose owner allowed AI apps to run it (its trigger "AI app asks"). */
 class AutomationRunTool(

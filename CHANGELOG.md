@@ -54,3 +54,4 @@
 - Colour settings now have a picker: tap one of 15 swatches (including a see-through black for backgrounds) or type a colour code, with a preview beside it. A colour the app cannot read is flagged before the rule is saved. Floating text's background and text colours use it, and accept codes without the "#".
 - AI apps can read recent automation runs with `automation.history`: the same step logs and variables the Activity tab shows, newest first, for all rules or one. It is read-only, like `automation.list`.
 - Each rule keeps at most its 20 newest runs in the Activity history, so a rule that runs all the time (such as one started whenever an app opens or closes) no longer pushes every other rule's runs out of it.
+- Rules no longer have a run time limit. The "Stop a run after" choice is gone, and every run lasts as long as its own steps, loops and waits do; a run stops only when it finishes, fails or is stopped by hand.
