@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,8 @@ data class ProviderHealthUi(
 fun ProviderHealthCard(
     providers: List<ProviderHealthUi>,
     modifier: Modifier = Modifier,
+    /** Opens the model list; no Manage button when null. */
+    onManage: (() -> Unit)? = null,
 ) {
     LiquidGlassBentoCard(modifier, title = stringResource(R.string.core_designsystem_providers_title)) {
         if (providers.isEmpty()) {
@@ -51,6 +54,11 @@ fun ProviderHealthCard(
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             providers.forEach { ProviderRow(it) }
+        }
+        if (onManage != null) {
+            TextButton(onClick = onManage, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.core_designsystem_providers_manage))
+            }
         }
     }
 }

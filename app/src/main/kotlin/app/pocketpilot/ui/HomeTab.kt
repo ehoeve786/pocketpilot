@@ -47,7 +47,6 @@ import app.pocketpilot.designsystem.BentoGap
 import app.pocketpilot.designsystem.BentoPair
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.RiskTierTag
-import app.pocketpilot.designsystem.agent.AgentCommandBar
 import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.designsystem.automation.PinnedRulesSection
 import app.pocketpilot.designsystem.status.ConnectedClient
@@ -131,8 +130,8 @@ internal class HomeTabActions(
     val onPinnedToggle: (String, Boolean) -> Unit,
     val onSeeAllRules: () -> Unit,
     val onOpenSettings: () -> Unit,
-    /** The quick prompt on Home: the owner's line for the agent. */
-    val onAgentPrompt: (String) -> Unit = {},
+    /** Opens the model profiles under Activity, Agent. */
+    val onManageModels: () -> Unit = {},
 )
 
 /**
@@ -206,7 +205,6 @@ private fun StatusColumn(
         onCopyEndpoint = { clipboard.setText(AnnotatedString(status.endpoint)) },
         onClientClick = { actions.onOpenSettings() },
     )
-    AgentCommandBar(onSubmit = actions.onAgentPrompt)
     state.crashReport?.let { CrashCard(it, actions.onDismissCrash) }
     if (state.clientsStopped) StoppedCard(actions.onAllowClients)
     NeedsYou(state.approvals, doctorProblems(state.setupSteps, state.shizukuState), actions)
@@ -222,7 +220,7 @@ private fun StatusColumn(
         },
         end = { tile ->
             Column(tile, verticalArrangement = Arrangement.spacedBy(BentoGap)) {
-                ProviderHealthCard(providerRows(state.providers, now))
+                ProviderHealthCard(providerRows(state.providers, now), onManage = actions.onManageModels)
                 TelemetryCard(telemetryItems(state, now))
             }
         },

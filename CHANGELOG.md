@@ -55,3 +55,5 @@
 - AI apps can read recent automation runs with `automation.history`: the same step logs and variables the Activity tab shows, newest first, for all rules or one. It is read-only, like `automation.list`.
 - Each rule keeps at most its 20 newest runs in the Activity history, so a rule that runs all the time (such as one started whenever an app opens or closes) no longer pushes every other rule's runs out of it.
 - Rules no longer have a run time limit. The "Stop a run after" choice is gone, and every run lasts as long as its own steps, loops and waits do; a run stops only when it finishes, fails or is stopped by hand.
+- Automations History can be filtered: pick one rule (or All rules) from the menu above the list, or tap a rule's name on a run, and tap Done, Failed, Stopped or Skipped to show only those outcomes; each shows how many runs it has. Clear shows everything again, and the choice is kept while the app is open.
+- The Chat tab and Home's "Ask your AI" bar are gone. Rules' "Ask AI" and Agent mode actions work as before. Home's AI models tile has a Manage button that opens the model list under Activity, Agent.
