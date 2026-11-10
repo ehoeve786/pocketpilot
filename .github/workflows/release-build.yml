@@ -1,15 +1,9 @@
 name: Release build
 
-# Builds the release APK, with R8 shrinking and minification, and uploads it. Run it by hand to check the release build
-# without waiting for a release.
+# Builds the OSS release APK, with R8 shrinking and minification, and uploads it. Run it by hand to check the release
+# build without waiting for a release. The pro and play flavors are no longer built.
 on:
   workflow_dispatch:
-    inputs:
-      flavor:
-        description: Which distribution to build
-        type: choice
-        options: [all, oss, pro, play]
-        default: all
 
 permissions:
   contents: read
@@ -60,16 +54,7 @@ jobs:
           POCKETPILOT_RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           POCKETPILOT_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           POCKETPILOT_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          FLAVOR: ${{ inputs.flavor }}
-        # The choice input only allows the listed values; the task name is built from them, never from free text.
-        run: |
-          case "$FLAVOR" in
-            oss) task=assembleOssRelease ;;
-            pro) task=assembleProRelease ;;
-            play) task=assemblePlayRelease ;;
-            *) task=assembleRelease ;;
-          esac
-          ./gradlew ":app:$task"
+        run: ./gradlew :app:assembleOssRelease
 
       - name: Remove the decoded keystore
         if: always()
@@ -79,6 +64,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pocketpilot-release
-          path: app/build/outputs/apk/*/release/*.apk
+          path: app/build/outputs/apk/oss/release/*.apk
           if-no-files-found: error
           retention-days: 14
