@@ -15,7 +15,6 @@ object ModuleGraphRules {
     private val pureKotlin = setOf(":core:model", ":core:common")
     private val capabilityAllowed = setOf(":capability:api", ":core:model", ":core:common")
     private val orchestratorOnly = setOf("server", "agent", "plugins", "network")
-    private val proConfigurationPrefixes = listOf("pro", "play")
 
     fun violations(edges: Iterable<ModuleEdge>): List<String> =
         edges
@@ -52,18 +51,12 @@ object ModuleGraphRules {
         if (to == ":app") {
             fail("no module may depend on the app module")
         }
-        if (to.startsWith(":pro:") && !from.startsWith(":pro:") && !from.isAppProFlavor(configuration)) {
+        // The app has no pro or play flavor any more, so nothing outside pro/ may use a pro module, the app included.
+        if (to.startsWith(":pro:") && !from.startsWith(":pro:")) {
             fail("open modules must not depend on pro modules")
         }
         return problems
     }
 
     private fun String.topLevel(): String = removePrefix(":").substringBefore(":")
-
-    /** The app may pull in pro modules, but only for the pro and play flavors. */
-    private fun String.isAppProFlavor(configuration: String): Boolean =
-        this == ":app" && proConfigurationPrefixes.any { configuration.withoutTestPrefix().startsWith(it) }
-
-    /** AGP names test configurations such as `testProDebugImplementation`; the flavor follows the test prefix. */
-    private fun String.withoutTestPrefix(): String = removePrefix("androidTest").removePrefix("test").replaceFirstChar { it.lowercase() }
 }

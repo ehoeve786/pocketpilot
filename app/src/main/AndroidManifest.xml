@@ -28,8 +28,8 @@
     <!-- The file browser for automation paths. Granted by hand under Settings > All files access. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <!-- Automations wave 2: places, calls, the calendar and the media sessions of other apps. Each is
-         granted through Shizuku only once an enabled rule uses it. The sideload flavors add call log
-         and text message access. -->
+         granted through Shizuku only once an enabled rule uses it. Call log and text message access
+         are declared above. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
