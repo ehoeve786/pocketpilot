@@ -67,6 +67,7 @@ class UiTapTool(
         session: Session,
     ): ToolResult {
         val target = call.arguments.target()
+        if (target is Target.AtPoint) reader.refuseHiddenPoints(target.x to target.y)
         input.tap(target)
         return afterAction(reader, "Tapped ${target.describe()}.", call.arguments.boolean("returnSnapshot") ?: true)
     }
@@ -91,6 +92,7 @@ class UiLongPressTool(
     ): ToolResult {
         val target = call.arguments.target()
         val duration = (call.arguments.long("durationMs") ?: 600L).coerceIn(100, 10_000)
+        if (target is Target.AtPoint) reader.refuseHiddenPoints(target.x to target.y)
         input.longPress(target, duration)
         return afterAction(reader, "Long-pressed ${target.describe()}.", call.arguments.boolean("returnSnapshot") ?: true)
     }
@@ -134,14 +136,16 @@ class UiSwipeTool(
                 }
 
                 element == null && direction != null && points.all { it == null } -> {
-                    val screen = reader.snapshot().screen
+                    val screen = reader.snapshot(OWN_USE).screen
                     val (fromX, fromY, toX, toY) = swipePoints(Bounds(0, 0, screen.width, screen.height), direction).toList()
+                    reader.refuseHiddenPoints(fromX to fromY, (fromX + toX) / 2 to (fromY + toY) / 2, toX to toY)
                     input.swipe(fromX, fromY, toX, toY, duration)
                     "Swiped ${direction.name.lowercase()} across the screen."
                 }
 
                 element == null && direction == null && points.all { it != null } -> {
                     val (fromX, fromY, toX, toY) = if (args.string("unit") == "percent") percentOfScreen(points) else points.map { it!! }
+                    reader.refuseHiddenPoints(fromX to fromY, (fromX + toX) / 2 to (fromY + toY) / 2, toX to toY)
                     input.swipe(fromX, fromY, toX, toY, duration)
                     "Swiped from ($fromX, $fromY) to ($toX, $toY)."
                 }
@@ -157,7 +161,7 @@ class UiSwipeTool(
 
     /** fromX, fromY, toX, toY given in percent (0 to 100) of the screen, turned into pixels. */
     private suspend fun percentOfScreen(points: List<Int?>): List<Int> {
-        val screen = reader.snapshot().screen
+        val screen = reader.snapshot(OWN_USE).screen
         return points.mapIndexed { i, percent ->
             val size = if (i % 2 == 0) screen.width else screen.height
             minOf(percent!!.coerceIn(0, 100) * size / 100, size - 1)

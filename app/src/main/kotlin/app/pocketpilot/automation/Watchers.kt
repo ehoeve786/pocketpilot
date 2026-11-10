@@ -15,7 +15,9 @@ import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.api.shell.LogFollowArgs
 import app.pocketpilot.capability.api.shell.LogFollower
+import app.pocketpilot.core.automation.AutomationCatalog
 import app.pocketpilot.core.automation.Place
+import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.TriggerEvent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -273,7 +275,10 @@ private val SENSOR_TYPES =
     )
 
 /** The threshold a rule's "Sensor reading" trigger sets, or null when it is incomplete or names no known sensor. */
-fun sensorThresholdOf(params: Map<String, String>): SensorThreshold? {
+fun sensorThresholdOf(raw: Map<String, String>): SensorThreshold? {
+    // With the catalog's defaults, as the validator and the trigger's own check read it: a rule that leaves the
+    // sensor at its default still gets a listener.
+    val params = AutomationCatalog.trigger("sensor.reading")?.let { RuleValidator.withDefaults(it.fields, raw) } ?: raw
     val name = params["sensor"]?.trim().orEmpty()
     val type = SENSOR_TYPES[name] ?: return null
     val text = params["value"]?.trim().orEmpty()

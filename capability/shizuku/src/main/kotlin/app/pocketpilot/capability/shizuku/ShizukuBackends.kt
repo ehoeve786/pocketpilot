@@ -107,7 +107,7 @@ class ShizukuScreenReader(
                     privacy::hidesPackage,
                     privacy.hiddenTexts(),
                 ).snapshot
-        recent.put(snapshot, Unit)
+        recent.put(snapshot, Unit, shown = !options.internal)
         return snapshot
     }
 

@@ -18,6 +18,8 @@ import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.ToolAnnotations
 import app.pocketpilot.core.model.ToolCall
+import app.pocketpilot.core.model.ToolErrorCode
+import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
@@ -41,7 +43,10 @@ internal data class MapsPlace(
 
 /** Reads Google Maps' search result cards and picks the closest one that matches the search. */
 internal object MapsResults {
-    private val DISTANCE = Regex("""^(\d+(?:[.,]\d+)?)\s?(m|km|mi|ft)$""", RegexOption.IGNORE_CASE)
+    private val DISTANCE = Regex("""^(\d+(?:[.,]\d+)?)\s?(m|km|mi|ft|yd)$""", RegexOption.IGNORE_CASE)
+
+    /** "1,150" or "1.150": a separator before exactly three digits groups thousands; Maps shows one decimal at most. */
+    private val THOUSANDS = Regex("""^\d{1,3}[.,]\d{3}$""")
     private val NUMBER = Regex("""^[\d.,]+$""")
     private const val SPONSORED = "Sponsored"
     private const val DIRECTIONS = "Directions"
@@ -134,11 +139,14 @@ internal object MapsResults {
 
     fun meters(text: String): Double? {
         val match = DISTANCE.matchEntire(text.trim()) ?: return null
-        val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return null
+        val number = match.groupValues[1]
+        val plain = if (THOUSANDS.matches(number)) number.filter(Char::isDigit) else number.replace(',', '.')
+        val value = plain.toDoubleOrNull() ?: return null
         return when (match.groupValues[2].lowercase()) {
             "km" -> value * 1000
             "mi" -> value * 1609.344
             "ft" -> value * 0.3048
+            "yd" -> value * 0.9144
             else -> value
         }
     }
@@ -318,6 +326,14 @@ class AppDirectionsTool(
         admin.startIntent(args, broadcast = false)
         withTimeoutOrNull(OPEN_WAIT_MS) {
             while (reader.foreground()?.packageName != MAPS) reader.awaitChange(OPEN_WAIT_MS)
+        }
+        // Everything after this reads the screen and taps on it, so it must be Maps that is showing.
+        if (reader.foreground()?.packageName != MAPS) {
+            throw ToolException(
+                ToolErrorCode.TIMEOUT,
+                "Google Maps did not come to the front",
+                "Check that Google Maps is installed and nothing is covering the screen, then try again.",
+            )
         }
         reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
     }

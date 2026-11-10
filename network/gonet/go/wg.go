@@ -96,7 +96,8 @@ func (t *Tunnel) Start(config string) error {
 	t.addresses = cfg.Addresses
 	t.httpSrv = newProxyServer(t.targetPort, t.logs, nil)
 	srv := t.httpSrv
-	tlsLn := tls.NewListener(ln, t.certs.tlsConfig())
+	// Bounded before TLS, so a connection that never finishes its handshake counts too.
+	tlsLn := tls.NewListener(limitConns(ln, maxConnections), t.certs.tlsConfig())
 	go func() {
 		if err := srv.Serve(tlsLn); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 			t.setError(fmt.Sprintf("HTTPS listener stopped: %v", err))

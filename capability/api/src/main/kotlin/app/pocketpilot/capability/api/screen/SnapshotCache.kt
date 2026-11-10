@@ -15,6 +15,8 @@ class SnapshotCache<T>(
     class Entry<T>(
         val snapshot: Snapshot,
         val payload: T,
+        /** False for a snapshot the caller was never shown; see [SnapshotOptions.internal]. */
+        val shown: Boolean = true,
     )
 
     private val entries = LinkedHashMap<String, Entry<T>>()
@@ -23,18 +25,22 @@ class SnapshotCache<T>(
     fun put(
         snapshot: Snapshot,
         payload: T,
+        shown: Boolean = true,
     ) {
-        entries[snapshot.id] = Entry(snapshot, payload)
+        entries[snapshot.id] = Entry(snapshot, payload, shown)
         while (entries.size > keep) entries.remove(entries.keys.first())?.let { onEvict(it.payload) }
     }
 
     @Synchronized
     fun contains(snapshotId: String): Boolean = snapshotId in entries
 
-    /** The entry [target] refers to: its snapshot, or the latest when it names none. */
+    /**
+     * The entry [target] refers to: its snapshot, or the latest one the caller was shown when it names none. Element
+     * IDs are positions in one snapshot, so the latest must be the one the caller read them from.
+     */
     @Synchronized
     fun entryFor(target: Target.OnElement): Entry<T> =
-        (if (target.snapshotId != null) entries[target.snapshotId] else entries.values.lastOrNull())
+        (if (target.snapshotId != null) entries[target.snapshotId] else entries.values.lastOrNull { it.shown })
             ?: throw stale("Snapshot ${target.snapshotId ?: "(none taken yet)"} is no longer current")
 
     fun element(target: Target.OnElement): Element {

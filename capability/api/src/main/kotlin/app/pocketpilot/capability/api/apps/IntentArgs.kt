@@ -42,6 +42,17 @@ object IntentArgs {
     val DENIED_DATA_SCHEMES =
         setOf("file", "content", "intent", "android-app", "javascript", "data", "blob", "jar", "about")
 
+    /** Actions that may go without a named app: the phone's own clock app answers them. */
+    val CLOCK_ACTIONS =
+        setOf(
+            "android.intent.action.SET_TIMER",
+            "android.intent.action.SET_ALARM",
+            "android.intent.action.SHOW_ALARMS",
+            "android.intent.action.SHOW_TIMERS",
+            "android.intent.action.DISMISS_ALARM",
+            "android.intent.action.DISMISS_TIMER",
+        )
+
     val REFUSED_ACTIONS =
         setOf(
             "android.intent.action.CALL",
@@ -169,7 +180,14 @@ object IntentArgs {
             }
             i += 2
         }
-        val pkg = targetPackage(args) ?: throw IllegalArgumentException("Name the app: give component or package")
+        val pkg = targetPackage(args)
+        if (pkg == null) {
+            // Android picks the clock app for these, so the timer and alarm actions name none. Nothing else may.
+            require(args.valueAfter("-a") in CLOCK_ACTIONS && args.valueAfter("-d") == null) {
+                "Name the app: give component or package"
+            }
+            return
+        }
         // PocketPilot's own components are not started through this, whatever app is named.
         require(pkg != OWN_PACKAGE && !pkg.startsWith("$OWN_PACKAGE.")) { "PocketPilot's own components cannot be started this way" }
         AppAdminArgs.checkPackage(pkg)
