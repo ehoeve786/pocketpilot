@@ -69,8 +69,6 @@ import app.pocketpilot.designsystem.PocketPilotTheme
 import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.feature.agent.AgentActions
 import app.pocketpilot.feature.agent.AgentCard
-import app.pocketpilot.feature.agent.AgentChat
-import app.pocketpilot.feature.agent.ChatActions
 import app.pocketpilot.feature.automations.AutomationsActions
 import app.pocketpilot.feature.automations.AutomationsScreen
 import app.pocketpilot.feature.automations.AutomationsState
@@ -187,8 +185,6 @@ class MainActivity : ComponentActivity() {
     /** Counts requests from notifications to show the Automations tab. */
     private val openAutomations = mutableIntStateOf(0)
 
-    /** Counts requests from reply notifications to show the Chat tab. */
-    private val openChat = mutableIntStateOf(0)
     private val remoteAccessRequests = mutableIntStateOf(0)
 
     /** A proposal notification asked for the Proposals list. */
@@ -297,24 +293,11 @@ class MainActivity : ComponentActivity() {
                 openAutomations.intValue++
             }
 
+            // The Chat tab is gone; an old reply notification just opens Home.
             OPEN_CHAT -> {
-                openChat.intValue++
+                Unit
             }
         }
-    }
-
-    /** The quick prompt on Home: answers in the running chat, or starts one on the first model. */
-    private fun askAgent(text: String) {
-        val prompt = text.trim()
-        if (prompt.isEmpty()) return
-        if (!agent.send(prompt)) {
-            val first =
-                agent.profiles.profiles.value
-                    .firstOrNull() ?: return
-            agent.start(prompt, first.id, allowSettings = false, useFallbacks = true, conversation = true)
-            PocketPilotService.keepAlive(this)
-        }
-        openChat.intValue++
     }
 
     /** Agent mode's models in the owner's fallback order, with how each last answered. */
@@ -398,22 +381,6 @@ class MainActivity : ComponentActivity() {
                 keyCount = agent::keyCount,
                 moveUp = agent::moveUp,
                 listModels = agent::listModels,
-            )
-        val chatActions =
-            ChatActions(
-                start = { text, profileId, allowSettings, useFallbacks ->
-                    agent.start(text, profileId, allowSettings, useFallbacks, conversation = true)
-                    // The service keeps the process alive while the agent works in other apps.
-                    PocketPilotService.keepAlive(this)
-                },
-                send = agent::send,
-                pause = { agent.pause() },
-                resume = { agent.resume() },
-                stop = { agent.stop() },
-                endChat = agent::endChat,
-                deleteChats = agent::deleteChats,
-                deleteAllChats = agent::deleteAllChats,
-                openModels = {},
             )
         val automationActions =
             AutomationsActions(
@@ -695,19 +662,6 @@ class MainActivity : ComponentActivity() {
                         openAutomations = openAutomations.intValue,
                         providers = homeProviders(),
                         telemetry = homeTelemetry(),
-                        onAgentPrompt = ::askAgent,
-                        chatContent = { openModels ->
-                            AgentChat(
-                                profiles =
-                                    agent.profiles.profiles
-                                        .collectAsStateWithLifecycle()
-                                        .value,
-                                current = agent.current.collectAsStateWithLifecycle().value,
-                                history = agent.history.collectAsStateWithLifecycle().value,
-                                actions = chatActions.copy(openModels = openModels),
-                            )
-                        },
-                        openChat = openChat.intValue,
                         remoteAccessRequest = remoteAccessRequests.intValue,
                         onRemoteAccessShown = { remoteAccessRequests.intValue = 0 },
                     )

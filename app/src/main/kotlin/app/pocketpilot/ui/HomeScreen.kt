@@ -7,11 +7,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
@@ -27,7 +23,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -76,7 +71,7 @@ data class RemoteActions(
 
 /**
  * The app's main screen: Home (server status, what needs the owner, pinned automations and the live
- * tool log), Chat (Agent mode as a conversation), Automations, Tools (per-tool Allow, Ask or Block, protected apps and the shell switch) and
+ * tool log), Automations, Tools (per-tool Allow, Ask or Block, protected apps and the shell switch) and
  * Activity (the audit log and Agent mode). Settings opens from the gear in the top bar, or at the
  * rail's foot on wide screens.
  */
@@ -110,10 +105,6 @@ fun HomeScreen(
     ownNetworkCard: @Composable () -> Unit = {},
     /** Agent mode: model profiles and runs. */
     agentCard: @Composable () -> Unit = {},
-    /** The Chat destination; its argument opens the model list under Activity. */
-    chatContent: @Composable (openModels: () -> Unit) -> Unit = {},
-    /** Counts up each time something outside, such as a reply notification, asks for the Chat tab. */
-    openChat: Int = 0,
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
@@ -172,13 +163,10 @@ fun HomeScreen(
     providers: List<HomeProvider> = emptyList(),
     /** Battery and network for Home's telemetry tile. */
     telemetry: HomeTelemetry? = null,
-    /** The quick prompt on Home; the chat opens as well. */
-    onAgentPrompt: (String) -> Unit = {},
 ) {
     SecureWindow(secretsLocked)
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     LaunchedEffect(openAutomations) { if (openAutomations > 0) destination = Destination.AUTOMATIONS }
-    LaunchedEffect(openChat) { if (openChat > 0) destination = Destination.CHAT }
     var activityTab by rememberSaveable { mutableIntStateOf(0) }
     var settingsOpen by rememberSaveable { mutableStateOf(startOnSettings) }
     LaunchedEffect(remoteAccessRequest) { if (remoteAccessRequest > 0) settingsOpen = true }
@@ -262,13 +250,6 @@ fun HomeScreen(
         }
         Scaffold(
             modifier = Modifier.weight(1f),
-            // The chat pads itself for the keyboard. Scaffold must not add the keyboard height too, or the input floats above it.
-            contentWindowInsets =
-                if (destination == Destination.CHAT) {
-                    ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime)
-                } else {
-                    ScaffoldDefaults.contentWindowInsets
-                },
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
@@ -350,24 +331,14 @@ fun HomeScreen(
                                     onSeeAllRules()
                                 },
                                 onOpenSettings = { settingsOpen = true },
-                                onAgentPrompt = { text ->
-                                    destination = Destination.CHAT
-                                    onAgentPrompt(text)
+                                onManageModels = {
+                                    activityTab = ACTIVITY_AGENT_TAB
+                                    destination = Destination.ACTIVITY
                                 },
                             ),
                         wide = wide,
                         modifier = content,
                     )
-                }
-
-                Destination.CHAT -> {
-                    // The chat pads itself for the keyboard, so the bars' padding counts towards it.
-                    Box(content.consumeWindowInsets(padding).fillMaxSize()) {
-                        chatContent {
-                            activityTab = ACTIVITY_AGENT_TAB
-                            destination = Destination.ACTIVITY
-                        }
-                    }
                 }
 
                 Destination.AUTOMATIONS -> {
@@ -439,13 +410,12 @@ private fun DestinationIcon(
     }
 }
 
-/** The five top-level destinations; Settings opens from the top bar instead. */
+/** The four top-level destinations; Settings opens from the top bar instead. */
 private enum class Destination(
     @param:StringRes val label: Int,
     @param:DrawableRes val icon: Int,
 ) {
     HOME(R.string.tab_home, DsR.drawable.core_designsystem_ic_dashboard),
-    CHAT(R.string.nav_chat, DsR.drawable.core_designsystem_ic_chat),
     AUTOMATIONS(R.string.nav_automations, DsR.drawable.core_designsystem_ic_bolt),
     TOOLS(R.string.nav_tools, DsR.drawable.core_designsystem_ic_build),
     ACTIVITY(R.string.nav_activity, DsR.drawable.core_designsystem_ic_history),
