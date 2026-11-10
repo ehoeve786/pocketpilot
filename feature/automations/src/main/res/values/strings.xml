@@ -37,6 +37,9 @@
     <string name="feature_automations_ha_token_saved">Saved; type a new one to replace it</string>
     <string name="feature_automations_no_proposals">No proposals. When an AI app suggests a rule with automation.propose, it waits here for you.</string>
     <string name="feature_automations_no_runs">No runs yet.</string>
+    <string name="feature_automations_no_matching_runs">No runs match these filters.</string>
+    <string name="feature_automations_history_all_rules">All rules</string>
+    <string name="feature_automations_history_clear">Clear</string>
 
     <string name="feature_automations_outcome_ok">Done</string>
     <string name="feature_automations_outcome_failed">Failed</string>

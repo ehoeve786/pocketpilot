@@ -9,6 +9,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +25,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -57,12 +61,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.AutomationSettings
 import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
+import app.pocketpilot.core.automation.RunFilter
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
@@ -481,14 +487,100 @@ private fun ProposalsList(
 
 @Composable
 private fun HistoryList(runs: List<RunRecord>) {
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (runs.isEmpty()) {
-            item { Text(stringResource(R.string.feature_automations_no_runs), style = MaterialTheme.typography.bodyLarge) }
+    // Kept as plain values so the choice survives rotation and leaving the tab.
+    var ruleId by rememberSaveable { mutableStateOf<String?>(null) }
+    var outcomeNames by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val filter = RunFilter(ruleId, outcomeNames.mapNotNull { name -> RunOutcome.entries.firstOrNull { it.name == name } }.toSet())
+    val shown = remember(runs, filter) { filter.apply(runs) }
+    Column(Modifier.fillMaxSize()) {
+        if (runs.isNotEmpty()) {
+            HistoryFilters(
+                runs = runs,
+                filter = filter,
+                onRule = { ruleId = it },
+                onOutcome = { outcome -> outcomeNames = filter.toggle(outcome).outcomes.map { it.name } },
+                onClear = {
+                    ruleId = null
+                    outcomeNames = emptyList()
+                },
+            )
         }
-        items(runs, key = { it.id }) { run -> RunCard(run) }
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            if (runs.isEmpty()) {
+                item { Text(stringResource(R.string.feature_automations_no_runs), style = MaterialTheme.typography.bodyLarge) }
+            } else if (shown.isEmpty()) {
+                item { Text(stringResource(R.string.feature_automations_no_matching_runs), style = MaterialTheme.typography.bodyLarge) }
+            }
+            items(shown, key = { it.id }) { run -> RunCard(run, onRule = { ruleId = run.ruleId }) }
+        }
+    }
+}
+
+/** The rule picker and the outcome chips above the run history, each outcome with its count for the chosen rule. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HistoryFilters(
+    runs: List<RunRecord>,
+    filter: RunFilter,
+    onRule: (String?) -> Unit,
+    onOutcome: (RunOutcome) -> Unit,
+    onClear: () -> Unit,
+) {
+    val rules = remember(runs) { RunFilter.rules(runs) }
+    val counts = remember(runs, filter.ruleId) { RunFilter.counts(runs, filter.ruleId) }
+    var picking by remember { mutableStateOf(false) }
+    val allRules = stringResource(R.string.feature_automations_history_all_rules)
+    Column(
+        Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        rules.firstOrNull { it.first == filter.ruleId }?.second ?: allRules,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(" \u25BE")
+                }
+                DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
+                    DropdownMenuItem(
+                        text = { Text(allRules) },
+                        onClick = {
+                            onRule(null)
+                            picking = false
+                        },
+                    )
+                    rules.forEach { (id, name) ->
+                        DropdownMenuItem(
+                            text = { Text(name) },
+                            onClick = {
+                                onRule(id)
+                                picking = false
+                            },
+                        )
+                    }
+                }
+            }
+            if (filter != RunFilter()) {
+                TextButton(onClick = onClear) { Text(stringResource(R.string.feature_automations_history_clear)) }
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            RunOutcome.entries.forEach { outcome ->
+                FilterChip(
+                    selected = outcome in filter.outcomes,
+                    onClick = { onOutcome(outcome) },
+                    label = { Text("${outcomeLabel(outcome)} ${counts[outcome] ?: 0}") },
+                )
+            }
+        }
     }
 }
 
@@ -532,8 +624,12 @@ private const val RUN_LOG_LABEL = "PocketPilot run log"
 private val LOG_STAMP = Regex("""^(\d{2}:\d{2}:\d{2}:\d{3}) (.*)$""")
 private val LOG_STAMP_WIDTH = 84.dp
 
+/** One run; tapping its rule's name shows only that rule's runs. */
 @Composable
-private fun RunCard(run: RunRecord) {
+private fun RunCard(
+    run: RunRecord,
+    onRule: () -> Unit,
+) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val outcome = outcomeLabel(run.outcome)
@@ -545,7 +641,11 @@ private fun RunCard(run: RunRecord) {
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(run.ruleName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(
+                    run.ruleName,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f).clickable(onClick = onRule),
+                )
                 // A failed run is marked in the error colour, since the glass card has no tinted state.
                 Text(
                     outcome,
