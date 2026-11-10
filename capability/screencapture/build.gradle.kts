@@ -8,5 +8,4 @@ android {
 
 dependencies {
     api(projects.capability.api)
-    implementation(libs.kotlinx.coroutines.core)
 }

@@ -20,8 +20,6 @@
     <string name="core_designsystem_pinned_see_all">See all</string>
     <string name="core_designsystem_pinned_none">Pin a rule in Automations to switch it from here.</string>
 
-    <string name="core_designsystem_command_hint">Ask your AI to do something</string>
-    <string name="core_designsystem_command_send">Send to the agent</string>
 
     <string name="core_designsystem_providers_title">AI models</string>
     <string name="core_designsystem_providers_manage">Manage</string>

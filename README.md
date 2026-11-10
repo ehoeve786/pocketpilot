@@ -6,7 +6,7 @@ PocketPilot turns an Android phone into an MCP server that any AI client can dri
 
 ## Build
 
-Requirements: JDK 17 or newer and the Android SDK (API 36).
+Requirements: JDK 17 or newer, the Android SDK (API 36) with the NDK, and Go with `gomobile` and `gobind` on the path (the `network/gonet` module builds the Tailscale and WireGuard bindings with them).
 
 ```sh
 ./gradlew :app:assembleDebug      # debug APK
@@ -36,4 +36,4 @@ Each Gradle path mirrors its folder, so `core/policy` is `:core:policy`. Pure Ko
 
 ## License
 
-Apache-2.0 for the core and plugin SDK. Pro modules are closed and live in a separate repository.
+Apache-2.0.

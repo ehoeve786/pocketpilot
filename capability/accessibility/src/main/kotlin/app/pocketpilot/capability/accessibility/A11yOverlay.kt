@@ -296,11 +296,6 @@ object A11yOverlay {
         }
     }
 
-    /** Removes the floating buttons if they are up. */
-    fun hideButtons() {
-        main.post { removeButtons() }
-    }
-
     /** Hides the floating buttons while [hidden] is true, and shows them again once it is false. */
     fun setButtonsHidden(hidden: Boolean) {
         main.post {
