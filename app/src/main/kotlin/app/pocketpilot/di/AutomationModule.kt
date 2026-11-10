@@ -22,6 +22,7 @@ import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.capability.shizuku.ShizukuSystemReader
 import app.pocketpilot.core.automation.AutomationCatalogTool
+import app.pocketpilot.core.automation.AutomationHistoryTool
 import app.pocketpilot.core.automation.AutomationListTool
 import app.pocketpilot.core.automation.AutomationProposeTool
 import app.pocketpilot.core.automation.AutomationRunTool
@@ -195,6 +196,7 @@ object AutomationModule {
             NotifyPostTool(notifier),
             AutomationCatalogTool(profile.shellExecAvailable),
             AutomationListTool(store),
+            AutomationHistoryTool(store),
             AutomationProposeTool(store, profile.shellExecAvailable) { notifier.proposed(it) },
             AutomationUpdateTool(store, profile.shellExecAvailable, notifier::changed) { notifier.proposed(it) },
             AutomationRunTool(store) { runtime.get().engine },

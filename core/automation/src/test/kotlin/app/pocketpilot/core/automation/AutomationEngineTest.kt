@@ -1,6 +1,7 @@
 package app.pocketpilot.core.automation
 
 import app.pocketpilot.core.common.Clock
+import app.pocketpilot.core.model.ContentPart
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
@@ -12,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -924,6 +926,26 @@ class AutomationEngineTest {
     }
 
     @Test
+    fun `history returns a rule's newest runs with their step lines`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            listOf("a", "b", "a").forEachIndexed { i, rule ->
+                store.addRun(RunRecord("run$i", rule, rule, "Run button", i.toLong(), i.toLong(), RunOutcome.OK, listOf("1. step $i: ok")))
+            }
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            val args =
+                buildJsonObject {
+                    put("id", "a")
+                    put("limit", 1)
+                }
+            val result = AutomationHistoryTool(store).execute(ToolCall("1", SessionId(ULID), "automation.history", args), session)
+            val text = (result.content.single() as ContentPart.Text).text
+            val runs = AutomationJson.json.decodeFromString(HistoryReply.serializer(), text).runs
+            assertEquals(listOf("run2"), runs.map { it.id })
+            assertTrue("1. step 2: ok" in text)
+        }
+
+    @Test
     fun `proposals are validated and stored pending`() =
         runTest {
             val store = RuleStore(MemoryPersistence(), clock)
@@ -1723,4 +1745,9 @@ class AutomationEngineTest {
 
             assertFalse(host.prompts.single().contains("private text"))
         }
+
+    @Serializable
+    private data class HistoryReply(
+        val runs: List<RunRecord>,
+    )
 }
