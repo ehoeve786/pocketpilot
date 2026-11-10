@@ -41,6 +41,12 @@ object HomeSafety {
     /** Entities whose every action is confirmed: locks, alarm panels, and scripts and automations, which can do anything. */
     val CONFIRMED_DOMAINS = setOf("lock", "alarm_control_panel", "script", "automation", "valve")
 
+    /**
+     * Fields of an action's data that name what it acts on. Home Assistant acts on all of them together with the
+     * entity, so a call checked for one entity could reach a whole area or another device through them.
+     */
+    val TARGET_KEYS = setOf("entity_id", "area_id", "device_id", "label_id", "floor_id", "target")
+
     /** Covers that let someone in; blinds, shades and curtains share the `cover` domain and are not confirmed. */
     val CONFIRMED_COVERS = setOf("garage", "gate", "door")
 

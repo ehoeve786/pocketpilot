@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_agent_title">Agent mode</string>
-    <string name="feature_agent_explainer">The models the Chat tab and Agent automations use, and the transcripts of earlier runs. An agent works on this phone with the same tools and confirmations as connected apps.</string>
+    <string name="feature_agent_explainer">The models that Agent automations and the Ask AI action use, and the transcripts of earlier runs. An agent works on this phone with the same tools and confirmations as connected apps.</string>
     <string name="feature_agent_profiles">Models</string>
     <string name="feature_agent_no_profiles">Add a model to start. Gemini has a free tier (key from aistudio.google.com); Ollama runs models on a computer at home.</string>
     <string name="feature_agent_add_profile">Add model</string>
@@ -54,28 +54,4 @@
     <string name="feature_agent_status_budget">Out of budget</string>
     <string name="feature_agent_status_failed">Failed</string>
     <string name="feature_agent_status_waiting">Waiting for your message</string>
-    <string name="feature_agent_chat_hint">Message PocketPilot</string>
-    <string name="feature_agent_chat_send">Send</string>
-    <string name="feature_agent_chat_new">New chat</string>
-    <string name="feature_agent_chat_earlier">Earlier</string>
-    <string name="feature_agent_chat_earlier_banner">Earlier chat from %1$s. It can be read, not continued.</string>
-    <string name="feature_agent_chat_back">Back</string>
-    <string name="feature_agent_chat_no_model">No model</string>
-    <string name="feature_agent_chat_manage_models">Manage models…</string>
-    <string name="feature_agent_chat_manage">Delete chats…</string>
-    <string name="feature_agent_chat_manage_title">Delete chats</string>
-    <string name="feature_agent_chat_no_earlier">No earlier chats.</string>
-    <string name="feature_agent_chat_delete_selected">Delete selected</string>
-    <string name="feature_agent_chat_delete_all">Delete all</string>
-    <string name="feature_agent_chat_delete_all_confirm">Delete all earlier chats? This cannot be undone.</string>
-    <string name="feature_agent_chat_cancel">Cancel</string>
-    <string name="feature_agent_chat_allow_settings">Settings without asking</string>
-    <string name="feature_agent_chat_fallbacks">Switch models when one runs out</string>
-    <string name="feature_agent_chat_work">Worked: %1$d tool calls, %2$d failed</string>
-    <string name="feature_agent_chat_working">Working · %1$s</string>
-    <string name="feature_agent_chat_empty_title">Chat with your phone</string>
-    <string name="feature_agent_chat_empty_text">Ask a question, or tell PocketPilot what to do. It answers here, and steps out of the way when it needs the screen. A chat ends after 30 minutes without a message.</string>
-    <string name="feature_agent_chat_suggestion_battery">How much battery is left?</string>
-    <string name="feature_agent_chat_suggestion_dark">Turn on dark mode</string>
-    <string name="feature_agent_chat_suggestion_gas">Directions to the nearest gas station</string>
 </resources>

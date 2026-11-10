@@ -5,17 +5,11 @@
     <string name="app_shared_rule_invalid">That shared automation does not work on this phone.</string>
     <string name="app_shared_rule_warnings">Variables this automation reads that this phone does not set: %1$s. Check them before it runs.</string>
     <string name="tab_home">Home</string>
-    <string name="tab_ai">AI</string>
     <string name="tab_settings">Settings</string>
     <string name="home_tagline">Your phone, ready for any AI.</string>
     <string name="home_build">%1$s build · version %2$s</string>
 
-    <string name="server_title">MCP server</string>
     <string name="server_stopped">Stopped</string>
-    <string name="server_running">Running at %1$s</string>
-    <string name="server_failed">Could not start: %1$s</string>
-    <string name="server_start">Start server</string>
-    <string name="server_stop">Stop server</string>
 
     <string name="accessibility_title">Screen access</string>
     <string name="accessibility_on">On. Connected apps can read the screen, tap and type.</string>
@@ -101,8 +95,6 @@
     <string name="approvals_confirm_text">%1$s wants to run %2$s</string>
     <string name="agent_channel">Agent runs</string>
     <string name="agent_notification_title">Agent: %1$s</string>
-    <string name="agent_reply_channel">Agent chat replies</string>
-    <string name="agent_reply_title">PocketPilot replied</string>
     <string name="agent_notification_step">Step %1$d · %2$s</string>
     <string name="agent_notification_paused">Paused. You have control; resume when you are done.</string>
     <string name="agent_take_over">Take over</string>

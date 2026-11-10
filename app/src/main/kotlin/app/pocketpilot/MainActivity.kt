@@ -292,11 +292,6 @@ class MainActivity : ComponentActivity() {
             OPEN_AUTOMATIONS -> {
                 openAutomations.intValue++
             }
-
-            // The Chat tab is gone; an old reply notification just opens Home.
-            OPEN_CHAT -> {
-                Unit
-            }
         }
     }
 
@@ -788,10 +783,9 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /** Which part of the app a notification opens: [OPEN_AUTOMATIONS], [OPEN_PROPOSALS] or [OPEN_CHAT]. */
+        /** Which part of the app a notification opens: [OPEN_AUTOMATIONS] or [OPEN_PROPOSALS]. */
         const val EXTRA_OPEN = "open"
         const val OPEN_AUTOMATIONS = "automations"
-        const val OPEN_CHAT = "chat"
         const val OPEN_PROPOSALS = "proposals"
         private const val MAX_SHARED_RULE_BYTES = 256 * 1024
         private const val SHIZUKU_TIMEOUT_MS = 10_000L

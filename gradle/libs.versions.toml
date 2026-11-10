@@ -16,7 +16,6 @@ mcpKotlinSdk = "0.15.0"
 ktor = "3.5.1"
 # Shizuku client API; the privileged UserService contract is versioned separately in capability/shizuku.
 shizuku = "13.1.5"
-# Geofencing for place triggers in the pro and play builds only; oss ships no Google libraries.
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 

@@ -283,8 +283,8 @@ class TriggerSources(
                         // The second copy, with the number: a ringing call fires once it is known.
                         if (state == TelephonyManager.EXTRA_STATE_RINGING && number.isEmpty() && !incoming.isNullOrEmpty()) {
                             number = incoming
+                            // The waiting ring goes out now, with the number; one that already went out is not repeated.
                             flushRing()
-                            emit(call("ringing", number))
                         }
                         return
                     }
@@ -298,7 +298,13 @@ class TriggerSources(
                                 emit(call("ringing", number))
                             } else {
                                 // A withheld number never gets the second copy, so the ring goes out after a short wait.
-                                val ring = Runnable { emit(call("ringing", number)) }
+                                lateinit var ring: Runnable
+                                ring =
+                                    Runnable {
+                                        // Sent now, so a later answer or hang-up must not send it again.
+                                        if (pendingRing === ring) pendingRing = null
+                                        emit(call("ringing", number))
+                                    }
                                 pendingRing = ring
                                 main.postDelayed(ring, WITHHELD_RING_WAIT_MS)
                             }
@@ -458,6 +464,7 @@ class TriggerSources(
                 Intent.ACTION_BATTERY_CHANGED,
                 Intent.ACTION_AIRPLANE_MODE_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,
+                Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_DOCK_EVENT,
                 Intent.ACTION_CONFIGURATION_CHANGED,
                 LocationManager.PROVIDERS_CHANGED_ACTION,
@@ -527,6 +534,10 @@ class TriggerSources(
                     Intent.ACTION_TIMEZONE_CHANGED -> {
                         val zone = intent.getStringExtra("time-zone") ?: TimeZone.getDefault().id
                         emit(TriggerEvent("time.timezone", mapOf("zone" to zone)))
+                    }
+
+                    Intent.ACTION_TIME_CHANGED -> {
+                        emit(TriggerEvent(AutomationRuntime.CLOCK_SET))
                     }
 
                     PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> {

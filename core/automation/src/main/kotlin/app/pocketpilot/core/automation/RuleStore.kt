@@ -69,12 +69,21 @@ class RuleStore(
         persistence.save(AutomationJson.json.encodeToString(AutomationData.serializer(), next))
     }
 
-    /** Adds [rule], or replaces the rule with its id. */
+    /**
+     * Adds [rule], or replaces the rule with its id. The stored rule's last run and pin stay: the builder holds the
+     * copy from when it opened, and the rule may have run, or been pinned from its card, since then.
+     */
     fun upsert(rule: Rule) =
         update { data ->
             val stamped = if (rule.createdAtMillis == 0L) rule.copy(createdAtMillis = clock.nowMillis()) else rule
             val index = data.rules.indexOfFirst { it.id == rule.id }
-            data.copy(rules = if (index < 0) data.rules + stamped else data.rules.toMutableList().also { it[index] = stamped })
+            if (index < 0) {
+                data.copy(rules = data.rules + stamped)
+            } else {
+                val stored = data.rules[index]
+                val kept = if (stored.pending) stamped else stamped.copy(lastRun = stored.lastRun, pinned = stored.pinned)
+                data.copy(rules = data.rules.toMutableList().also { it[index] = kept })
+            }
         }
 
     fun delete(id: String) = update { data -> data.copy(rules = data.rules.filterNot { it.id == id }) }

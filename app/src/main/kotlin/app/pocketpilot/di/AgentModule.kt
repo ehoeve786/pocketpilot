@@ -102,7 +102,6 @@ object AgentModule {
         reader: ScreenReader,
         shell: ShellSwitch,
         scope: CoroutineScope,
-        handoff: ScreenHandoff,
     ): AgentCoordinator {
         val notifier = AgentNotifier(context)
         return AgentCoordinator(
@@ -112,10 +111,8 @@ object AgentModule {
             profiles = ProfileStore(File(context.noBackupFilesDir, "agent-profiles.json")),
             runs = runs,
             secrets = secrets,
-            handoff = handoff,
             scope = scope,
             onRunState = notifier::update,
-            onReply = notifier::reply,
             extraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() },
         )
     }

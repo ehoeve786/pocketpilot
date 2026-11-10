@@ -64,6 +64,7 @@ class AdbQueryTest {
             "ls",
             "ls -R",
             "pm dump com.example.app",
+            "cmd package dump com.example.app",
             "settings put global adb_enabled 0",
             "settings delete secure x",
             "pm uninstall com.example.app",

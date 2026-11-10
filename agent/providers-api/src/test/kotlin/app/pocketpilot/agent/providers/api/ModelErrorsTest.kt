@@ -24,6 +24,14 @@ class ModelErrorsTest {
     }
 
     @Test
+    fun `a key with no credit left is a quota error whatever the status`() {
+        assertEquals(ModelErrorCode.QUOTA, ModelErrors.fromHttp(429, """{"error":{"code":"insufficient_quota"}}""").code)
+        assertEquals(ModelErrorCode.QUOTA, ModelErrors.fromHttp(400, "Your credit balance is too low to access the API").code)
+        // Gemini words its per-minute limit as a quota; that one still waits and retries.
+        assertEquals(ModelErrorCode.RATE_LIMIT, ModelErrors.fromHttp(429, "You exceeded your current quota").code)
+    }
+
+    @Test
     fun `refused keys and exhausted credit are not mistaken for a rate limit`() {
         assertEquals(ModelErrorCode.AUTH, ModelErrors.fromHttp(401, "rate limit headers missing").code)
         assertEquals(ModelErrorCode.QUOTA, ModelErrors.fromHttp(402, "payment required").code)

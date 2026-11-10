@@ -90,7 +90,7 @@ sealed interface ModelList {
 
 /**
  * Agent mode (spec section 9): model profiles, the current run with takeover and stop, and earlier
- * runs' transcripts. New tasks start in the Chat tab ([AgentChat]).
+ * runs' transcripts. Runs are started by automations.
  */
 @Composable
 fun AgentCard(

@@ -225,6 +225,10 @@ open class HomeControlTool(
         if (!SERVICE.matches(service)) invalid("Give service as domain.action, such as light.turn_on")
         val id = call.arguments.entityId()
         val data = call.arguments["data"]?.let { it as? JsonObject ?: invalid("data must be an object") } ?: JsonObject(emptyMap())
+        // The safety check and the owner's confirmation are for the one entity, so data may not widen the target.
+        data.keys.firstOrNull { it.trim().lowercase() in HomeSafety.TARGET_KEYS }?.let {
+            invalid("data may not contain $it: the action runs on the entity given, one entity per call")
+        }
         val entity = home.reach { home.entity(id) } ?: notFound(id)
         if (!secure && HomeSafety.needsConfirmation(service, entity)) {
             throw ToolException(

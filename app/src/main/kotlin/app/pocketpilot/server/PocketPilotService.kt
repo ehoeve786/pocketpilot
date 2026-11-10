@@ -63,8 +63,6 @@ class PocketPilotService : Service() {
             notification(getString(R.string.server_stopped)),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
-        // An agent run only needs the process kept alive; the server and networks stay as the owner left them.
-        if (intent?.action == ACTION_KEEP_ALIVE && !AutoStart.wasRunning(this)) return START_NOT_STICKY
         scope.launch {
             server.start()
             val state = server.serverState.value
@@ -123,15 +121,9 @@ class PocketPilotService : Service() {
         private const val CHANNEL_ID = "server"
         private const val NOTIFICATION_ID = 1
         private const val ACTION_STOP = "app.pocketpilot.action.STOP_SERVER"
-        private const val ACTION_KEEP_ALIVE = "app.pocketpilot.action.KEEP_ALIVE"
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, PocketPilotService::class.java))
-        }
-
-        /** Keeps the process alive for an agent run without starting the server if the owner stopped it. */
-        fun keepAlive(context: Context) {
-            ContextCompat.startForegroundService(context, Intent(context, PocketPilotService::class.java).setAction(ACTION_KEEP_ALIVE))
         }
 
         fun stop(context: Context) {

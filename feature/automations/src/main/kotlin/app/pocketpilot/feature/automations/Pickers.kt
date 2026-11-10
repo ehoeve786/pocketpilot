@@ -235,9 +235,13 @@ private fun SourceField(
                 }
                 LazyColumn(Modifier.weight(1f)) {
                     items(
-                        options.filter {
-                            query.isBlank() || it.label.contains(query, ignoreCase = true) || it.value.contains(query, ignoreCase = true)
-                        },
+                        // Two options can share a value, such as two Bluetooth devices of one name; a list key must be unique.
+                        options
+                            .distinctBy { it.value }
+                            .filter {
+                                query.isBlank() || it.label.contains(query, ignoreCase = true) ||
+                                    it.value.contains(query, ignoreCase = true)
+                            },
                         key = { it.value },
                     ) { option ->
                         Row(

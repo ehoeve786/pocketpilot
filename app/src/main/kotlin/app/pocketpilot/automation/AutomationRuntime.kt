@@ -97,7 +97,9 @@ class AutomationRuntime(
         started = true
         scope.launch {
             store.data
-                .map { activeRules(it) to it.settings.screenReadMillis }
+                // A finished run only changes its rule's last-run summary. Leaving that out keeps a run from setting
+                // every alarm, place alert and listener again, which nothing a trigger source reads depends on.
+                .map { data -> activeRules(data).map { it.copy(lastRun = null) } to data.settings.screenReadMillis }
                 .distinctUntilChanged()
                 .collect { (rules, screenRead) ->
                     withContext(Dispatchers.Main) {
@@ -133,7 +135,11 @@ class AutomationRuntime(
         }
     }
 
-    fun onEvent(event: TriggerEvent) = engine.onEvent(event)
+    fun onEvent(event: TriggerEvent) {
+        // "At 08:00" is a local time: after the zone or the clock changes, each alarm is worked out again.
+        if (event.type == "time.timezone" || event.type == CLOCK_SET) activeRules(store.data.value).forEach(::schedule)
+        if (event.type != CLOCK_SET) engine.onEvent(event)
+    }
 
     /** Starts rule [id] for [reason], as a floating text's tap does, when it is on and accepted. */
     fun startRule(
@@ -554,7 +560,10 @@ class AutomationRuntime(
         index: Int,
     ) = "$ruleId#$index"
 
-    private companion object {
+    companion object {
+        /** The clock was set by hand or by the network: not a trigger, only a reason to set the alarms again. */
+        const val CLOCK_SET = "time.clock_set"
+
         /** Runtime permissions by trigger or condition type prefix, granted through Shizuku. */
         val LOCATION_PERMISSIONS =
             listOf(
