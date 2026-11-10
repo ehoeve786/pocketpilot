@@ -29,7 +29,8 @@ class SecondAuditTest {
     @Test
     fun `app actions take one app and a sensor reading is stored as its number`() {
         listOf("app.launch", "app.stop", "app.set_enabled", "app.clear_data").forEach { type ->
-            assertTrue(AutomationCatalog.action(type)!!.fields.first { it.key == "apps" }.single, type)
+            val fields = AutomationCatalog.action(type)!!.fields
+            assertTrue(fields.first { it.key == "apps" }.single, type)
         }
         val kind = AutomationCatalog.action("sensor.read")!!.kind as ActionKind.Tool
         assertEquals("123.4", kind.result("light: 123.4"))
