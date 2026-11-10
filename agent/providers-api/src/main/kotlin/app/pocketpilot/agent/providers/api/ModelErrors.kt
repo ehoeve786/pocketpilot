@@ -8,6 +8,13 @@ object ModelErrors {
     private val RATE_LIMIT_HINTS =
         listOf("rate limit", "rate_limit", "ratelimit", "too many requests", "resource_exhausted", "resource exhausted")
 
+    /**
+     * Words providers use when a key has no credit left, whatever the status: OpenAI answers 429 and Anthropic 400.
+     * A plain "quota" is left out on purpose, since Gemini's per-minute rate limit says "exceeded your current quota".
+     */
+    private val QUOTA_HINTS =
+        listOf("insufficient_quota", "credit balance", "insufficient balance", "insufficient credits", "insufficient funds")
+
     fun fromHttp(
         status: Int,
         body: String,
@@ -19,6 +26,8 @@ object ModelErrors {
                 status == 401 || status == 403 -> ModelErrorCode.AUTH
 
                 status == 402 -> ModelErrorCode.QUOTA
+
+                status >= 400 && QUOTA_HINTS.any { body.contains(it, ignoreCase = true) } -> ModelErrorCode.QUOTA
 
                 status == 429 -> ModelErrorCode.RATE_LIMIT
 

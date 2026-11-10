@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Agent mode in the app: turns the owner's [AgentProfile]s into providers, starts runs on the
@@ -166,7 +167,13 @@ class AgentCoordinator(
             } catch (e: IllegalArgumentException) {
                 return null
             }
-        return run.state.first { !it.active }
+        return try {
+            run.state.first { !it.active }
+        } catch (e: CancellationException) {
+            // The rule was stopped. The run is on the app's scope, so it would go on working the phone without this.
+            run.stop()
+            throw e
+        }
     }
 
     /** Asks the owner's models [prompt] as text only, with no tools; null when no model is set up. */
@@ -316,7 +323,13 @@ class AgentCoordinator(
                     next
                 }
         }
-        return runModel(chain.first(), next)
+        return try {
+            runModel(chain.first(), next)
+        } catch (e: IllegalArgumentException) {
+            // The first model's settings cannot be used: the run starts on the next one, or fails when there is none.
+            skipped += chain.first()
+            next ?: throw e
+        }
     }
 
     private fun skippedNotes(skipped: List<AgentProfile>): List<String> =
@@ -328,11 +341,7 @@ class AgentCoordinator(
     ): RunModel {
         val descriptor = registry.describe(profile.providerId, profile.model)
         return RunModel(
-            provider =
-                keys(profile)
-                    .takeIf { it.size > 1 }
-                    ?.let { all -> KeyRotatingProvider(all.map { provider(profile, it) }, roundRobin = true) }
-                    ?: provider(profile, keys(profile).firstOrNull()),
+            provider = keyed(profile),
             model = profile.model,
             toolMode = if (descriptor.tools == ToolSupport.NATIVE) ToolMode.NATIVE else ToolMode.JSON_FALLBACK,
             vision = descriptor.vision,
@@ -341,6 +350,24 @@ class AgentCoordinator(
             fallback = fallback,
             label = profile.name,
         )
+    }
+
+    /** The key-rotating provider of each profile with several keys, with the profile and keys it was built for. */
+    private val rotating = ConcurrentHashMap<String, Pair<Any, KeyRotatingProvider>>()
+
+    /**
+     * The provider for [profile]. With several keys it is kept from one run to the next while the profile and its
+     * keys stay the same, so the keys take turns across runs and a limited or refused key is not tried first each time.
+     */
+    private fun keyed(profile: AgentProfile): ModelProvider {
+        val all = keys(profile)
+        if (all.size <= 1) {
+            rotating.remove(profile.id)
+            return provider(profile, all.firstOrNull())
+        }
+        val built = profile to all
+        rotating[profile.id]?.takeIf { it.first == built }?.let { return it.second }
+        return KeyRotatingProvider(all.map { provider(profile, it) }, roundRobin = true).also { rotating[profile.id] = built to it }
     }
 
     /** One for the coordinator, so every key and fallback provider it builds shares the Gemini call state. */

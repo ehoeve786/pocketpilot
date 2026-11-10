@@ -244,6 +244,10 @@ object AdbQuery {
                 val service = args.firstOrNull() ?: refuse("Name a service, for example cmd wifi status")
                 checkService(service)
                 val verb = args.getOrNull(1).orEmpty()
+                // The same dump as dumpsys package and pm dump, which are refused above.
+                require(!(service == "package" && verb == "dump")) {
+                    "cmd package dump holds every app's permissions and history; it can only be read with shell.exec, which the owner confirms"
+                }
                 val readOnly =
                     READ_VERB_PREFIXES.any(verb::startsWith) ||
                         verb == "dump" ||

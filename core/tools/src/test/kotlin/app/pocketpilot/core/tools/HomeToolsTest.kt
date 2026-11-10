@@ -127,6 +127,25 @@ class HomeToolsTest {
         }
 
     @Test
+    fun `data cannot widen the action to an area or another entity`() =
+        runTest {
+            listOf("area_id", "device_id", "label_id", "floor_id", "entity_id", "target").forEach { key ->
+                val result =
+                    dispatcher.dispatch(
+                        session,
+                        "home.control",
+                        buildJsonObject {
+                            put("service", "light.turn_on")
+                            put("entity", "light.living_room")
+                            putJsonObject("data") { put(key, "garage") }
+                        },
+                    )
+                assertTrue(result.isError, key)
+            }
+            assertTrue(home.calls.isEmpty())
+        }
+
+    @Test
     fun `refuses a lock or garage door and points to the secure tool`() =
         runTest {
             listOf("lock.unlock" to "lock.front_door", "cover.open_cover" to "cover.garage", "homeassistant.toggle" to "lock.front_door")
