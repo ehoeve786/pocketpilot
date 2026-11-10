@@ -267,7 +267,23 @@ fun Rule.sensitiveTools(riskOf: (String) -> RiskTier?): List<String> =
  * Whether accepting this proposal, or a change to an existing rule, needs the owner's biometric check: it runs
  * shell commands, replaces a rule that runs on its own, or may call a sensitive tool such as one that sends data.
  */
-fun Rule.needsAcceptCheck(riskOf: (String) -> RiskTier?): Boolean = usesShell() || replaces != null || sensitiveTools(riskOf).isNotEmpty()
+fun Rule.needsAcceptCheck(riskOf: (String) -> RiskTier?): Boolean =
+    usesShell() || replaces != null || sensitiveTools(riskOf).isNotEmpty() || hasSensitiveBuiltIn()
+
+/**
+ * True when a step the app runs itself, not through a tool, is sensitive: a web request or download, a Home
+ * Assistant action, a screenshot, the calendar, or asking an AI model. They send what the rule read off the phone, and
+ * no tool's risk tier stands for them.
+ */
+fun Rule.hasSensitiveBuiltIn(): Boolean {
+    fun walk(steps: List<ActionStep>): Boolean =
+        steps.any { step ->
+            val def = AutomationCatalog.action(step.type)
+            val builtIn = def != null && def.tools.isEmpty() && step.type != "tool.call" && def.tier >= RiskTier.SENSITIVE
+            builtIn || walk(step.children) || walk(step.elseChildren)
+        }
+    return walk(actions)
+}
 
 private fun Rule.shellSteps(): List<ActionStep> {
     fun ActionStep.all(): List<ActionStep> = listOf(this) + children.flatMap { it.all() } + elseChildren.flatMap { it.all() }

@@ -124,6 +124,11 @@ data class SnapshotOptions(
     val includeSystemBars: Boolean = false,
     /** Keeps only what the app in front draws, leaving out floating buttons and other overlays. */
     val appOnly: Boolean = false,
+    /**
+     * A snapshot a tool takes for its own use and does not show the caller, such as the one that finds what a
+     * screenshot must black out. An element ID given without a snapshot ID never refers to it.
+     */
+    val internal: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MAX_ELEMENTS = 300

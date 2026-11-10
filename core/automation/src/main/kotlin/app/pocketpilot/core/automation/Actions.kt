@@ -116,7 +116,7 @@ internal object Actions {
                     category = Category.APPS,
                     title = "Open an app",
                     description = "Brings an app to the front.",
-                    fields = listOf(appsField("App", required = true)),
+                    fields = listOf(singleAppField("apps", "App")),
                     tier = RiskTier.INTERACT,
                     kind =
                         ActionKind.Tool("app.launch") { p ->
@@ -237,7 +237,11 @@ internal object Actions {
                             INTO,
                         ),
                     tier = RiskTier.READ,
-                    kind = ActionKind.Tool("sensor.read") { p -> args("sensor" to p.p("sensor")) },
+                    // The tool answers "light: 123.4"; the variable gets the number, so it can be compared and calculated with.
+                    kind =
+                        ActionKind.Tool("sensor.read", result = { it.substringAfter(": ").trim() }) { p ->
+                            args("sensor" to p.p("sensor"))
+                        },
                     sentence = { p -> "Read the ${p.p("sensor")} sensor" },
                 ),
                 ActionDef(
@@ -261,7 +265,7 @@ internal object Actions {
                                 ),
                             ),
                         ),
-                    tier = RiskTier.INTERACT,
+                    tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Tool("audio.control") { p -> args("action" to p.p("action")) },
                     sentence = { p -> "Audio: ${p.p("action")}" },
                 ),
@@ -270,7 +274,7 @@ internal object Actions {
                     category = Category.APPS,
                     title = "Force stop an app",
                     description = "Force-stops an app and its background work.",
-                    fields = listOf(appsField("App", required = true)),
+                    fields = listOf(singleAppField("apps", "App")),
                     tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Tool("app.stop") { p -> args("package" to p.p("apps").substringBefore(',').trim()) },
                     sentence = { p -> "Force stop ${p.p("apps")}" },
@@ -282,7 +286,7 @@ internal object Actions {
                     description = "Disables an app so it cannot run, or enables it again.",
                     fields =
                         listOf(
-                            appsField("App", required = true),
+                            singleAppField("apps", "App"),
                             choiceField("enabled", "Set to", listOf(Choice("false", "Frozen"), Choice("true", "Enabled"))),
                         ),
                     tier = RiskTier.DESTRUCTIVE,
@@ -297,7 +301,7 @@ internal object Actions {
                     category = Category.APPS,
                     title = "Clear an app's data",
                     description = "Deletes all of an app's data, like Clear storage.",
-                    fields = listOf(appsField("App", required = true)),
+                    fields = listOf(singleAppField("apps", "App")),
                     tier = RiskTier.DESTRUCTIVE,
                     kind = ActionKind.Tool("app.clear_data") { p -> args("package" to p.p("apps").substringBefore(',').trim()) },
                     sentence = { p -> "Clear data of ${p.p("apps")}" },
@@ -371,7 +375,7 @@ internal object Actions {
                     title = "Show a notification",
                     description = "Posts a notification from PocketPilot.",
                     fields = listOf(textField("title", "Title"), FieldDef("text", "Text", FieldKind.MULTILINE, required = false)),
-                    tier = RiskTier.READ,
+                    tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Tool("notify.post") { p -> args("title" to p.p("title"), "text" to p["text"].orEmpty()) },
                     sentence = { p -> "Notify \"${p.p("title")}\"" },
                 ),

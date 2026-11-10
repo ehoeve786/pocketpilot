@@ -138,6 +138,21 @@ class ScreenAndUiToolsTest {
         }
 
     @Test
+    fun `a touch on a hidden app sharing the screen is refused`() =
+        runTest {
+            // A banking app in the lower half of a split screen: the snapshot hides it and reports where it is.
+            reader.snapshot = reader.snapshot.copy(hidden = listOf(Bounds(0, 1000, 1080, 2000)))
+            assertEquals(ToolErrorCode.DENIED_BY_POLICY, call("ui.tap", """{"x":500,"y":1500}""").errorCode)
+            assertEquals(ToolErrorCode.DENIED_BY_POLICY, call("ui.long_press", """{"x":500,"y":1500}""").errorCode)
+            assertEquals(
+                ToolErrorCode.DENIED_BY_POLICY,
+                call("ui.swipe", """{"fromX":500,"fromY":100,"toX":500,"toY":1500}""").errorCode,
+            )
+            assertTrue(input.calls.isEmpty())
+            assertFalse(call("ui.tap", """{"x":500,"y":500}""").isError)
+        }
+
+    @Test
     fun `swipe needs four coordinates or an element and direction`() =
         runTest {
             assertFalse(call("ui.swipe", """{"fromX":1,"fromY":2,"toX":3,"toY":4}""").isError)

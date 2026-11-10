@@ -256,7 +256,9 @@ class ScreenCaptureTool(
         }
         val frame = capturer.capture()
         // Password fields and whatever ScreenPrivacy hid from the snapshot, such as a banking app in split screen.
-        val passwords = reader.snapshot().let { passwordBounds(it) + it.hidden }
+        // The whole screen is read for this, not the first 300 elements a snapshot shows: a password field far down a
+        // busy page, or one in a system bar's window, is in the frame too.
+        val passwords = reader.snapshot(WHOLE_SCREEN).let { passwordBounds(it) + it.hidden }
         val image =
             pipeline.process(
                 frame,

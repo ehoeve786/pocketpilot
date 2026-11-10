@@ -212,6 +212,8 @@ sealed interface ActionKind {
     /** One call of [tool] with arguments built from the action's settings. */
     class Tool(
         val tool: String,
+        /** Turns the tool's answer into what the step's variable gets; the answer itself by default. */
+        val result: (String) -> String = { it },
         val arguments: (Map<String, String>) -> JsonObject,
     ) : ActionKind
 

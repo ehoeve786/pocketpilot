@@ -2,6 +2,7 @@ package app.pocketpilot.core.tools
 
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.Snapshot
+import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.Target
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
@@ -34,6 +35,33 @@ internal fun JsonObject.long(name: String): Long? = (this[name] as? JsonPrimitiv
 internal fun JsonObject.boolean(name: String): Boolean? = (this[name] as? JsonPrimitive)?.booleanOrNull
 
 internal fun invalid(message: String): Nothing = throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, message)
+
+/** A snapshot for a tool's own use: the caller is not shown it, so it must not become what a bare element ID means. */
+internal val OWN_USE = SnapshotOptions(internal = true)
+
+/** Everything on screen, system bars and long screens included, for finding what must stay hidden. */
+internal val WHOLE_SCREEN = SnapshotOptions(maxElements = 5_000, includeSystemBars = true, internal = true)
+
+/**
+ * Refuses a touch at any of [points] that lands on something the snapshot hides: a banking or password app in the
+ * other half of a split screen, in a floating window or in a notification. The policy only knows the app in
+ * front, and a touch goes to whatever is under it. When the screen cannot be read the touch is left to that check.
+ */
+internal suspend fun ScreenReader.refuseHiddenPoints(vararg points: Pair<Int, Int>) {
+    val hidden =
+        try {
+            snapshot(WHOLE_SCREEN).hidden
+        } catch (e: ToolException) {
+            return
+        }
+    if (points.any { (x, y) -> hidden.any { it.contains(x, y) } }) {
+        throw ToolException(
+            ToolErrorCode.DENIED_BY_POLICY,
+            "That point is on an app PocketPilot does not open or change",
+            "Banking, payment, password and authenticator apps are off limits, also when they share the screen.",
+        )
+    }
+}
 
 /** Reads `element` + `snapshotId`, or `x` + `y`, into a [Target]. */
 internal fun JsonObject.target(): Target {

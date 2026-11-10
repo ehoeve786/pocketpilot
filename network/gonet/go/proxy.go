@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -31,6 +33,9 @@ func newProxyServer(targetPort int, logs *ring, onRequest func()) *http.Server {
 	return &http.Server{
 		Handler:           logRequests(logs, onRequest, proxy),
 		ReadHeaderTimeout: 30 * time.Second,
+		// MCP and OAuth requests carry a bearer token and little else. Go's default of 1 MB lets a client that has
+		// not signed in make the phone read and log that much per request.
+		MaxHeaderBytes: maxHeaderBytes,
 		// Bounds idle keep-alive connections, so a client that stops sending does not hold one open forever. An open
 		// event stream that is still being read is not cut by this.
 		IdleTimeout: 10 * time.Minute,
@@ -42,17 +47,17 @@ func newProxyServer(targetPort int, logs *ring, onRequest func()) *http.Server {
 // logRequests adds a line per request to the log (method, path, status, time taken), so the owner
 // can copy it when a client such as claude.ai cannot connect. Tokens and bodies are not logged.
 //
+// onRequest is called once for a request the app answered without an error status. A refused request, such as a
+// scanner's without a token, does not count: Funnel's auto-off would otherwise never come due on a public name.
+//
 // A request, an event stream included, ends after maxRequestTime. A client that vanished therefore cannot hold a stream
 // open for good; a client that still needs the stream reconnects.
 func logRequests(logs *ring, onRequest func(), next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		if onRequest != nil {
-			onRequest()
-		}
 		ctx, cancel := context.WithTimeout(r.Context(), maxRequestTime)
 		defer cancel()
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK, onAnswered: onRequest}
 		next.ServeHTTP(rec, r.WithContext(ctx))
 		logs.logf("ppnet: %s %s %s -> %d in %v (%s)", r.Method, r.Host, r.URL.Path, rec.status,
 			time.Since(start).Round(time.Millisecond), r.UserAgent())
@@ -62,15 +67,82 @@ func logRequests(logs *ring, onRequest func(), next http.Handler) http.Handler {
 // maxRequestTime is how long one request may run. A variable so a test can shorten it.
 var maxRequestTime = 30 * time.Minute
 
+// maxHeaderBytes bounds a request's line and headers.
+const maxHeaderBytes = 32 << 10
+
+// maxConnections bounds the connections one listener serves at a time. A handful of AI clients need a few each; the
+// rest of the internet, when Funnel is on, cannot hold more than this many open.
+const maxConnections = 64
+
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+	// onAnswered is called when the first status is written and is not an error. It runs then, not when the
+	// request ends, so a long event stream counts from its start.
+	onAnswered func()
+	wrote      bool
 }
 
 func (r *statusRecorder) WriteHeader(code int) {
-	r.status = code
+	// 1xx statuses are interim: the real one follows.
+	if !r.wrote && code >= 200 {
+		r.wrote = true
+		r.status = code
+		if code < 400 && r.onAnswered != nil {
+			r.onAnswered()
+		}
+	}
 	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	if !r.wrote {
+		r.WriteHeader(http.StatusOK)
+	}
+	return r.ResponseWriter.Write(b)
 }
 
 // Unwrap lets http.ResponseController reach Flush, which streaming MCP responses need.
 func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
+// limitConns bounds how many connections accepted from ln are open at once; Accept waits while that many are.
+func limitConns(ln net.Listener, max int) net.Listener {
+	return &limitedListener{Listener: ln, slots: make(chan struct{}, max), closed: make(chan struct{})}
+}
+
+type limitedListener struct {
+	net.Listener
+	slots     chan struct{}
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func (l *limitedListener) Accept() (net.Conn, error) {
+	select {
+	case l.slots <- struct{}{}:
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		<-l.slots
+		return nil, err
+	}
+	return &limitedConn{Conn: conn, release: func() { <-l.slots }}, nil
+}
+
+func (l *limitedListener) Close() error {
+	l.closeOnce.Do(func() { close(l.closed) })
+	return l.Listener.Close()
+}
+
+type limitedConn struct {
+	net.Conn
+	release   func()
+	closeOnce sync.Once
+}
+
+func (c *limitedConn) Close() error {
+	c.closeOnce.Do(c.release)
+	return c.Conn.Close()
+}

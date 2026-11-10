@@ -483,7 +483,7 @@ class AutomationEngine(
         return when (val kind = def.kind) {
             is ActionKind.Tool -> {
                 val text = callTool(context, kind.tool, kind.arguments(params))
-                if (into.isNotEmpty()) context.vars[into] = text
+                if (into.isNotEmpty()) context.vars[into] = kind.result(text)
                 null
             }
 
@@ -1127,6 +1127,8 @@ class AutomationEngine(
                     "files.delete",
                     "files.copy",
                     "ui.type_text",
+                    // What gets tapped must not come from a text message or a notification either.
+                    "ui.tap_text",
                     "shell.exec",
                     "tool.call",
                 )

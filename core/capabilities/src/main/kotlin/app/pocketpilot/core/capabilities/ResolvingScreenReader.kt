@@ -26,7 +26,8 @@ class ResolvingScreenReader(
 
     override suspend fun snapshot(options: SnapshotOptions): Snapshot {
         val backend = backends.firstAvailable()
-        return backend.snapshot(options).also { latest = backend }
+        // A tool's own snapshot is not what a bare element ID refers to, so it does not move the owner either.
+        return backend.snapshot(options).also { if (!options.internal) latest = backend }
     }
 
     /** The backend that took the snapshot [target] refers to. */

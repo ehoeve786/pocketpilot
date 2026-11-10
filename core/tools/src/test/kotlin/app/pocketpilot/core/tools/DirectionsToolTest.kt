@@ -120,6 +120,8 @@ class DirectionsToolTest {
         assertEquals(1609.344, MapsResults.meters("1 mi"))
         assertEquals(30.48, MapsResults.meters("100 ft")!!, 0.001)
         assertEquals(1100.0, MapsResults.meters("1,1 km"))
+        assertEquals(1_150_000.0, MapsResults.meters("1,150 km"))
+        assertEquals(365.76, MapsResults.meters("400 yd")!!, 0.001)
     }
 
     @Test

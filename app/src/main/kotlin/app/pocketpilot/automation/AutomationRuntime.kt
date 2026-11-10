@@ -604,9 +604,7 @@ class AutomationRuntime(
             listOf(
                 "android.intent.action.VIEW",
                 "android.intent.action.SEND",
-                "android.intent.action.SENDTO",
                 "android.intent.action.DIAL",
-                "android.intent.action.CALL",
                 "android.intent.action.EDIT",
                 "android.intent.action.INSERT",
                 "android.intent.action.WEB_SEARCH",

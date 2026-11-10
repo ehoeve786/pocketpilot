@@ -326,7 +326,7 @@ func (n *Node) serveLocked(ln net.Listener) {
 	n.listener = ln
 	n.httpSrv = httpSrv
 	go func() {
-		if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
+		if err := httpSrv.Serve(limitConns(ln, maxConnections)); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 			n.setError(fmt.Sprintf("HTTPS listener stopped: %v", err))
 		}
 	}()

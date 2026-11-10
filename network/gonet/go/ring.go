@@ -20,6 +20,25 @@ type ring struct {
 	written int64
 }
 
+// maxLineBytes bounds one log line. Request lines carry text an outside client chose (path, host, user agent), so
+// without it a few hundred long requests would hold hundreds of megabytes.
+const maxLineBytes = 512
+
+// oneLine makes text safe to keep as a single log line: control characters, which a percent-decoded path can hold,
+// become spaces so a client cannot start a line of its own, and the rest is cut at maxLineBytes.
+func oneLine(text string) string {
+	text = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, text)
+	if len(text) > maxLineBytes {
+		text = strings.ToValidUTF8(text[:maxLineBytes], "") + "…"
+	}
+	return text
+}
+
 // maxFileBytes bounds the log file, so a long run cannot fill the phone's storage. The lines in memory are unaffected.
 const maxFileBytes = 256 << 10
 
@@ -41,7 +60,7 @@ func (r *ring) writeTo(path string) {
 func newRing(max int) *ring { return &ring{max: max} }
 
 func (r *ring) logf(format string, args ...any) {
-	line := time.Now().Format("15:04:05 ") + strings.TrimRight(fmt.Sprintf(format, args...), "\n")
+	line := time.Now().Format("15:04:05 ") + oneLine(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.lines = append(r.lines, line)

@@ -67,7 +67,7 @@ class A11yScreenReader(
                     privacy::hidesPackage,
                     hiddenTexts,
                 )
-            recent.put(built.snapshot, Taken(nodes, built.sources))
+            recent.put(built.snapshot, Taken(nodes, built.sources), shown = !options.internal)
             built.snapshot
         }
 

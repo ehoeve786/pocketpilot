@@ -14,6 +14,7 @@ import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
+import java.util.Locale
 
 /** `sensor.read`: one reading from the light, pressure, temperature or humidity sensor. */
 class SensorReadTool(
@@ -44,7 +45,7 @@ class SensorReadTool(
         val name = call.arguments.string("sensor").orEmpty()
         if (name !in SensorReader.SENSORS) invalid("sensor must be one of ${SensorReader.SENSORS.joinToString()}")
         val value = reader.read(name) ?: unavailable(name)
-        return ToolResult.success(text = "$name: ${"%.1f".format(value)}")
+        return ToolResult.success(text = "$name: ${"%.1f".format(Locale.ROOT, value)}")
     }
 
     private fun unavailable(name: String): Nothing =

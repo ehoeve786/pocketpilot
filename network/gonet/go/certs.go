@@ -30,6 +30,9 @@ const (
 // validDomain is a host name: labels of letters, digits and hyphens, and a top-level name of at least two characters.
 var validDomain = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$`)
 
+// errCertExpired is what loading a saved certificate returns when it is for the domain but past its end date.
+var errCertExpired = errors.New("saved certificate has expired")
+
 // CertManager gets and renews a publicly trusted certificate for the owner's own domain from Let's
 // Encrypt, proving control of the domain with a DNS-01 TXT record it adds through the Cloudflare
 // API. The WireGuard listener presents it. Keys are created on the phone and stay in its
@@ -52,6 +55,9 @@ type CertManager struct {
 	busy      bool
 	lastError string
 	renewing  bool
+	// lapsed is set when the saved certificate was there but had expired, so there is none to serve. The renewal
+	// loop then asks for a new one, which it otherwise only does for a certificate it holds.
+	lapsed bool
 	// forgets counts Forget calls, so a request that was running when the owner pressed Forget is discarded.
 	forgets int
 }
@@ -87,9 +93,11 @@ func (c *CertManager) Configure(domain, email, cloudflareToken string) {
 	}
 	c.domain, c.email, c.token = domain, strings.TrimSpace(email), strings.TrimSpace(cloudflareToken)
 	if c.cert == nil && domain != "" {
-		if cert, notAfter, err := c.loadLocked(); err == nil {
+		cert, notAfter, err := c.loadLocked()
+		if err == nil {
 			c.cert, c.notAfter = cert, notAfter
 		}
+		c.lapsed = errors.Is(err, errCertExpired)
 	}
 }
 
@@ -133,6 +141,7 @@ func (c *CertManager) Obtain() error {
 	}
 	if c.domain == domain {
 		c.cert, c.notAfter, c.lastError = cert, notAfter, ""
+		c.lapsed = false
 	}
 	c.logs.logf("ppnet: certificate for %s ready until %s", domain, notAfter.Format(time.DateOnly))
 	return nil
@@ -151,7 +160,7 @@ func (c *CertManager) StartRenewals() {
 		for {
 			time.Sleep(renewCheck)
 			c.mu.Lock()
-			due := c.cert != nil && time.Until(c.notAfter) <= renewBefore
+			due := (c.cert != nil && time.Until(c.notAfter) <= renewBefore) || (c.cert == nil && c.lapsed && c.token != "")
 			c.mu.Unlock()
 			if due {
 				_ = c.Obtain()
@@ -195,6 +204,7 @@ func (c *CertManager) Forget() {
 	// The Cloudflare token goes too, so it does not stay in memory after the owner has forgotten the certificate.
 	c.token = ""
 	c.cert, c.notAfter, c.lastError = nil, time.Time{}, ""
+	c.lapsed = false
 	c.forgets++
 	c.removeSavedLocked(c.domain)
 }
@@ -407,8 +417,11 @@ func (c *CertManager) loadFor(domain string) (*tls.Certificate, time.Time, error
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	if leaf.VerifyHostname(domain) != nil || time.Now().After(leaf.NotAfter) {
+	if leaf.VerifyHostname(domain) != nil {
 		return nil, time.Time{}, errors.New("saved certificate does not cover the domain")
+	}
+	if time.Now().After(leaf.NotAfter) {
+		return nil, time.Time{}, errCertExpired
 	}
 	cert.Leaf = leaf
 	return &cert, leaf.NotAfter, nil
