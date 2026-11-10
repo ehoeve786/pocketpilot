@@ -600,18 +600,6 @@ class AutomationEngineTest {
         }
 
     @Test
-    fun `a run stops at its own time limit, and a limit of zero lets it run on`() =
-        runTest {
-            val wait = listOf(ActionStep("flow.wait", mapOf("seconds" to "2400")))
-            val capped = engine(this, FakeHost()).run(rule(wait).copy(maxRunMinutes = 30), "Test")
-            assertEquals(RunOutcome.FAILED, capped.outcome)
-            assertTrue(capped.lines.last().contains("longer than 30 minutes"))
-
-            val unlimited = engine(this, FakeHost()).run(rule(wait).copy(maxRunMinutes = 0), "Test")
-            assertEquals(RunOutcome.OK, unlimited.outcome)
-        }
-
-    @Test
     fun `a run keeps going past the log limit and notes what it left out`() =
         runTest {
             val set = ActionStep("var.set", mapOf("name" to "x", "value" to "1"))

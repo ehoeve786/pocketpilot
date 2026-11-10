@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -252,18 +251,12 @@ class AutomationEngine(
                     lines += stamped("Conditions did not hold: ${Describe.group(rule.constraints)}")
                     RunOutcome.SKIPPED
                 } else {
-                    val body: suspend () -> Unit = {
-                        if (rule.runAs == RunMode.AGENT) runAgent(context) else execute(context, rule.actions, "")
-                    }
-                    // 0 lets a rule run for as long as its own loops and waits allow, such as while an app is open.
-                    if (rule.maxRunMinutes > 0) withTimeout(rule.maxRunMinutes * 60_000L) { body() } else body()
+                    // A run lasts as long as its own loops and waits allow, such as while an app is open.
+                    if (rule.runAs == RunMode.AGENT) runAgent(context) else execute(context, rule.actions, "")
                     RunOutcome.OK
                 }
             } catch (e: StopRun) {
                 RunOutcome.OK
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                lines.end(stamped("Stopped: the run took longer than ${rule.maxRunMinutes} minutes, its time limit"))
-                RunOutcome.FAILED
             } catch (e: CancellationException) {
                 lines.end(stamped("Stopped"))
                 RunOutcome.STOPPED

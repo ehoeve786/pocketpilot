@@ -26,8 +26,6 @@ data class Rule(
     val variables: Map<String, String> = emptyMap(),
     /** The types of [variables], by name; a name missing here is a String. */
     val variableTypes: Map<String, VariableType> = emptyMap(),
-    /** Minutes a run may last before it is stopped; 0 lets it run as long as its own loops and waits allow. */
-    val maxRunMinutes: Int = DEFAULT_RUN_MINUTES,
     /** Shown on Home with a switch. */
     val pinned: Boolean = false,
     /** Set while the rule is an AI proposal waiting for the owner; cleared when it is accepted. */
@@ -38,14 +36,6 @@ data class Rule(
     val lastRun: RunSummary? = null,
 ) {
     val pending: Boolean get() = proposedBy != null
-
-    companion object {
-        const val DEFAULT_RUN_MINUTES = 30
-        const val MAX_RUN_MINUTES = 24 * 60
-
-        /** The run time limits the editor offers, in minutes. */
-        val RUN_MINUTE_CHOICES = listOf(DEFAULT_RUN_MINUTES, 2 * 60, 8 * 60, 0)
-    }
 }
 
 /**

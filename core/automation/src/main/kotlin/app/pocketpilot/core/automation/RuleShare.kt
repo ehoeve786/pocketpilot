@@ -46,7 +46,6 @@ private data class SharedRule(
     val category: String = "",
     val variables: Map<String, String> = emptyMap(),
     val variableTypes: Map<String, VariableType> = emptyMap(),
-    val maxRunMinutes: Int = Rule.DEFAULT_RUN_MINUTES,
     // Ids differ per phone, so the rules it names travel by name: the receiver links each to its own rule of that name.
     val ruleNames: Map<String, String> = emptyMap(),
 )
@@ -70,7 +69,6 @@ fun Rule.shareFileJson(nameOf: (String) -> String? = { null }): String {
             category,
             kept,
             variableTypes.filterKeys { it in kept },
-            maxRunMinutes,
             refs.mapNotNull { id -> nameOf(id)?.let { id to it } }.toMap(),
         )
     return AutomationJson.json.encodeToString(SharedRule.serializer(), shared)
@@ -139,7 +137,6 @@ private fun parseShared(
                 category = shared.category.trim(),
                 variables = shared.variables,
                 variableTypes = shared.variableTypes,
-                maxRunMinutes = shared.maxRunMinutes.coerceIn(0, Rule.MAX_RUN_MINUTES),
                 proposedBy = SHARED_RULE_PROPOSER,
             ).mapRuleRefs { id ->
                 val refName = shared.ruleNames[id] ?: return@mapRuleRefs id

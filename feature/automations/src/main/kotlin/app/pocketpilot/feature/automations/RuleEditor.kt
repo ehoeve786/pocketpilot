@@ -1,7 +1,6 @@
 package app.pocketpilot.feature.automations
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -355,24 +354,6 @@ internal fun RuleEditor(
                     )
                 } else {
                     ActionListEditor(rule.actions, sheets, state.sideload, depth = 0) { rule = rule.copy(actions = it) }
-                }
-                Text(stringResource(R.string.feature_automations_run_limit), style = MaterialTheme.typography.bodySmall)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Rule.RUN_MINUTE_CHOICES.forEach { minutes ->
-                        FilterChip(
-                            selected = rule.maxRunMinutes == minutes,
-                            onClick = { rule = rule.copy(maxRunMinutes = minutes) },
-                            label = {
-                                Text(
-                                    when {
-                                        minutes == 0 -> stringResource(R.string.feature_automations_run_limit_none)
-                                        minutes < 60 -> stringResource(R.string.feature_automations_run_limit_minutes, minutes)
-                                        else -> stringResource(R.string.feature_automations_run_limit_hours, minutes / 60)
-                                    },
-                                )
-                            },
-                        )
-                    }
                 }
             }
 
