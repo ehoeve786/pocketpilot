@@ -1,6 +1,7 @@
 package app.pocketpilot.core.automation
 
 import app.pocketpilot.core.common.Clock
+import app.pocketpilot.core.model.ContentPart
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
@@ -15,6 +16,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -922,6 +926,26 @@ class AutomationEngineTest {
         val reloaded = RuleStore(persistence, clock).rule("r1")
         assertEquals(r.copy(createdAtMillis = clock.nowMillis()), reloaded)
     }
+
+    @Test
+    fun `history returns a rule's newest runs with their step lines`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            listOf("a", "b", "a").forEachIndexed { i, rule ->
+                store.addRun(RunRecord("run$i", rule, rule, "Run button", i.toLong(), i.toLong(), RunOutcome.OK, listOf("1. step $i: ok")))
+            }
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            val args =
+                buildJsonObject {
+                    put("id", "a")
+                    put("limit", 1)
+                }
+            val result = AutomationHistoryTool(store).execute(ToolCall("1", SessionId(ULID), "automation.history", args), session)
+            val text = (result.content.single() as ContentPart.Text).text
+            val runs = AutomationJson.json.parseToJsonElement(text).jsonObject.getValue("runs").jsonArray
+            assertEquals(listOf("run2"), runs.map { it.jsonObject.getValue("id").jsonPrimitive.content })
+            assertTrue("1. step 2: ok" in text)
+        }
 
     @Test
     fun `proposals are validated and stored pending`() =
