@@ -8,9 +8,8 @@ import android.location.LocationManager
 import app.pocketpilot.core.automation.Place
 
 /**
- * Where [PlaceWatcher] sets its "Arrive at or leave a place" alerts. Each flavor binds its own in its FlavorModule:
- * the oss build uses the platform's proximity alerts, the pro and play builds Google's geofencing, which uses far
- * less battery because it shares the phone's location requests instead of making its own.
+ * Where [PlaceWatcher] sets its "Arrive at or leave a place" alerts. FlavorModule binds the platform's proximity
+ * alerts, since the app ships no Google libraries.
  */
 interface PlaceAlerts {
     /**

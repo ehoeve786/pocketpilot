@@ -52,22 +52,16 @@ class ModuleGraphRulesTest {
     }
 
     @Test
-    fun `open modules cannot depend on pro, except the app's pro and play flavors`() {
+    fun `open modules, the app included, cannot depend on pro`() {
         assertTrue(violations(":core:policy" to ":pro:licensing").isNotEmpty())
         assertTrue(violations(":app" to ":pro:licensing").isNotEmpty())
-        assertEquals(emptyList(), violations(":app" to ":pro:licensing", configuration = "proImplementation"))
-        assertEquals(emptyList(), violations(":app" to ":pro:licensing", configuration = "playImplementation"))
-    }
-
-    @Test
-    fun `the app's pro and play test variants are allowed too`() {
-        assertEquals(emptyList(), violations(":app" to ":pro:licensing", configuration = "testProDebugUnitTestCompileClasspath"))
-        assertEquals(emptyList(), violations(":app" to ":pro:licensing", configuration = "androidTestPlayReleaseImplementation"))
+        assertTrue(violations(":app" to ":pro:licensing", configuration = "proImplementation").isNotEmpty())
+        assertEquals(emptyList(), violations(":pro:licensing" to ":core:model"))
     }
 
     @Test
     fun `a module's own test variants are ignored`() {
-        assertEquals(emptyList(), violations(":app" to ":app", configuration = "ossDebugUnitTestCompileClasspath"))
+        assertEquals(emptyList(), violations(":app" to ":app", configuration = "debugUnitTestCompileClasspath"))
     }
 
     @Test

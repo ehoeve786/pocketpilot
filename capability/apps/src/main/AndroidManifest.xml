@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- app.list sees apps with a launcher icon; Play builds never ask for QUERY_ALL_PACKAGES. -->
+    <!-- app.list sees apps with a launcher icon. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

@@ -587,7 +587,7 @@ internal object Triggers {
                 category = Category.CALLS,
                 title = "Phone call",
                 description =
-                    "A call rings, is answered, ends or is missed. The caller's number is known in the sideload build only.",
+                    "A call rings, is answered, ends or is missed.",
                 fields =
                     listOf(
                         choiceField(
@@ -601,7 +601,7 @@ internal object Triggers {
                                 Choice("any", "Any of these"),
                             ),
                         ),
-                        textField("number", "Number contains", required = false, hint = "Sideload build; any caller when empty"),
+                        textField("number", "Number contains", required = false, hint = "Any caller when empty"),
                     ),
                 variables = listOf("event", "number"),
                 sentence = { p ->
@@ -620,7 +620,7 @@ internal object Triggers {
                 type = "sms.received",
                 category = Category.CALLS,
                 title = "Text message received",
-                description = "An SMS arrived. Sideload build only.",
+                description = "An SMS arrived.",
                 fields =
                     listOf(
                         textField("from", "Sender contains", required = false, hint = "Any sender when empty"),

@@ -1,14 +1,14 @@
 package app.pocketpilot.core.model
 
 /**
- * What a build distribution is allowed to ship. The play flavor removes Play-sensitive
- * capabilities through this profile rather than through code forks (spec section 3).
+ * What a build distribution is allowed to ship. The app has no product flavors any more and always binds [OSS];
+ * [PRO] and [PLAY] remain only so the profile-dependent code paths can still be tested.
  */
 data class PolicyProfile(
     val flavor: Flavor,
-    /** `shell.exec`: left out of play, kept in oss and pro (spec section 16). */
+    /** `shell.exec` is offered; false only in the old [PLAY] profile. */
     val shellExecAvailable: Boolean,
-    /** Play uses targeted `<queries>` instead of QUERY_ALL_PACKAGES. */
+    /** False only in the old [PLAY] profile, which used targeted `<queries>` instead of QUERY_ALL_PACKAGES. */
     val queryAllPackages: Boolean,
     val proFeatures: Boolean,
 ) {
