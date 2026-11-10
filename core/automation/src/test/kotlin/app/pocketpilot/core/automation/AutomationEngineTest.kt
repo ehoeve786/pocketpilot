@@ -13,12 +13,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -942,8 +940,8 @@ class AutomationEngineTest {
                 }
             val result = AutomationHistoryTool(store).execute(ToolCall("1", SessionId(ULID), "automation.history", args), session)
             val text = (result.content.single() as ContentPart.Text).text
-            val runs = AutomationJson.json.parseToJsonElement(text).jsonObject.getValue("runs").jsonArray
-            assertEquals(listOf("run2"), runs.map { it.jsonObject.getValue("id").jsonPrimitive.content })
+            val runs = AutomationJson.json.decodeFromString(HistoryReply.serializer(), text).runs
+            assertEquals(listOf("run2"), runs.map { it.id })
             assertTrue("1. step 2: ok" in text)
         }
 
@@ -1747,4 +1745,9 @@ class AutomationEngineTest {
 
             assertFalse(host.prompts.single().contains("private text"))
         }
+
+    @Serializable
+    private data class HistoryReply(
+        val runs: List<RunRecord>,
+    )
 }
