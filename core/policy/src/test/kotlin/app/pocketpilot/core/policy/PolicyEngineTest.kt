@@ -231,6 +231,22 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `a destructive tool in the owner's rule runs without asking, anywhere else it asks`() =
+        runTest {
+            val engine = engine()
+            val delete = spec("files.delete", RiskTier.DESTRUCTIVE, Scope.KNOWN.first())
+            val own = Session(SessionId("01JA0000000000000000000003"), SessionKind.AUTOMATION, "Rule", Scope.KNOWN, 0)
+            engine.preConfirm(own.id, setOf("files.delete"), destructive = true)
+            assertEquals(Decision.Allow, engine.before(own, delete, detail = "Documents/a.txt"))
+            assertEquals(emptyList(), asked.map { it.detail })
+
+            val other = Session(SessionId("01JA0000000000000000000004"), SessionKind.AUTOMATION, "Rule", Scope.KNOWN, 0)
+            engine.preConfirm(other.id, setOf("files.delete"))
+            engine.before(other, delete, detail = "Documents/a.txt")
+            assertEquals(listOf("Documents/a.txt"), asked.map { it.detail })
+        }
+
+    @Test
     fun `a command the owner typed into a rule runs, any other command asks`() =
         runTest {
             val engine = engine()

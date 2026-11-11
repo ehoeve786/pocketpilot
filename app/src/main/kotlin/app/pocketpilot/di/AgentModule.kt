@@ -85,7 +85,7 @@ object AgentModule {
             SessionFactory(),
             store,
             onSessionEnd = policy::endSession,
-            preConfirm = policy::preConfirm,
+            preConfirm = { id, tools -> policy.preConfirm(id, tools) },
             beforeScreenWork = handoff::leave,
             health = health,
         )
