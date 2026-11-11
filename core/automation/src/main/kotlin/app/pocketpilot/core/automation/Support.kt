@@ -11,6 +11,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
 import kotlin.math.asin
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -141,8 +142,9 @@ object Schedule {
 
             "time.interval" -> {
                 // "1.5" rounds up to whole minutes, and a year at most keeps the multiplication from overflowing.
-                val asked = params.p("minutes").trim().toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
-                val minutes = kotlin.math.ceil(asked).toLong().coerceIn(1, MAX_INTERVAL_MINUTES)
+                val asked = params.p("minutes").trim().toDoubleOrNull()
+                if (asked == null || !asked.isFinite()) return null
+                val minutes = ceil(asked).toLong().coerceIn(1, MAX_INTERVAL_MINUTES)
                 val period = minutes * 60_000
                 val base = lastFiredAt ?: after
                 (base + period).coerceAtLeast(after + 1_000)
