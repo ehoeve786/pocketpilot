@@ -152,7 +152,10 @@ class AutomationEngine(
                 rule,
                 Describe.trigger(trigger, host::appName),
                 event.data,
-                fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS,
+                // What happens on the phone (a notification, a text message, a tap, another app's broadcast) starts the
+                // owner's rule as the owner set it up, with its approvals. Only a run an AI app asked for, or one such a
+                // run set off, counts as coming from outside.
+                fromOutside = event.fromOutside,
                 chain = event.chain,
                 triggerType = event.type,
             )
@@ -441,7 +444,7 @@ class AutomationEngine(
         if (!def.conditional && !step.constraints.isEmpty && !holds(context, step.constraints)) return "skipped, conditions did not hold"
         if (context.fromOutside && step.type in OUTSIDE_REFUSED) {
             throw AutomationFailure(
-                "Not run: an outside app, event or AI app started this automation, so it cannot ${def.title.lowercase()}",
+                "Not run: an AI app started this automation, so it cannot ${def.title.lowercase()}",
             )
         }
         // Any placeholder can carry outside data (event fields, variables set from them), so an outside run may
@@ -449,7 +452,7 @@ class AutomationEngine(
         val steeredFromOutside = step.type in OUTSIDE_FIXED_ONLY && step.params.values.any { PLACEHOLDER.containsMatchIn(it) }
         if (context.fromOutside && steeredFromOutside) {
             throw AutomationFailure(
-                "Not run: an outside app, event or AI app started this automation, so its data cannot choose what ${def.title} acts on",
+                "Not run: an AI app started this automation, so its data cannot choose what ${def.title} acts on",
             )
         }
         // An AI answer is not checked, and a screen can steer it, so it may not choose what a sensitive step acts on.
@@ -1197,33 +1200,6 @@ class AutomationEngine(
 
         /** The "Any broadcast" trigger; any app can send a broadcast with an action the owner watches. */
         const val INTENT_ACTION = "intent.action"
-
-        /**
-         * Events another party can cause (a sender, another app, a nearby device, a rogue access point), so
-         * their runs get none of the owner's pre-approvals.
-         */
-        private val OUTSIDE_EVENTS =
-            setOf(
-                INTENT_RECEIVED,
-                INTENT_ACTION,
-                "sms.received",
-                "notification.posted",
-                "notification.removed",
-                "call.changed",
-                "bluetooth.device",
-                "screen.text",
-                "screen.click",
-                "log.line",
-                "media.changed",
-                "app.crash",
-                "calendar.event",
-                "wifi.connected",
-                // A network's, device's or photo's name is chosen by whoever set it up.
-                "wifi.disconnected",
-                "headset.changed",
-                "usb.device",
-                "photo.taken",
-            )
 
         private val UNTRUSTED_TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)
         private val LOG_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SSS")

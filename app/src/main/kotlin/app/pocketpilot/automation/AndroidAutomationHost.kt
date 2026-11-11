@@ -121,7 +121,7 @@ class AndroidAutomationHost(
     /**
      * The owner made the rule (or accepted it), so its sensitive tools are confirmed for the run; the raw
      * shell still asks for each new command and destructive tools ask every time. A run that another app or
-     * an outside event started gets none of that: every sensitive call and every fixed shell command asks
+     * an AI app started gets none of that: every sensitive call and every fixed shell command asks
      * the owner, since the rule's trigger can fire from any sender.
      */
     override fun openSession(
@@ -137,7 +137,7 @@ class AndroidAutomationHost(
                 grantedScopes = Scope.KNOWN - setOf(Scope.TERMUX_RUN) - if (shellOn()) emptySet() else setOf(Scope.SHELL_EXEC),
                 createdAtMillis = clock.nowMillis(),
             )
-        // An outside event can fire the rule from any sender, so nothing the owner approved with the rule is
+        // An AI app can ask for the run at any time, so nothing the owner approved with the rule is
         // pre-approved for it: its fixed shell commands ask like everything else.
         if (!fromOutside) {
             policy.preConfirm(session.id, tools - SHELL_EXEC)
