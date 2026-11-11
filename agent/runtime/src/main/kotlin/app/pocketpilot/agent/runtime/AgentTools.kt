@@ -70,6 +70,19 @@ internal class AgentTools(
         return byWire[bare] ?: byWire.values.firstOrNull { it.name == bare }
     }
 
+    /**
+     * The name to send back to the model for a call it made as [name]. A model may write the dotted name or a whole
+     * catalog entry; the providers accept only letters, digits, "_" and "-" in the history, so the call is recorded
+     * under the tool's wire name, or a cleaned-up one for a tool that does not exist.
+     */
+    fun wireName(name: String): String {
+        if (isLoadCall(name)) return LOAD
+        val bare = name.substringBefore('(').substringBefore(':').trim()
+        if (bare in byWire) return bare
+        byWire.entries.firstOrNull { it.value.name == bare }?.let { return it.key }
+        return bare.replace(UNSAFE_NAME, "_").take(MAX_NAME).ifEmpty { "unknown" }
+    }
+
     fun has(toolName: String): Boolean = byWire.values.any { it.name == toolName }
 
     fun isLoadCall(name: String): Boolean = name == LOAD || name == LOAD_DOTTED
@@ -99,6 +112,7 @@ internal class AgentTools(
 
     internal companion object {
         const val MAX_NAME = 64
+        val UNSAFE_NAME = Regex("[^A-Za-z0-9_-]")
         const val LOAD = "tools_load"
         const val LOAD_DOTTED = "tools.load"
 

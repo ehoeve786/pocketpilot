@@ -121,7 +121,7 @@ class PhoneState(
             StateKeys.SCREEN_ON -> onOff(power.isInteractive)
             StateKeys.LOCKED -> onOff(context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
             StateKeys.WIFI_ENABLED -> onOff(wifiEnabled())
-            StateKeys.WIFI_SSID -> wifiSsid()
+            StateKeys.WIFI_SSID -> wifiSsid() ?: StateKeys.WIFI_NAME_UNKNOWN.takeIf { onWifi() }
             StateKeys.BLUETOOTH_ENABLED -> onOff(globalInt(Settings.Global.BLUETOOTH_ON) == 1)
             StateKeys.BLUETOOTH_DEVICES -> (bluetoothDevices.values + bluetoothAudioNames()).distinct().joinToString("\n")
             StateKeys.INTERNET -> onOff(hasTransportOrCapability(capability = NetworkCapabilities.NET_CAPABILITY_VALIDATED))
@@ -358,7 +358,8 @@ class PhoneState(
     private suspend fun proximity(): String? {
         val sensor = sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY) ?: return null
         val distance = sensorValues(Sensor.TYPE_PROXIMITY)?.firstOrNull() ?: return null
-        return if (distance < sensor.maximumRange) "near" else "far"
+        // The same line the trigger draws: some sensors report a long range, and "near" means within a few centimetres.
+        return if (distance < sensor.maximumRange.coerceAtMost(NEAR_CM)) "near" else "far"
     }
 
     /** The first reading of the sensor of [type], or null when there is none or it does not answer in time. */
@@ -409,12 +410,15 @@ class PhoneState(
 
     fun wifiEnabled(): Boolean = context.getSystemService(WifiManager::class.java).isWifiEnabled
 
+    /** For the Wi-Fi name state: on Wi-Fi with a name that cannot be read is told apart from not being on Wi-Fi. */
+    private fun onWifi(): Boolean = hasTransportOrCapability(transport = NetworkCapabilities.TRANSPORT_WIFI)
+
     /**
      * The connected Wi-Fi network's name. Android hides it from apps without location access, so it
      * comes from `cmd wifi status` through Shizuku; null when not on Wi-Fi or neither works.
      */
     suspend fun wifiSsid(): String? {
-        if (!hasTransportOrCapability(transport = NetworkCapabilities.TRANSPORT_WIFI)) return null
+        if (!onWifi()) return null
         if (shell.available.value) {
             val out = runCatching { shell.run("cmd wifi status", SHELL_TIMEOUT_MS).stdout }.getOrNull().orEmpty()
             SSID.find(out)?.groupValues?.get(1)?.let {
@@ -488,6 +492,7 @@ class PhoneState(
             setOf("sleep_timeout", "doze_enabled", "screensaver_enabled", "long_press_timeout", "show_rotation_suggestions")
         private val PACKAGE_NAME = Regex("""[A-Za-z0-9_.]{1,200}""")
         private const val SENSOR_TIMEOUT_MS = 2_000L
+        private const val NEAR_CM = 5f
         private const val MAX_BRIGHTNESS = 255
 
         /** Gravity along the screen's axis, in m/s², above which the phone counts as lying flat. */

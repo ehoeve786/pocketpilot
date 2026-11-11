@@ -227,6 +227,8 @@ class AppDirectionsTool(
         }
         val best =
             MapsResults.pick(places.values, query) ?: return onePlace(query, mode, results, call)
+        // What the summary says is showing; Maps opens a route on driving.
+        var shown = mode
 
         // Tapping the card's own Directions button routes to that exact place; a typed name and
         // address can match another branch. Scroll back to the card if it has gone off screen.
@@ -239,7 +241,7 @@ class AppDirectionsTool(
         if (target != null) {
             input.tap(target)
             reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
-            if (mode != "driving") selectMode(mode)
+            if (mode != "driving" && !selectMode(mode)) shown = "driving (the $mode tab was not found)"
         } else {
             val destination = listOfNotNull(best.name, best.address).joinToString(", ")
             open("https://www.google.com/maps/dir/?api=1&destination=${encode(destination)}&travelmode=$mode")
@@ -252,7 +254,7 @@ class AppDirectionsTool(
                 .joinToString("; ") { "${it.name} ${it.distanceText}${if (it.sponsored) " (ad)" else ""}" }
         val summary =
             buildString {
-                append("Showing the $mode route to ${best.name}")
+                append("Showing the $shown route to ${best.name}")
                 best.address?.let { append(", ").append(it) }
                 append(" (").append(best.distanceText).append(" away).")
                 if (others.isNotEmpty()) append("\nOther results: ").append(others).append('.')
@@ -272,16 +274,17 @@ class AppDirectionsTool(
     ): ToolResult {
         val button = results.lastElements.let(MapsResults::directionsButton)
         val snapshot = results.lastSnapshot
+        var shown = mode
         if (button != null && snapshot != null) {
             input.tap(Target.OnElement(button.id, snapshot))
             reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
-            if (mode != "driving") selectMode(mode)
+            if (mode != "driving" && !selectMode(mode)) shown = "driving (the $mode tab was not found)"
         } else {
             open("https://www.google.com/maps/dir/?api=1&destination=${encode(query)}&travelmode=$mode")
         }
         return afterAction(
             reader,
-            "Google Maps found one place for \"$query\" and is showing the $mode route to it. Check the destination on screen.",
+            "Google Maps found one place for \"$query\" and is showing the $shown route to it. Check the destination on screen.",
             call.arguments.boolean("returnSnapshot") ?: false,
         )
     }
@@ -310,15 +313,15 @@ class AppDirectionsTool(
         }
     }
 
-    /** Picks the travel mode tab on the route screen; Maps opens it on driving. */
-    private suspend fun selectMode(mode: String) {
+    /** Picks the travel mode tab on the route screen; Maps opens it on driving. False when the tab is not there. */
+    private suspend fun selectMode(mode: String): Boolean {
         val snapshot = reader.snapshot(SnapshotOptions(maxElements = MAX_ELEMENTS))
         val word = MODE_LABELS.getValue(mode)
         val tab = snapshot.elements.firstOrNull { it.clickable && it.description?.startsWith(word, ignoreCase = true) == true }
-        if (tab != null) {
-            input.tap(Target.OnElement(tab.id, snapshot.id))
-            reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
-        }
+        if (tab == null) return false
+        input.tap(Target.OnElement(tab.id, snapshot.id))
+        reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
+        return true
     }
 
     private suspend fun open(uri: String) {

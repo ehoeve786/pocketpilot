@@ -153,13 +153,19 @@ class ScreenWaitForTool(
     ): ToolResult {
         val selector = Selector.from(call.arguments)
         val wait = (call.arguments.long("timeoutMs") ?: DEFAULT_WAIT_MS).coerceIn(0, MAX_WAIT_MS)
+
+        suspend fun look(): FindResult? {
+            val snapshot = reader.snapshot()
+            return selector.match(snapshot).takeIf { it.isNotEmpty() }?.let { FindResult(snapshot.id, it) }
+        }
+
+        // The screen is read once whatever the wait, so a wait of 0 still answers "is it there now".
         val found =
-            withTimeoutOrNull(wait) {
+            look() ?: withTimeoutOrNull(wait) {
                 var result: FindResult? = null
                 while (result == null) {
-                    val snapshot = reader.snapshot()
-                    val matches = selector.match(snapshot)
-                    if (matches.isNotEmpty()) result = FindResult(snapshot.id, matches) else reader.awaitChange(POLL_MS)
+                    reader.awaitChange(POLL_MS)
+                    result = look()
                 }
                 result
             }
@@ -254,11 +260,14 @@ class ScreenCaptureTool(
                 "Turn on PocketPilot's accessibility service, then try again.",
             )
         }
+        // Read before the frame as well as after it: a banking app that closes, or a notification that leaves, between
+        // the two would be in the picture but in neither list alone.
+        val hiddenBefore = reader.snapshot(WHOLE_SCREEN).let { passwordBounds(it) + it.hidden }
         val frame = capturer.capture()
         // Password fields and whatever ScreenPrivacy hid from the snapshot, such as a banking app in split screen.
         // The whole screen is read for this, not the first 300 elements a snapshot shows: a password field far down a
         // busy page, or one in a system bar's window, is in the frame too.
-        val passwords = reader.snapshot(WHOLE_SCREEN).let { passwordBounds(it) + it.hidden }
+        val passwords = hiddenBefore + reader.snapshot(WHOLE_SCREEN).let { passwordBounds(it) + it.hidden }
         val image =
             pipeline.process(
                 frame,
@@ -270,6 +279,13 @@ class ScreenCaptureTool(
                     redact = passwords,
                 ),
             )
+        if (image.bytes.size > MAX_IMAGE_BYTES) {
+            throw ToolException(
+                ToolErrorCode.INVALID_ARGUMENTS,
+                "The picture is ${image.bytes.size / KILOBYTE} KB, over the limit of ${MAX_IMAGE_BYTES / KILOBYTE} KB",
+                "Ask for a smaller maxEdge, a region, or webp or jpeg in place of png.",
+            )
+        }
         val info = CaptureInfo(image.width, image.height, frame.width, frame.height, image.transform, "%016x".format(image.hash))
         return ToolResult(
             content =
@@ -281,6 +297,13 @@ class ScreenCaptureTool(
     }
 
     private fun passwordBounds(snapshot: Snapshot): List<Bounds> = snapshot.elements.filter(Element::password).map(Element::bounds)
+
+    private companion object {
+        const val KILOBYTE = 1024
+
+        /** The largest picture returned; a full-size PNG of a busy screen is several times this. */
+        const val MAX_IMAGE_BYTES = 4 * 1024 * KILOBYTE
+    }
 
     @Serializable
     private data class CaptureInfo(

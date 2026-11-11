@@ -330,7 +330,7 @@ class PolicyEngine(
             ToolErrorCode.DENIED_BY_POLICY,
             "PocketPilot does not read or control $front",
             "Banking, payment, password and authenticator apps are off limits. Leave with ui.global_action " +
-                "(HOME or BACK) or app.launch another app.",
+                "(home) or app.launch another app.",
         )
 
     /** Tools that read the screen, act on it, or change which app is in front. */

@@ -56,8 +56,15 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     override fun text(text: String) {
         require(text.length <= MAX_TEXT && text.all { it.code in 0x20..0x7e }) { "Only printable ASCII can be typed through Shizuku" }
-        // `input text` reads %s as a space and cannot take a literal space.
-        run("input", "text", text.replace(" ", "%s"))
+        // `input text` reads %s as a space and cannot take a literal space. A "%s" that is meant as written is typed
+        // as its two characters, one call each, so the command never sees them together.
+        text.split("%s").forEachIndexed { index, piece ->
+            if (index > 0) {
+                run("input", "text", "%")
+                run("input", "text", "s")
+            }
+            if (piece.isNotEmpty()) run("input", "text", piece.replace(" ", "%s"))
+        }
     }
 
     override fun captureScreen(): ParcelFileDescriptor {

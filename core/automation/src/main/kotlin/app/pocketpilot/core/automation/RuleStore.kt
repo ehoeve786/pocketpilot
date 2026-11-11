@@ -6,12 +6,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.io.FileOutputStream
 
 /** Where the store keeps its JSON. */
 interface Persistence {
     fun load(): String?
 
     fun save(text: String)
+
+    /** Puts aside text that was loaded but could not be read, before the next save replaces it. */
+    fun keepUnreadable(text: String) {}
 }
 
 /** Writes through a temporary file, so a crash mid-write never leaves half a file. */
@@ -20,10 +24,18 @@ class FilePersistence(
 ) : Persistence {
     override fun load(): String? = file.takeIf { it.exists() }?.readText()
 
+    override fun keepUnreadable(text: String) {
+        runCatching { File(file.parentFile, "${file.name}.unreadable").writeText(text) }
+    }
+
     override fun save(text: String) {
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, "${file.name}.tmp")
-        temp.writeText(text)
+        // Flushed to the disk before the rename: otherwise a power cut just after can leave the new name on an empty file.
+        FileOutputStream(temp).use { out ->
+            out.write(text.encodeToByteArray())
+            out.fd.sync()
+        }
         if (!temp.renameTo(file)) {
             file.writeText(text)
             temp.delete()
@@ -299,11 +311,14 @@ class RuleStore(
     /** Hex digits of the name's bytes: unique for each name, and safe in a secret store key. */
     private fun String.hex(): String = encodeToByteArray().joinToString("") { "%02x".format(it) }
 
-    private fun load(): AutomationData =
-        persistence
-            .load()
-            ?.let { runCatching { AutomationJson.json.decodeFromString(AutomationData.serializer(), it) }.getOrNull() }
-            ?: AutomationData()
+    private fun load(): AutomationData {
+        val text = persistence.load() ?: return AutomationData()
+        return runCatching { AutomationJson.json.decodeFromString(AutomationData.serializer(), text) }.getOrElse {
+            // The rules start empty, and the next change would write over the file: the unreadable copy is kept beside it.
+            persistence.keepUnreadable(text)
+            AutomationData()
+        }
+    }
 
     private fun keptRuns(runs: List<RunRecord>): List<RunRecord> {
         var total = 0

@@ -64,6 +64,7 @@ import app.pocketpilot.core.automation.FieldKind
 import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
+import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.isCredentialKey
 import app.pocketpilot.core.model.RiskTier
 import kotlin.math.roundToInt
@@ -185,7 +186,8 @@ internal fun FieldsSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_automations_cancel)) }
                 Button(
-                    onClick = { onDone(values.filterValues { it.isNotEmpty() }) },
+                    // A cleared range bound is kept as blank, which means "no limit"; other blanks fall back to defaults.
+                    onClick = { onDone(values.filter { (key, value) -> value.isNotEmpty() || key in RuleValidator.OPEN_WHEN_CLEARED }) },
                 ) { Text(stringResource(R.string.feature_automations_done)) }
             }
         }

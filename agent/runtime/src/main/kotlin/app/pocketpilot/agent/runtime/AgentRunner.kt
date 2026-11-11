@@ -325,7 +325,7 @@ class AgentRun internal constructor(
             Message(
                 Role.ASSISTANT,
                 listOfNotNull(reply.text.takeIf(String::isNotBlank)?.let(Part::Text)) +
-                    reply.calls.map { Part.ToolCall(it.id, it.name, it.argsJson) },
+                    reply.calls.map { Part.ToolCall(it.id, tools.wireName(it.name), it.argsJson) },
             )
         val results = mutableListOf<Part>()
         val calls = mutableListOf<StepCall>()
@@ -333,13 +333,13 @@ class AgentRun internal constructor(
         for (c in reply.calls) {
             if (paused.value) break
             val (result, record) = execute(c.name, c.argsJson)
-            results += Part.ToolResult(c.id, c.name, convert(result, c.name), result.isError)
+            results += Part.ToolResult(c.id, tools.wireName(c.name), convert(result, c.name), result.isError)
             calls += record
             hash = screenHash(result) ?: hash
         }
         // Every call needs a result, including ones skipped because the owner took over.
         for (c in reply.calls.drop(calls.size)) {
-            results += Part.ToolResult(c.id, c.name, listOf(Part.Text("Not run: the owner took over.")), isError = true)
+            results += Part.ToolResult(c.id, tools.wireName(c.name), listOf(Part.Text("Not run: the owner took over.")), isError = true)
         }
         messages += Message(Role.USER, results)
         recordStep(reply.text, calls, hash)

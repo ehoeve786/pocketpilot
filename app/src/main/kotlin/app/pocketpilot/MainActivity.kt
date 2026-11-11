@@ -304,9 +304,9 @@ class MainActivity : ComponentActivity() {
                 .value
         val health = providerHealth.status.collectAsStateWithLifecycle().value
         return profiles.map { profile ->
-            val status = health[profile.name]
+            val status = health[agent.labelOf(profile)]
             HomeProvider(
-                name = profile.name,
+                name = agent.labelOf(profile),
                 state =
                     when (status?.state) {
                         ProviderState.READY -> HomeProviderState.READY

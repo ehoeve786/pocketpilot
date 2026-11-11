@@ -200,8 +200,12 @@ internal object Constraints {
                 },
                 check = { p ->
                     val ssid = state(StateKeys.WIFI_SSID)?.takeIf { it.isNotBlank() }
+                    // On Wi-Fi but its name cannot be read: which network it is stays unknown, so a condition on one
+                    // named network holds neither way.
+                    val nameUnknown = ssid == StateKeys.WIFI_NAME_UNKNOWN && p.p("ssid").isNotBlank()
                     val on = ssid != null && anyOf(p.p("ssid"), ssid)
-                    if (p.p("mode") == "not_connected") !on else on
+                    val holds = if (p.p("mode") == "not_connected") !on else on
+                    !nameUnknown && holds
                 },
             ),
             stateIs("wifi.enabled", Category.CONNECTIVITY, "Wi-Fi on", StateKeys.WIFI_ENABLED, "Wi-Fi"),
@@ -419,7 +423,10 @@ internal object Constraints {
         from: LocalTime,
         to: LocalTime,
     ): Boolean =
-        if (from <= to) {
+        if (from == to) {
+            // The same start and end is the whole day, not an empty window.
+            true
+        } else if (from < to) {
             time >= from && time < to
         } else {
             time >= from || time < to

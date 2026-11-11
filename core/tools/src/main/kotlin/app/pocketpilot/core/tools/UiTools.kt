@@ -244,6 +244,17 @@ class UiGlobalActionTool(
             required = """"required":["action"],""",
         )
 
+    /**
+     * Back acts inside the app in front, so that app is named and the policy refuses it for a banking or password
+     * app. The other actions leave the app or open system screens, and stay the way out of one.
+     */
+    override suspend fun targetPackage(call: ToolCall): String? =
+        if (call.arguments.string("action").equals("back", ignoreCase = true)) {
+            runCatching { reader.foreground()?.packageName }.getOrNull()
+        } else {
+            null
+        }
+
     override suspend fun execute(
         call: ToolCall,
         session: Session,

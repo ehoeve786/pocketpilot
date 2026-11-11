@@ -171,11 +171,13 @@ class SensorWatcher(
         type: Int,
         value: Float,
     ) {
+        // Two rules can watch the same line from opposite sides; the crossing is still one event.
+        val reported = HashSet<Float>()
         for (threshold in thresholds) {
             if (threshold.sensorType != type) continue
             val above = value > threshold.value
             val previous = side.put(threshold, above)
-            if (previous != null && previous != above) {
+            if (previous != null && previous != above && reported.add(threshold.value)) {
                 emit(
                     TriggerEvent(
                         "sensor.reading",
@@ -183,7 +185,7 @@ class SensorWatcher(
                             "sensor" to threshold.name,
                             "direction" to if (above) "above" else "below",
                             "threshold" to threshold.text,
-                            "reading" to "%.1f".format(value),
+                            "reading" to "%.1f".format(Locale.ROOT, value),
                         ),
                     ),
                 )

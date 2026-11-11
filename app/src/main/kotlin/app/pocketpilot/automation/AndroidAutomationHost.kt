@@ -54,6 +54,7 @@ import app.pocketpilot.core.policy.ConfirmationAnswer
 import app.pocketpilot.core.policy.ConfirmationRequest
 import app.pocketpilot.core.policy.Confirmer
 import app.pocketpilot.core.policy.PolicyEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -217,13 +218,25 @@ class AndroidAutomationHost(
         prompt: String,
         fromOutside: Boolean,
     ): AgentOutcome {
-        val run = agent().runForAutomation(prompt, fromOutside) ?: return AgentOutcome(NO_AGENT, costUsd = 0.0, ok = false)
+        val run =
+            try {
+                agent().runForAutomation(prompt, fromOutside)
+            } catch (e: CancellationException) {
+                // The rule was stopped, and the agent with it. What it spent until then is kept for the monthly limit.
+                stoppedAgentCost = agent().current.value?.costUsd
+                throw e
+            } ?: return AgentOutcome(NO_AGENT, costUsd = 0.0, ok = false)
         return AgentOutcome(
             summary = run.outcome ?: run.status.name.lowercase(),
             costUsd = run.costUsd,
             ok = run.status == RunStatus.FINISHED,
         )
     }
+
+    @Volatile
+    private var stoppedAgentCost: Double? = null
+
+    override fun takeStoppedAgentCost(): Double? = stoppedAgentCost.also { stoppedAgentCost = null }
 
     override suspend fun askText(prompt: String): AgentOutcome {
         val answer = agent().askText(prompt) ?: return AgentOutcome(NO_MODEL, costUsd = 0.0, ok = false)
@@ -603,6 +616,8 @@ class AndroidAutomationHost(
     fun release() {
         tts?.shutdown()
         tts = null
+        // No rule is on to hide them, so floating texts go too, and with them the once-a-second redraw of their timers.
+        floatingTexts.handle(mapOf("mode" to "hide_all"))
     }
 
     private companion object {

@@ -53,6 +53,7 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 
 /**
  * Runs the owner's automations: listens for triggers while any rule is on, sets alarms for timed
@@ -88,6 +89,14 @@ class AutomationRuntime(
 
     private val scheduled = ConcurrentHashMap<String, Unit>()
     private val lastFired = ConcurrentHashMap<String, Long>()
+
+    /** [lastFired] on disk, so an interval keeps counting across a restart of the app instead of starting over. */
+    private val intervalPrefs = context.getSharedPreferences("automation_intervals", Context.MODE_PRIVATE)
+
+    init {
+        intervalPrefs.all.forEach { (key, value) -> (value as? Long)?.let { lastFired[key] = it } }
+    }
+
     private var active = false
     private var started = false
 
@@ -180,7 +189,10 @@ class AutomationRuntime(
         val rule = store.rule(ruleId) ?: return
         val spec = rule.triggers.getOrNull(index) ?: return
         val now = System.currentTimeMillis()
-        lastFired[key(ruleId, index)] = now
+        // Counted from when the alarm was due, not from when it was delivered, so the interval does not drift later
+        // with each round. A fire far from its due time, such as after the phone was off, counts from now.
+        val due = lastFired[key(ruleId, index)]?.let { last -> Schedule.next(spec, last, last) }
+        markFired(key(ruleId, index), due?.takeIf { abs(now - it) < INTERVAL_SLACK_MS } ?: now)
         onEvent(TriggerEvent(spec.type, mapOf("time" to LocalTime.now().format(HH_MM)), ruleId))
         // A rule switched off, or rules paused, since the alarm was set gets no new alarm.
         if (rule in activeRules(store.data.value)) schedule(rule)
@@ -421,7 +433,9 @@ class AutomationRuntime(
         val now = System.currentTimeMillis()
         // An interval counts from when it was first scheduled. Without this, each reschedule restarts the intervals
         // that have not fired yet, so the longest one never comes due while a shorter one keeps firing.
-        rule.triggers.forEachIndexed { i, spec -> if (spec.type == "time.interval") lastFired.putIfAbsent(key(rule.id, i), now) }
+        rule.triggers.forEachIndexed { i, spec ->
+            if (spec.type == "time.interval" && !lastFired.containsKey(key(rule.id, i))) markFired(key(rule.id, i), now)
+        }
         val next =
             rule.triggers
                 .mapIndexedNotNull { i, spec -> Schedule.next(spec, now, lastFired[key(rule.id, i)])?.let { i to it } }
@@ -440,8 +454,22 @@ class AutomationRuntime(
         scheduled[rule.id] = Unit
     }
 
+    private fun markFired(
+        key: String,
+        at: Long,
+    ) {
+        lastFired[key] = at
+        intervalPrefs.edit().putLong(key, at).apply()
+    }
+
     private fun cancel(ruleId: String) {
         scheduled.remove(ruleId)
+        // A rule switched off and on again starts its interval afresh, not from where it stood before.
+        val stale = lastFired.keys.filter { it.startsWith("$ruleId#") }
+        if (stale.isNotEmpty()) {
+            stale.forEach(lastFired::remove)
+            intervalPrefs.edit().apply { stale.forEach(::remove) }.apply()
+        }
         val intent =
             PendingIntent.getBroadcast(
                 context,
@@ -561,6 +589,9 @@ class AutomationRuntime(
     ) = "$ruleId#$index"
 
     companion object {
+        /** How far from its due time an interval alarm may arrive and still count from the due time. */
+        const val INTERVAL_SLACK_MS = 2 * 60_000L
+
         /** The clock was set by hand or by the network: not a trigger, only a reason to set the alarms again. */
         const val CLOCK_SET = "time.clock_set"
 

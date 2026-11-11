@@ -71,6 +71,9 @@ object A11yFloatingText {
         return true
     }
 
+    /** True while the Accessibility service that draws the texts is on. */
+    fun available(): Boolean = A11yBridge.service() != null
+
     /** Changes only the words of text [id], for a part that counts by itself; nothing happens when it is not shown. */
     fun setText(
         id: String,

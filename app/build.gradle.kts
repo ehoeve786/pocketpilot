@@ -3,12 +3,20 @@ plugins {
     alias(libs.plugins.pocketpilot.hilt)
 }
 
-// The version follows the commit count, so each build installs over the one before it. A checkout without history counts 1.
+// The version follows the commit count, so each build installs over the one before it. Git and the repository's history
+// must be there: a source archive without them fails here. CI sets POCKETPILOT_VERSION_CODE for a pull request's build to
+// the count its squash merge will have (the base's count plus one). Counting the pull request's own commits would put
+// its debug APK above the next builds from main, and Android refuses to install a lower version over a higher one.
 val commitCount =
     providers
-        .exec { commandLine("git", "rev-list", "--count", "HEAD") }
-        .standardOutput.asText
-        .map { it.trim().toIntOrNull() ?: 1 }
+        .environmentVariable("POCKETPILOT_VERSION_CODE")
+        .map { it.trim().toInt() }
+        .orElse(
+            providers
+                .exec { commandLine("git", "rev-list", "--count", "HEAD") }
+                .standardOutput.asText
+                .map { it.trim().toIntOrNull() ?: 1 },
+        )
 
 android {
     namespace = "app.pocketpilot"
