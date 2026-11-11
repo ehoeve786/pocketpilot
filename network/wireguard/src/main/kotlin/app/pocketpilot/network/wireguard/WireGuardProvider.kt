@@ -12,12 +12,14 @@ import app.pocketpilot.network.gonet.gen.ppnet.Tunnel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.net.InetAddress
 
 /** What the owner set up for WireGuard, without the private key. */
 data class WireGuardSetup(
@@ -101,14 +103,24 @@ class WireGuardProvider(
         poller =
             scope.launch(Dispatchers.IO) {
                 stopping?.join()
-                try {
-                    tunnel().start(config)
-                } catch (e: Throwable) {
-                    // The stack trace goes to logcat; the screen shows only what failed, not the code it failed in.
-                    Log.e(TAG, "WireGuard failed to start", e)
-                    mutableState.value = NetworkState.Error(e.message ?: e.toString())
-                    return@launch
+                // The server's name may not resolve yet, right after boot or with no network. That is tried again,
+                // more slowly each time, instead of leaving the tunnel off until the owner switches it on again.
+                var wait = START_RETRY_MS
+                while (isActive) {
+                    try {
+                        tunnel().start(config)
+                        break
+                    } catch (e: Throwable) {
+                        // The stack trace goes to logcat; the screen shows only what failed, not the code it failed in.
+                        Log.e(TAG, "WireGuard failed to start", e)
+                        mutableState.value = NetworkState.Error(e.message ?: e.toString())
+                        delay(wait)
+                        wait = (wait * 2).coerceAtMost(START_RETRY_MAX_MS)
+                    }
                 }
+                val host = mutableSetup.value.serverHost
+                var endpoint = host?.let(::addressesOf)
+                var endpointCheckedAt = System.currentTimeMillis()
                 var followedAt = 0L
                 while (isActive) {
                     val before = state.value
@@ -118,6 +130,23 @@ class WireGuardProvider(
                     if (state.value is NetworkState.Connected && now - followedAt > FOLLOW_RELAY_MS) {
                         followedAt = now
                         mutableSetup.value.serverHost?.let { certificates.followRelay(it) }
+                    }
+                    // The tunnel looks up the server's name once, when it starts. When the name now leads somewhere
+                    // else, such as a home connection that got a new address, it is started again to follow it.
+                    if (host != null && now - endpointCheckedAt > ENDPOINT_CHECK_MS) {
+                        endpointCheckedAt = now
+                        val current = addressesOf(host)
+                        val moved = current != null && endpoint?.let { known -> known.intersect(current).isEmpty() } == true
+                        if (current != null) endpoint = current
+                        if (moved) {
+                            Log.i(TAG, "The WireGuard server's address changed; restarting the tunnel")
+                            runCatching {
+                                tunnel().stop()
+                                // Not started again when the owner paused or stopped the tunnel meanwhile.
+                                if (isActive) tunnel().start(config)
+                                if (!isActive) tunnel().stop()
+                            }.onFailure { mutableState.value = NetworkState.Error(it.message ?: it.toString()) }
+                        }
                     }
                     // A tunnel that stays up is read less often; the handshake time alone is not a change.
                     poll.await(connected = state.value is NetworkState.Connected, changed = state.value != before)
@@ -169,6 +198,12 @@ class WireGuardProvider(
             }
     }
 
+    /** The addresses [host] resolves to now; null when it cannot be looked up, empty never. */
+    private fun addressesOf(host: String): Set<String>? =
+        runCatching { InetAddress.getAllByName(host).mapNotNull { it.hostAddress }.toSet() }
+            .getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+
     private fun setupFrom(config: String?): WireGuardSetup {
         if (config == null) return WireGuardSetup()
         return WireGuardSetup(configured = true, serverHost = serverHostOf(config))
@@ -187,5 +222,8 @@ class WireGuardProvider(
         const val KEY_ENABLED = "enabled"
         const val SECRET_CONFIG = "wireguard_config"
         const val FOLLOW_RELAY_MS = 15 * 60_000L
+        const val ENDPOINT_CHECK_MS = 5 * 60_000L
+        const val START_RETRY_MS = 15_000L
+        const val START_RETRY_MAX_MS = 5 * 60_000L
     }
 }

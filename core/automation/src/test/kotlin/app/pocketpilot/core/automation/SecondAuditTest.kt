@@ -35,4 +35,14 @@ class SecondAuditTest {
         val kind = AutomationCatalog.action("sensor.read")!!.kind as ActionKind.Tool
         assertEquals("123.4", kind.result("light: 123.4"))
     }
+
+    @Test
+    fun `a number field that is not a number is a problem, and a fractional interval still schedules`() {
+        val bad = rule().copy(triggers = listOf(TriggerSpec("time.interval", mapOf("minutes" to "soon"))))
+        assertTrue(RuleValidator.problems(bad).any { "must be a number" in it })
+        val fractional = TriggerSpec("time.interval", mapOf("minutes" to "1.5"))
+        assertEquals(120_000L, Schedule.next(fractional, after = 0, lastFiredAt = 0))
+        val huge = TriggerSpec("time.interval", mapOf("minutes" to "9999999999999999"))
+        assertTrue(Schedule.next(huge, after = 0, lastFiredAt = 0)!! > 0)
+    }
 }

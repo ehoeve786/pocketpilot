@@ -111,6 +111,8 @@ object Describe {
 
 /** When scheduled triggers fire next. */
 object Schedule {
+    private const val MAX_INTERVAL_MINUTES = 366L * 24 * 60
+
     /** The next time after [after] that [spec] fires, or null if it is not a schedule. */
     fun next(
         spec: TriggerSpec,
@@ -138,7 +140,9 @@ object Schedule {
             }
 
             "time.interval" -> {
-                val minutes = params.p("minutes").toLongOrNull()?.coerceAtLeast(1) ?: return null
+                // "1.5" rounds up to whole minutes, and a year at most keeps the multiplication from overflowing.
+                val asked = params.p("minutes").trim().toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
+                val minutes = kotlin.math.ceil(asked).toLong().coerceIn(1, MAX_INTERVAL_MINUTES)
                 val period = minutes * 60_000
                 val base = lastFiredAt ?: after
                 (base + period).coerceAtLeast(after + 1_000)

@@ -531,7 +531,10 @@ class AutomationEngine(
         }
         when (step.type) {
             "notify.act" -> {
-                val listed = AutomationJson.json.parseToJsonElement(callTool(context, "notify.list", JsonObject(emptyMap()))).jsonObject
+                val list = callTool(context, "notify.list", args("limit" to NOTIFY_SEARCH))
+                val listed = AutomationJson.json.parseToJsonElement(list).jsonObject
+                // notify.list shows runs of 4 to 8 digits as "[code]", so the filter is masked the same way to still match.
+                val wanted = MASKED_DIGITS.replace(params.p("text"), "[code]")
                 val match =
                     (listed["notifications"] as? JsonArray)
                         ?.map { it.jsonObject }
@@ -539,7 +542,7 @@ class AutomationEngine(
                             val pkg = n["package"]?.jsonPrimitive?.contentOrNull
                             val title = n["title"]?.jsonPrimitive?.contentOrNull
                             val text = n["text"]?.jsonPrimitive?.contentOrNull
-                            anyOf(params.p("apps"), pkg) && (containsText(params.p("text"), title) || containsText(params.p("text"), text))
+                            anyOf(params.p("apps"), pkg) && (containsText(wanted, title) || containsText(wanted, text))
                         } ?: throw AutomationFailure("No matching notification")
                 val key = match["key"]?.jsonPrimitive?.contentOrNull ?: throw AutomationFailure("No matching notification")
                 callTool(
@@ -1132,6 +1135,10 @@ class AutomationEngine(
                     "shell.exec",
                     "tool.call",
                 )
+        private val MASKED_DIGITS = Regex("""\b\d{4,8}\b""")
+
+        /** How many notifications "Act on a notification" looks through; the tool's own limit. */
+        private const val NOTIFY_SEARCH = 100
         private val PLACEHOLDER = Regex("""\{[^{}]+\}""")
         private val CLICKABLE = Regex("""\bclick\b""")
         private val BOUNDS = Regex("""\[(-?\d+),(-?\d+),(-?\d+),(-?\d+)]""")
