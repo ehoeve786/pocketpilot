@@ -349,10 +349,10 @@ internal object Triggers {
                 match = { p, e, previous ->
                     val limit = p.p("percent").toIntOrNull()
                     val now = e["level"]?.toIntOrNull()
+                    // The level before must be known: the first reading after the app starts is not a crossing.
                     val before = previous?.get("level")?.toIntOrNull()
                     when {
                         limit == null || now == null -> false
-                        // The level before must be known: the first reading after the app starts is not a crossing.
                         before == null -> false
                         p.p("direction") == "above" -> now > limit && before <= limit
                         else -> now < limit && before >= limit

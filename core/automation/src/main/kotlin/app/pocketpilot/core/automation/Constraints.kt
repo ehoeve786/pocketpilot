@@ -204,7 +204,8 @@ internal object Constraints {
                     // named network holds neither way.
                     val nameUnknown = ssid == StateKeys.WIFI_NAME_UNKNOWN && p.p("ssid").isNotBlank()
                     val on = ssid != null && anyOf(p.p("ssid"), ssid)
-                    if (nameUnknown) false else if (p.p("mode") == "not_connected") !on else on
+                    val holds = if (p.p("mode") == "not_connected") !on else on
+                    !nameUnknown && holds
                 },
             ),
             stateIs("wifi.enabled", Category.CONNECTIVITY, "Wi-Fi on", StateKeys.WIFI_ENABLED, "Wi-Fi"),
