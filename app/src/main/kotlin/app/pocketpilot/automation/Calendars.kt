@@ -76,19 +76,32 @@ class Calendars(
             ?.use { cursor ->
                 buildList {
                     while (cursor.moveToNext() && size < MAX_INSTANCES) {
+                        val allDay = cursor.getInt(4) == 1
                         add(
                             CalendarInstance(
                                 title = cursor.getString(0).orEmpty(),
                                 location = cursor.getString(1).orEmpty(),
-                                begin = cursor.getLong(2),
-                                end = cursor.getLong(3),
-                                allDay = cursor.getInt(4) == 1,
+                                // Android keeps an all-day event from midnight to midnight in UTC; the day meant is the
+                                // local one, so both ends move to local midnight.
+                                begin = cursor.getLong(2).let { if (allDay) localMidnight(it) else it },
+                                end = cursor.getLong(3).let { if (allDay) localMidnight(it) else it },
+                                allDay = allDay,
                             ),
                         )
                     }
                 }
             }.orEmpty()
     }
+
+    /** The local midnight of the day that [utcMidnight], a UTC midnight, names. */
+    private fun localMidnight(utcMidnight: Long): Long =
+        Instant
+            .ofEpochMilli(utcMidnight)
+            .atZone(UTC_ZONE)
+            .toLocalDate()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
 
     /** Titles of the timed events happening now, one per line; null without calendar access. */
     fun now(): String? {
@@ -205,13 +218,13 @@ class Calendars(
             ),
         )
 
-    /** All-day events are stored at midnight UTC, so their date is read in UTC; timed events in the phone's zone. */
+    /** An all-day event's ends are already at local midnight (see [instances]), so every time reads in the phone's zone. */
     private fun whenText(
         millis: Long,
         allDay: Boolean,
     ): String =
         if (allDay) {
-            Instant.ofEpochMilli(millis).atZone(UTC_ZONE).format(DAY)
+            Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(DAY)
         } else {
             Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(DAY_TIME)
         }

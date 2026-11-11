@@ -88,7 +88,8 @@ object ListenerNotificationSource : NotificationSource {
             .activeNotifications
             .orEmpty()
             .filter { it.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0 }
-            .map { it.toPhoneNotification() }
+            // One notification that cannot be read, such as one with a broken extra, does not fail the whole list.
+            .mapNotNull { runCatching { it.toPhoneNotification() }.getOrNull() }
             .filter { it.title != null || it.text != null }
             .sortedByDescending { it.postedAtMillis }
 

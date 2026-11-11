@@ -253,6 +253,9 @@ object StateKeys {
     const val LOCKED = "screen.locked"
     const val WIFI_ENABLED = "wifi.enabled"
     const val WIFI_SSID = "wifi.ssid"
+
+    /** What [WIFI_SSID] answers when the phone is on Wi-Fi but cannot read the network's name. */
+    const val WIFI_NAME_UNKNOWN = "<unknown ssid>"
     const val BLUETOOTH_ENABLED = "bluetooth.enabled"
 
     /** Names of connected Bluetooth devices, one per line. */

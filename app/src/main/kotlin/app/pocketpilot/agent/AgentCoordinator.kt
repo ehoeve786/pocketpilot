@@ -19,6 +19,7 @@ import app.pocketpilot.agent.runtime.ProfileStore
 import app.pocketpilot.agent.runtime.ProviderKind
 import app.pocketpilot.agent.runtime.RunModel
 import app.pocketpilot.agent.runtime.RunState
+import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.TextAnswer
 import app.pocketpilot.agent.runtime.TextAsk
 import app.pocketpilot.agent.runtime.ToolMode
@@ -264,7 +265,7 @@ class AgentCoordinator(
             estimateCost = { input, output -> estimateCost(descriptor, input.toInt(), output.toInt()) },
             maxOutputTokens = (descriptor.maxOutputTokens ?: MAX_OUTPUT_TOKENS).coerceAtMost(MAX_OUTPUT_TOKENS),
             fallback = fallback,
-            label = profile.name,
+            label = labelOf(profile),
         )
     }
 
@@ -321,13 +322,31 @@ class AgentCoordinator(
         }
 
     private suspend fun refreshHistory() {
-        mutableHistory.value = withContext(Dispatchers.IO) { runs.list() }
+        val live = current.value?.takeIf { it.active }?.id
+        mutableHistory.value =
+            withContext(Dispatchers.IO) { runs.list() }
+                // Chats can no longer be opened or deleted from the app, so they are left out; the store prunes them.
+                .filterNot { it.conversation }
+                // A run saved as still going, though none is: the app was closed under it. It ended there.
+                .map { if (it.status in UNFINISHED && it.id != live) it.copy(status = RunStatus.STOPPED, outcome = INTERRUPTED) else it }
+    }
+
+    /**
+     * The name a profile's model goes by in the run log and on Home. Two profiles with the same name, such as two
+     * left on the provider's own name, get a number, so each has its own health light.
+     */
+    fun labelOf(profile: AgentProfile): String {
+        val sameName = profiles.profiles.value.filter { it.name == profile.name }
+        val position = sameName.indexOfFirst { it.id == profile.id }
+        return if (position <= 0) profile.name else "${profile.name} ${position + 1}"
     }
 
     private companion object {
         /** Everything the local token gets: raw shell and Termux stay behind their own toggles. */
         val AGENT_SCOPES = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN)
         const val KEY_SEPARATOR = "\n"
+        const val INTERRUPTED = "Interrupted: the app was closed while it ran"
+        val UNFINISHED = setOf(RunStatus.RUNNING, RunStatus.PAUSED, RunStatus.WAITING)
         const val MAX_PROBLEM_CHARS = 200
         const val MAX_OUTPUT_TOKENS = 4096
     }

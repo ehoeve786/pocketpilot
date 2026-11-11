@@ -77,6 +77,12 @@ jobs:
       - name: Android lint
         run: ./gradlew :app:lintDebug
 
+      # A pull request is built at its merge commit, whose first parent is the base branch. Its version is the base's
+      # commit count plus one, which is what main has after a squash merge, so the main build installs over this one.
+      - name: Version a pull request's build as its merge will be
+        if: github.event_name == 'pull_request'
+        run: echo "POCKETPILOT_VERSION_CODE=$(( $(git rev-list --count HEAD^1) + 1 ))" >> "$GITHUB_ENV"
+
       - name: Assemble the debug APK
         run: ./gradlew :app:assembleDebug
 

@@ -173,7 +173,9 @@ class HardwareWatch(
         if (newest.id <= lastPhotoId) return
         lastPhotoId = newest.id
         if (newest.path.contains("DCIM")) {
-            emit(TriggerEvent("photo.taken", mapOf("name" to newest.name, "path" to newest.path)))
+            // The folder alone was no use to a file step: the path now ends in the photo's name.
+            val file = "/storage/emulated/0/" + newest.path.trim('/') + "/" + newest.name
+            emit(TriggerEvent("photo.taken", mapOf("name" to newest.name, "path" to file, "folder" to newest.path)))
         }
     }
 

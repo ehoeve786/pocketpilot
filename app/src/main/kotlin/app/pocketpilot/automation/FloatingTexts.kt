@@ -149,6 +149,11 @@ class FloatingTexts(
                     delay(MS_PER_SECOND - clock.nowMillis() % MS_PER_SECOND)
                     // With the screen off nobody can see it; the next tick after it turns on catches up.
                     if (!power.isInteractive) continue
+                    // The Accessibility service went away and took the texts with it: nothing is left to redraw.
+                    if (!A11yFloatingText.available()) {
+                        live.clear()
+                        break
+                    }
                     live.forEach { (id, template) -> A11yFloatingText.setText(id, render(template)) }
                 }
             }

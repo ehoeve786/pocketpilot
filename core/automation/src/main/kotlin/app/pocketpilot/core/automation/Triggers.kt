@@ -352,8 +352,10 @@ internal object Triggers {
                     val before = previous?.get("level")?.toIntOrNull()
                     when {
                         limit == null || now == null -> false
-                        p.p("direction") == "above" -> now > limit && (before == null || before <= limit)
-                        else -> now < limit && (before == null || before >= limit)
+                        // The level before must be known: the first reading after the app starts is not a crossing.
+                        before == null -> false
+                        p.p("direction") == "above" -> now > limit && before <= limit
+                        else -> now < limit && before >= limit
                     }
                 },
             ),

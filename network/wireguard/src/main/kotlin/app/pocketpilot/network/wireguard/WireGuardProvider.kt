@@ -124,7 +124,7 @@ class WireGuardProvider(
                 var followedAt = 0L
                 while (isActive) {
                     val before = state.value
-                    refresh()
+                    refresh { isActive }
                     // Also catches a domain set after the tunnel came up, and a router whose address changed.
                     val now = System.currentTimeMillis()
                     if (state.value is NetworkState.Connected && now - followedAt > FOLLOW_RELAY_MS) {
@@ -181,8 +181,10 @@ class WireGuardProvider(
     @Synchronized
     private fun tunnel(): Tunnel = createdTunnel ?: Ppnet.newTunnel(targetPort.toLong(), certificates.native).also { createdTunnel = it }
 
-    private fun refresh() {
+    /** Reads the tunnel's state. [wanted] is asked after the read: a tunnel paused meanwhile keeps its Stopped state. */
+    private fun refresh(wanted: () -> Boolean) {
         val status = runCatching { JSONObject(createdTunnel?.status() ?: return) }.getOrNull() ?: return
+        if (!wanted()) return
         val address = status.optJSONArray("addresses")?.optString(0).orEmpty()
         val handshake = status.optLong("lastHandshake")
         val error = status.optString("error").takeIf(String::isNotEmpty)

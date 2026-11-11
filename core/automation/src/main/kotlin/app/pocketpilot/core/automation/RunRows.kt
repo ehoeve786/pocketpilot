@@ -17,6 +17,7 @@ object RunRows {
     private val SNAPSHOT = Regex("""^snapshot (\S+)""")
     private val DAY = Regex("""text "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) *"""")
     private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - \d{1,2}:\d{2} [AP]M)[^"]*".*\bclick\b""")
+    private const val DAY_CODE_LENGTH = 3
     private val DAY_CODES =
         mapOf(
             "mon" to "Monday",
@@ -32,7 +33,8 @@ object RunRows {
     fun dayNames(codes: String): Set<String> =
         codes
             .split(",")
-            .mapNotNull { DAY_CODES[it.trim().lowercase()] }
+            // "monday" and "Mon" read as "mon", as the rule checker accepts them.
+            .mapNotNull { DAY_CODES[it.trim().lowercase().take(DAY_CODE_LENGTH)] }
             .toSet()
 
     /** The first run on one of [days] (full day names) starting from [from] to [to] (both HH:mm, inclusive), or null. */

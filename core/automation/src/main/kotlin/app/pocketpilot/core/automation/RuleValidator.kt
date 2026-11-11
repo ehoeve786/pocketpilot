@@ -215,9 +215,18 @@ object RuleValidator {
         params: Map<String, String>,
     ): List<FieldDef> = fields.filter { it.required && it.default == null && params[it.key].isNullOrBlank() }
 
-    /** [params] with every field's default filled in where it is missing. */
+    /** Optional range bounds: one the owner cleared means "no limit", so it is kept blank and not refilled. */
+    val OPEN_WHEN_CLEARED = setOf("min", "max")
+
+    /**
+     * [params] with every field's default filled in where it is missing. A blank value counts as missing, except an
+     * optional bound in [OPEN_WHEN_CLEARED] that is there but blank: the owner emptied it to leave that side open.
+     */
     fun withDefaults(
         fields: List<FieldDef>,
         params: Map<String, String>,
-    ): Map<String, String> = fields.mapNotNull { f -> f.default?.let { f.key to it } }.toMap() + params.filterValues { it.isNotEmpty() }
+    ): Map<String, String> {
+        val cleared = fields.filter { !it.required && it.key in OPEN_WHEN_CLEARED && params[it.key] == "" }.associate { it.key to "" }
+        return fields.mapNotNull { f -> f.default?.let { f.key to it } }.toMap() + params.filterValues { it.isNotEmpty() } + cleared
+    }
 }

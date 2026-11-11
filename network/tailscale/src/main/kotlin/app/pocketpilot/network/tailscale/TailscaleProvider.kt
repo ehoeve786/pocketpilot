@@ -115,7 +115,7 @@ class TailscaleProvider(
         poller = null
         scope.launch(nodeDispatcher) { runCatching { createdNode?.stop() } }
         mutableState.value = NetworkState.Stopped
-        mutablePublic.value = PublicAccessState(enabled = false)
+        mutablePublic.value = PublicAccessState(enabled = false, autoOffMinutes = autoOff.minutes)
     }
 
     /** Stops the node when the foreground service ends, but keeps it on for the next [resume]. */

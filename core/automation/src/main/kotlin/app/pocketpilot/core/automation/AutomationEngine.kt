@@ -98,6 +98,9 @@ interface AutomationHost {
         fromOutside: Boolean,
     ): AgentOutcome
 
+    /** What an agent run had cost when its rule was stopped, given once; null when none was stopped. */
+    fun takeStoppedAgentCost(): Double? = null
+
     /** Asks the owner's AI model [prompt] as text only, with no tools and no look at the phone. */
     suspend fun askText(prompt: String): AgentOutcome = AgentOutcome("This build cannot ask AI", costUsd = null, ok = false)
 
@@ -187,8 +190,13 @@ class AutomationEngine(
         return try {
             run.await()
         } catch (e: CancellationException) {
-            // Stopped by the owner: the run still saved its record. A cancelled caller stops here instead.
-            currentCoroutineContext().ensureActive()
+            // A caller that was cancelled, such as an AI app's call that ran out of time, takes the run with it:
+            // nobody is waiting for it any more.
+            if (!currentCoroutineContext().isActive) {
+                stop(rule.id)
+                throw e
+            }
+            // Stopped by the owner: the run still saved its record.
             store.data.value.runs
                 .firstOrNull { it.ruleId == rule.id }
         }
@@ -297,7 +305,8 @@ class AutomationEngine(
             onEvent(
                 TriggerEvent(
                     RULE_FINISHED,
-                    mapOf("ruleId" to rule.id, "outcome" to if (outcome == RunOutcome.OK) "ok" else "failed"),
+                    // "rule" is the name the trigger advertises for {trigger.rule}; "ruleId" is what its check reads.
+                    mapOf("ruleId" to rule.id, "rule" to rule.name, "outcome" to if (outcome == RunOutcome.OK) "ok" else "failed"),
                     fromOutside = fromOutside,
                     chain = chain + rule.id,
                 ),
@@ -396,7 +405,14 @@ class AutomationEngine(
         if (cap != null && spent >= cap) {
             throw AutomationFailure("The monthly AI limit for automations ($${"%.2f".format(cap)}) is reached")
         }
-        val outcome = ask()
+        val outcome =
+            try {
+                ask()
+            } catch (e: CancellationException) {
+                // The rule was stopped while the agent worked. What it had spent by then still counts.
+                host.takeStoppedAgentCost()?.let { store.addAgentSpend(month, it) }
+                throw e
+            }
         outcome.costUsd?.let { store.addAgentSpend(month, it) }
         if (!outcome.ok) throw AutomationFailure(outcome.summary)
         return outcome.summary
@@ -938,7 +954,14 @@ class AutomationEngine(
                             RuleValidator
                                 .withDefaults(def.fields, node.spec.params)
                                 .mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
-                        runCatching { def.check(scope, params) }.getOrDefault(false)
+                        try {
+                            def.check(scope, params)
+                        } catch (e: CancellationException) {
+                            // Stopped while a condition was being read: the run ends as stopped, not as skipped.
+                            throw e
+                        } catch (e: Exception) {
+                            false
+                        }
                     }
 
                     is ConstraintNode.Group -> {

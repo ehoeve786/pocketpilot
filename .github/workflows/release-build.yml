@@ -39,7 +39,7 @@ jobs:
           cache-read-only: true
 
       # The release key comes from repository secrets. It is decoded into the runner's temporary folder and never written
-      # to the repository. Without the secrets the build stays unsigned.
+      # to the repository. Without the secrets this step fails, so an unsigned APK is never uploaded.
       - name: Decode the release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}

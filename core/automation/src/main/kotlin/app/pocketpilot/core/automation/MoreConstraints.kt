@@ -52,9 +52,11 @@ internal object MoreConstraints {
                 ),
         source = source,
         sentence = { p ->
-            val low = p.p("min").ifBlank { min }
-            val high = p.p("max").ifBlank { max }
+            // Blank here is a bound the owner cleared; the defaults were filled in before this for one never set.
+            val low = p.p("min")
+            val high = p.p("max")
             when {
+                low.isBlank() && high.isBlank() -> "$noun, any value"
                 high.isBlank() -> "$noun at least $low $unit"
                 low.isBlank() || low == "0" -> "$noun at most $high $unit"
                 else -> "$noun $low to $high $unit"
