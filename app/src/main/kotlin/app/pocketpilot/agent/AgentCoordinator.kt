@@ -90,7 +90,7 @@ class AgentCoordinator(
     ): RunState? {
         val chain = profiles.profiles.value.filter(::usable)
         if (chain.isEmpty() || current.value?.active == true) return null
-        // A run another app or an outside event started gets no extra scopes: the owner's switches are for the owner's runs.
+        // A run an AI app started gets no extra scopes: the owner's switches are for the owner's runs.
         val scopes = if (fromOutside) AGENT_SCOPES else AGENT_SCOPES + extraScopes()
         val run =
             try {

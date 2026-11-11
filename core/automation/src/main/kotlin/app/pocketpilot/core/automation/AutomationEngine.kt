@@ -152,7 +152,10 @@ class AutomationEngine(
                 rule,
                 Describe.trigger(trigger, host::appName),
                 event.data,
-                fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS,
+                // What happens on the phone (a notification, a text message, a tap, another app's broadcast) starts the
+                // owner's rule as the owner set it up, with its approvals. Only a run an AI app asked for, or one such a
+                // run set off, counts as coming from outside.
+                fromOutside = event.fromOutside,
                 chain = event.chain,
                 triggerType = event.type,
             )
@@ -441,7 +444,7 @@ class AutomationEngine(
         if (!def.conditional && !step.constraints.isEmpty && !holds(context, step.constraints)) return "skipped, conditions did not hold"
         if (context.fromOutside && step.type in OUTSIDE_REFUSED) {
             throw AutomationFailure(
-                "Not run: an outside app, event or AI app started this automation, so it cannot ${def.title.lowercase()}",
+                "Not run: an AI app started this automation, so it cannot ${def.title.lowercase()}",
             )
         }
         // Any placeholder can carry outside data (event fields, variables set from them), so an outside run may
@@ -449,7 +452,7 @@ class AutomationEngine(
         val steeredFromOutside = step.type in OUTSIDE_FIXED_ONLY && step.params.values.any { PLACEHOLDER.containsMatchIn(it) }
         if (context.fromOutside && steeredFromOutside) {
             throw AutomationFailure(
-                "Not run: an outside app, event or AI app started this automation, so its data cannot choose what ${def.title} acts on",
+                "Not run: an AI app started this automation, so its data cannot choose what ${def.title} acts on",
             )
         }
         // An AI answer is not checked, and a screen can steer it, so it may not choose what a sensitive step acts on.
@@ -531,7 +534,10 @@ class AutomationEngine(
         }
         when (step.type) {
             "notify.act" -> {
-                val listed = AutomationJson.json.parseToJsonElement(callTool(context, "notify.list", JsonObject(emptyMap()))).jsonObject
+                val list = callTool(context, "notify.list", args("limit" to NOTIFY_SEARCH))
+                val listed = AutomationJson.json.parseToJsonElement(list).jsonObject
+                // notify.list shows runs of 4 to 8 digits as "[code]", so the filter is masked the same way to still match.
+                val wanted = MASKED_DIGITS.replace(params.p("text"), "[code]")
                 val match =
                     (listed["notifications"] as? JsonArray)
                         ?.map { it.jsonObject }
@@ -539,7 +545,7 @@ class AutomationEngine(
                             val pkg = n["package"]?.jsonPrimitive?.contentOrNull
                             val title = n["title"]?.jsonPrimitive?.contentOrNull
                             val text = n["text"]?.jsonPrimitive?.contentOrNull
-                            anyOf(params.p("apps"), pkg) && (containsText(params.p("text"), title) || containsText(params.p("text"), text))
+                            anyOf(params.p("apps"), pkg) && (containsText(wanted, title) || containsText(wanted, text))
                         } ?: throw AutomationFailure("No matching notification")
                 val key = match["key"]?.jsonPrimitive?.contentOrNull ?: throw AutomationFailure("No matching notification")
                 callTool(
@@ -1132,6 +1138,10 @@ class AutomationEngine(
                     "shell.exec",
                     "tool.call",
                 )
+        private val MASKED_DIGITS = Regex("""\b\d{4,8}\b""")
+
+        /** How many notifications "Act on a notification" looks through; the tool's own limit. */
+        private const val NOTIFY_SEARCH = 100
         private val PLACEHOLDER = Regex("""\{[^{}]+\}""")
         private val CLICKABLE = Regex("""\bclick\b""")
         private val BOUNDS = Regex("""\[(-?\d+),(-?\d+),(-?\d+),(-?\d+)]""")
@@ -1190,33 +1200,6 @@ class AutomationEngine(
 
         /** The "Any broadcast" trigger; any app can send a broadcast with an action the owner watches. */
         const val INTENT_ACTION = "intent.action"
-
-        /**
-         * Events another party can cause (a sender, another app, a nearby device, a rogue access point), so
-         * their runs get none of the owner's pre-approvals.
-         */
-        private val OUTSIDE_EVENTS =
-            setOf(
-                INTENT_RECEIVED,
-                INTENT_ACTION,
-                "sms.received",
-                "notification.posted",
-                "notification.removed",
-                "call.changed",
-                "bluetooth.device",
-                "screen.text",
-                "screen.click",
-                "log.line",
-                "media.changed",
-                "app.crash",
-                "calendar.event",
-                "wifi.connected",
-                // A network's, device's or photo's name is chosen by whoever set it up.
-                "wifi.disconnected",
-                "headset.changed",
-                "usb.device",
-                "photo.taken",
-            )
 
         private val UNTRUSTED_TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)
         private val LOG_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SSS")

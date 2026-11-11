@@ -251,6 +251,11 @@ class ShizukuInputController(
             }
             tap(target)
             delay(FOCUS_SETTLE_MS)
+            // The element is from an earlier read of the screen. If the screen moved on since, such as from a user
+            // name step to a password step, the tap put the keyboard in a different field.
+            if (reader.snapshot(SnapshotOptions(internal = true)).elements.any { it.password && it.focused }) {
+                throw passwordFieldRefused()
+            }
             if (existing > 0) {
                 val deletes = IntArray(existing) { KEYCODE_DEL }
                 shizuku.call { it.keyEvents(intArrayOf(KEYCODE_MOVE_END) + deletes) }

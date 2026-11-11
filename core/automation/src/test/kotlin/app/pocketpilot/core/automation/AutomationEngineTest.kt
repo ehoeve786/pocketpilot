@@ -1195,7 +1195,7 @@ class AutomationEngineTest {
                     data = mapOf("url" to "https://example.com"),
                     fromOutside = true,
                 )
-            assertTrue(record.lines.any { "Not run: an outside app, event or AI app" in it }, record.lines.joinToString("\n"))
+            assertTrue(record.lines.any { "Not run: an AI app" in it }, record.lines.joinToString("\n"))
             assertTrue(host.calls.isEmpty())
         }
 
@@ -1413,7 +1413,7 @@ class AutomationEngineTest {
     }
 
     @Test
-    fun `a run started by an event from another app is marked as coming from outside`() =
+    fun `a run started by an event from another app runs as the owner's rule`() =
         runTest {
             val host = FakeHost()
             val store = RuleStore(MemoryPersistence(), clock)
@@ -1428,11 +1428,11 @@ class AutomationEngineTest {
             engine.onEvent(TriggerEvent("intent.received", mapOf("event" to "arrived")))
             advanceUntilIdle()
 
-            assertEquals(listOf(true), host.outside)
+            assertEquals(listOf(false), host.outside)
         }
 
     @Test
-    fun `a run started by a tap in another app is marked as coming from outside`() =
+    fun `a run started by a tap in another app runs as the owner's rule`() =
         runTest {
             val host = FakeHost()
             val store = RuleStore(MemoryPersistence(), clock)
@@ -1447,11 +1447,11 @@ class AutomationEngineTest {
             engine.onEvent(TriggerEvent("screen.click", mapOf("text" to "Accept", "package" to "com.doordash.driverapp")))
             advanceUntilIdle()
 
-            assertEquals(listOf(true), host.outside)
+            assertEquals(listOf(false), host.outside)
         }
 
     @Test
-    fun `a run started by a broadcast from another app is marked as coming from outside`() =
+    fun `a run started by a broadcast from another app runs as the owner's rule`() =
         runTest {
             val host = FakeHost()
             val store = RuleStore(MemoryPersistence(), clock)
@@ -1465,11 +1465,11 @@ class AutomationEngineTest {
             engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.DONE")))
             advanceUntilIdle()
 
-            assertEquals(listOf(true), host.outside)
+            assertEquals(listOf(false), host.outside)
         }
 
     @Test
-    fun `a run started by a text from a stranger is marked as coming from outside`() =
+    fun `a run started by a text message runs as the owner's rule`() =
         runTest {
             val host = FakeHost()
             val store = RuleStore(MemoryPersistence(), clock)
@@ -1483,7 +1483,7 @@ class AutomationEngineTest {
             engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi")))
             advanceUntilIdle()
 
-            assertEquals(listOf(true), host.outside)
+            assertEquals(listOf(false), host.outside)
         }
 
     @Test
@@ -1509,7 +1509,7 @@ class AutomationEngineTest {
                     .copy(id = "follower", triggers = listOf(TriggerSpec("variable.changed", mapOf("name" to "mode")))),
             )
 
-            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.SET")))
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.SET"), fromOutside = true))
             advanceUntilIdle()
 
             assertEquals(listOf(true, true), host.outside)
@@ -1529,7 +1529,7 @@ class AutomationEngineTest {
                     .copy(id = "second", triggers = listOf(TriggerSpec("rule.finished", mapOf("rule" to "first", "outcome" to "ok")))),
             )
 
-            engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi")))
+            engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi"), fromOutside = true))
             advanceUntilIdle()
 
             assertEquals(listOf(true, true), host.outside)
@@ -1556,7 +1556,7 @@ class AutomationEngineTest {
                     .copy(id = "b", triggers = listOf(TriggerSpec("variable.changed", mapOf("name" to "x")))),
             )
 
-            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.GO")))
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.GO"), fromOutside = true))
             advanceUntilIdle()
 
             assertEquals(listOf(true, true), host.outside)

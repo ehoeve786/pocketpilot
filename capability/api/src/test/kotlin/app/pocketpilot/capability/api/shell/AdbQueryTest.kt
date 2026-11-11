@@ -65,6 +65,8 @@ class AdbQueryTest {
             "ls -R",
             "pm dump com.example.app",
             "cmd package dump com.example.app",
+            "dumpsys telephony.registry",
+            "dumpsys appops",
             "settings put global adb_enabled 0",
             "settings delete secure x",
             "pm uninstall com.example.app",

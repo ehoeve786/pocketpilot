@@ -32,6 +32,11 @@ object AdbQuery {
             "usagestats",
             "lock_settings",
             "notification",
+            // Who is calling and which cell the phone is on; every app's permission use; nearby networks; app shortcuts.
+            "telephony.registry",
+            "appops",
+            "wifiscanner",
+            "shortcut",
             "people",
             "telecom",
             "keystore",

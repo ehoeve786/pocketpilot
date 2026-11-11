@@ -3,9 +3,12 @@ package app.pocketpilot.core.capabilities
 import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.Key
+import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
+import app.pocketpilot.capability.api.screen.passwordFieldRefused
 import app.pocketpilot.capability.api.screen.swipePoints
+import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
@@ -67,17 +70,40 @@ class ResolvingInputController(
         target: Target.OnElement?,
         submit: Boolean,
     ) {
-        if (target == null) return backends.firstAvailable().typeText(text, null, submit)
+        if (target == null) {
+            refusePasswordFocus()
+            return backends.firstAvailable().typeText(text, null, submit)
+        }
         val same = sameBackend(target)
         if (same != null) return same.typeText(text, target, submit)
         val backend = backends.firstAvailable()
         val bounds = reader.bounds(target)
         backend.tap(Target.AtPoint(bounds.centerX, bounds.centerY))
         delay(FOCUS_SETTLE_MS)
+        refusePasswordFocus()
         backend.typeText(text, null, submit)
     }
 
-    override suspend fun pressKey(key: Key) = backends.firstAvailable().pressKey(key)
+    override suspend fun pressKey(key: Key) {
+        // Enter submits and Delete edits whatever field has the keyboard, so neither goes to a password field.
+        if (key == Key.ENTER || key == Key.DEL) refusePasswordFocus()
+        backends.firstAvailable().pressKey(key)
+    }
+
+    /**
+     * Refuses when the field with the keyboard is a password field. Checked here on a fresh read of the screen, since
+     * keys and text without an element go to the first backend in priority order, and not every backend looks.
+     * When the screen cannot be read, the backend's own check stands.
+     */
+    private suspend fun refusePasswordFocus() {
+        val elements =
+            try {
+                reader.snapshot(SnapshotOptions(maxElements = FOCUS_SEARCH_ELEMENTS, internal = true)).elements
+            } catch (e: ToolException) {
+                return
+            }
+        if (elements.any { it.password && it.focused }) throw passwordFieldRefused()
+    }
 
     override suspend fun globalAction(action: GlobalAction) = backends.firstAvailable().globalAction(action)
 
@@ -102,5 +128,6 @@ class ResolvingInputController(
 
     private companion object {
         const val FOCUS_SETTLE_MS = 400L
+        const val FOCUS_SEARCH_ELEMENTS = 5_000
     }
 }
