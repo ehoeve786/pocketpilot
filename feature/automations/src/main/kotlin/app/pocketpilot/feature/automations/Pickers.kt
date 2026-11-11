@@ -64,6 +64,7 @@ import app.pocketpilot.core.automation.FieldKind
 import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
+import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.isCredentialKey
 import app.pocketpilot.core.model.RiskTier
 import kotlin.math.roundToInt
