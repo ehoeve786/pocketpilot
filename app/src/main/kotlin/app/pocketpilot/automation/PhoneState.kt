@@ -410,13 +410,13 @@ class PhoneState(
 
     fun wifiEnabled(): Boolean = context.getSystemService(WifiManager::class.java).isWifiEnabled
 
+    /** For the Wi-Fi name state: on Wi-Fi with a name that cannot be read is told apart from not being on Wi-Fi. */
+    private fun onWifi(): Boolean = hasTransportOrCapability(transport = NetworkCapabilities.TRANSPORT_WIFI)
+
     /**
      * The connected Wi-Fi network's name. Android hides it from apps without location access, so it
      * comes from `cmd wifi status` through Shizuku; null when not on Wi-Fi or neither works.
      */
-    /** For the Wi-Fi name state: on Wi-Fi with a name that cannot be read is told apart from not being on Wi-Fi. */
-    private fun onWifi(): Boolean = hasTransportOrCapability(transport = NetworkCapabilities.TRANSPORT_WIFI)
-
     suspend fun wifiSsid(): String? {
         if (!onWifi()) return null
         if (shell.available.value) {

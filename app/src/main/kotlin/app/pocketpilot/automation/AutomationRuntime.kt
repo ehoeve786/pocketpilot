@@ -96,6 +96,7 @@ class AutomationRuntime(
     init {
         intervalPrefs.all.forEach { (key, value) -> (value as? Long)?.let { lastFired[key] = it } }
     }
+
     private var active = false
     private var started = false
 
