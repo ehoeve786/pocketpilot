@@ -118,9 +118,9 @@ class AndroidAutomationHost(
     }
 
     /**
-     * The owner made the rule (or accepted it), so its sensitive tools and its shell commands, also ones built from
-     * variables, are confirmed for the run; only destructive tools still ask every time. A run an AI app started gets
-     * none of that: every sensitive call and every shell command asks the owner.
+     * The owner made the rule (or accepted it), so everything it does is confirmed for the run: its sensitive and
+     * destructive tools and its shell commands, also ones built from variables. A run an AI app started gets none of
+     * that: every sensitive or destructive call and every shell command asks the owner.
      */
     override fun openSession(
         rule: Rule,
@@ -137,7 +137,7 @@ class AndroidAutomationHost(
             )
         // An AI app can ask for the run at any time, so nothing the owner approved with the rule is
         // pre-approved for it: its shell commands ask like everything else.
-        if (!fromOutside) policy.preConfirm(session.id, tools)
+        if (!fromOutside) policy.preConfirm(session.id, tools, destructive = true)
         return session
     }
 

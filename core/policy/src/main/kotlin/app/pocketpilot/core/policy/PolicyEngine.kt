@@ -85,6 +85,9 @@ class PolicyEngine(
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
 
+    /** Destructive tools the owner approved for a whole session by making the rule that runs in it. */
+    private val confirmedDestructive = HashMap<SessionId, Set<String>>()
+
     // Many MCP clients never end their session, so a session's confirmations also go once it has been idle a while.
     private val lastUsed = HashMap<SessionId, Long>()
 
@@ -161,7 +164,7 @@ class PolicyEngine(
         val asksOnce = mode == ToolMode.ASK && spec.riskTier != RiskTier.DESTRUCTIVE
         val needsConfirmation =
             confirmBecauseOfApp ||
-                spec.riskTier == RiskTier.DESTRUCTIVE ||
+                (spec.riskTier == RiskTier.DESTRUCTIVE && !ownerApprovedDestructive(session.id, spec.name)) ||
                 (asksOnce && !alreadyConfirmed(session.id, spec.name, detail))
         if (needsConfirmation) {
             val answer =
@@ -242,17 +245,29 @@ class PolicyEngine(
 
     /**
      * Treats [tools] as already confirmed for session [id] whatever their detail, for sessions the owner
-     * started on the phone itself. Only sensitive tools are affected; destructive ones are confirmed on
-     * every call regardless. The approval covers every detail, including a path or address that a rule's
-     * placeholder fills in at run time: a rule that deletes a placeholder path has every path approved for the
-     * session. Use [preConfirmDetails] to approve only the exact details a rule names.
+     * started on the phone itself. Sensitive tools are affected; destructive ones are still confirmed on every
+     * call unless [destructive] is set, which the owner's own rules do: making the rule approves what it does.
+     * The approval covers every detail, including a path or address that a rule's placeholder fills in at run
+     * time: a rule that deletes a placeholder path has every path approved for the session. Use
+     * [preConfirmDetails] to approve only the exact details a rule names.
      */
     @Synchronized
     fun preConfirm(
         id: SessionId,
         tools: Set<String>,
+        destructive: Boolean = false,
     ) {
         confirmed(id) += tools
+        if (destructive) confirmedDestructive[id] = confirmedDestructive[id].orEmpty() + tools
+    }
+
+    @Synchronized
+    private fun ownerApprovedDestructive(
+        id: SessionId,
+        tool: String,
+    ): Boolean {
+        dropIdle()
+        return confirmedDestructive[id]?.contains(tool) == true
     }
 
     /** Treats each exact [details] of [tool] as confirmed for session [id]; any other detail still asks. */
@@ -269,6 +284,7 @@ class PolicyEngine(
     @Synchronized
     fun endSession(id: SessionId) {
         confirmedSensitive.remove(id)
+        confirmedDestructive.remove(id)
         lastUsed.remove(id)
     }
 
