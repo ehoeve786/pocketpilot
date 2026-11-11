@@ -153,10 +153,12 @@ class ScreenWaitForTool(
     ): ToolResult {
         val selector = Selector.from(call.arguments)
         val wait = (call.arguments.long("timeoutMs") ?: DEFAULT_WAIT_MS).coerceIn(0, MAX_WAIT_MS)
+
         suspend fun look(): FindResult? {
             val snapshot = reader.snapshot()
             return selector.match(snapshot).takeIf { it.isNotEmpty() }?.let { FindResult(snapshot.id, it) }
         }
+
         // The screen is read once whatever the wait, so a wait of 0 still answers "is it there now".
         val found =
             look() ?: withTimeoutOrNull(wait) {
