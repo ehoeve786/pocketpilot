@@ -38,7 +38,6 @@ import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.NotificationInfo
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.StateKeys
-import app.pocketpilot.core.automation.fixedShellCommands
 import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.common.UlidGenerator
 import app.pocketpilot.core.imaging.CaptureRequest
@@ -119,10 +118,9 @@ class AndroidAutomationHost(
     }
 
     /**
-     * The owner made the rule (or accepted it), so its sensitive tools are confirmed for the run; the raw
-     * shell still asks for each new command and destructive tools ask every time. A run that another app or
-     * an AI app started gets none of that: every sensitive call and every fixed shell command asks
-     * the owner, since the rule's trigger can fire from any sender.
+     * The owner made the rule (or accepted it), so its sensitive tools and its shell commands, also ones built from
+     * variables, are confirmed for the run; only destructive tools still ask every time. A run an AI app started gets
+     * none of that: every sensitive call and every shell command asks the owner.
      */
     override fun openSession(
         rule: Rule,
@@ -138,11 +136,8 @@ class AndroidAutomationHost(
                 createdAtMillis = clock.nowMillis(),
             )
         // An AI app can ask for the run at any time, so nothing the owner approved with the rule is
-        // pre-approved for it: its fixed shell commands ask like everything else.
-        if (!fromOutside) {
-            policy.preConfirm(session.id, tools - SHELL_EXEC)
-            policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
-        }
+        // pre-approved for it: its shell commands ask like everything else.
+        if (!fromOutside) policy.preConfirm(session.id, tools)
         return session
     }
 
@@ -611,7 +606,6 @@ class AndroidAutomationHost(
     }
 
     private companion object {
-        const val SHELL_EXEC = "shell.exec"
         const val NO_AGENT = "Agent mode has no usable model, or another Agent run is in progress"
         const val NO_MODEL = "No AI model is set up; add one under Activity > Agent"
         const val SHELL_TIMEOUT_MS = 5_000L
