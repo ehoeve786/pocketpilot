@@ -121,7 +121,6 @@ class PhoneState(
             StateKeys.SCREEN_ON -> onOff(power.isInteractive)
             StateKeys.LOCKED -> onOff(context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
             StateKeys.WIFI_ENABLED -> onOff(wifiEnabled())
-            // On Wi-Fi with a name that cannot be read is told apart from not being on Wi-Fi at all.
             StateKeys.WIFI_SSID -> wifiSsid() ?: StateKeys.WIFI_NAME_UNKNOWN.takeIf { onWifi() }
             StateKeys.BLUETOOTH_ENABLED -> onOff(globalInt(Settings.Global.BLUETOOTH_ON) == 1)
             StateKeys.BLUETOOTH_DEVICES -> (bluetoothDevices.values + bluetoothAudioNames()).distinct().joinToString("\n")
@@ -415,6 +414,7 @@ class PhoneState(
      * The connected Wi-Fi network's name. Android hides it from apps without location access, so it
      * comes from `cmd wifi status` through Shizuku; null when not on Wi-Fi or neither works.
      */
+    /** For the Wi-Fi name state: on Wi-Fi with a name that cannot be read is told apart from not being on Wi-Fi. */
     private fun onWifi(): Boolean = hasTransportOrCapability(transport = NetworkCapabilities.TRANSPORT_WIFI)
 
     suspend fun wifiSsid(): String? {
