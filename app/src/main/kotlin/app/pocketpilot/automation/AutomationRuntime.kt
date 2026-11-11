@@ -434,7 +434,7 @@ class AutomationRuntime(
         // An interval counts from when it was first scheduled. Without this, each reschedule restarts the intervals
         // that have not fired yet, so the longest one never comes due while a shorter one keeps firing.
         rule.triggers.forEachIndexed { i, spec ->
-            if (spec.type == "time.interval" && key(rule.id, i) !in lastFired) markFired(key(rule.id, i), now)
+            if (spec.type == "time.interval" && !lastFired.containsKey(key(rule.id, i))) markFired(key(rule.id, i), now)
         }
         val next =
             rule.triggers
