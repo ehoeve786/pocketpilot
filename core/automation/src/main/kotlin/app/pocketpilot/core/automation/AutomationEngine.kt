@@ -586,9 +586,19 @@ class AutomationEngine(
                 if (by != "focus" && params.p("text").isBlank()) throw AutomationFailure("Give the text, label or view id to tap")
                 val found =
                     when (by) {
-                        "id" -> callTool(context, "screen.find", args("resourceId" to params.p("text")))
-                        "focus", "beside" -> callTool(context, "screen.snapshot", JsonObject(emptyMap()))
-                        else -> callTool(context, "screen.find", args("text" to params.p("text")))
+                        "focus", "beside" -> {
+                            callTool(context, "screen.snapshot", JsonObject(emptyMap()))
+                        }
+
+                        else -> {
+                            val key = if (by == "id") "resourceId" else "text"
+                            // Visible first; then rows scrolled out of view, which ui.tap clicks through Accessibility.
+                            try {
+                                callTool(context, "screen.find", args(key to params.p("text")))
+                            } catch (e: AutomationFailure) {
+                                callTool(context, "screen.find", args(key to params.p("text"), "includeInvisible" to true))
+                            }
+                        }
                     }
                 val lines = found.lines()
                 val snapshot =
