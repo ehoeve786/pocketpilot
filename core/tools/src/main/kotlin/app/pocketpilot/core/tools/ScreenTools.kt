@@ -101,8 +101,8 @@ class ScreenFindTool(
                 "Finds elements on the current screen. text and description match case-insensitively by substring; " +
                     "text also matches an element's accessibility label, where icons and Quick Settings tiles keep theirs. " +
                     "resourceId by suffix (\"title\" matches \"android:id/title\"), role exactly. Returns the snapshot ID " +
-                    "and one line per match, in screen.snapshot's format.",
-            inputSchema = selectorSchema(),
+                    "and one line per match, in screen.snapshot's format. includeInvisible also matches elements scrolled out of view.",
+            inputSchema = selectorSchema(""","includeInvisible":{"type":"boolean"}"""),
         )
 
     override suspend fun execute(
@@ -110,7 +110,9 @@ class ScreenFindTool(
         session: Session,
     ): ToolResult {
         val selector = Selector.from(call.arguments)
-        val snapshot = reader.snapshot()
+        val hidden = call.arguments.boolean("includeInvisible") ?: false
+        val options = if (hidden) SnapshotOptions(maxElements = MAX_HIDDEN_NODES, includeInvisible = true) else SnapshotOptions()
+        val snapshot = reader.snapshot(options)
         val matches = selector.match(snapshot)
         if (matches.isEmpty() && selector.role != null) {
             // Models often guess the role (checkbox for a switch tile); the text is the stronger hint.
@@ -128,6 +130,10 @@ class ScreenFindTool(
             )
         }
         return ToolResult.success(SnapshotText.matches(snapshot.id, matches))
+    }
+
+    private companion object {
+        const val MAX_HIDDEN_NODES = 2_000
     }
 }
 

@@ -48,6 +48,9 @@ class AutomationEngineTest {
         var settings = mutableMapOf("wifi" to "on")
         var schedule = "done"
         var found = "snapshot s7\ne4 button \"Start\" [0,0][10,10]"
+
+        /** When true, screen.find matches only when asked for elements scrolled out of view. */
+        var onlyHidden = false
         val opened = mutableListOf<Set<String>>()
         val outside = mutableListOf<Boolean>()
         val prompts = mutableListOf<String>()
@@ -76,7 +79,11 @@ class AutomationEngineTest {
                 }
 
                 "screen.find" -> {
-                    ToolResult.success(found)
+                    if (onlyHidden && arguments["includeInvisible"] == null) {
+                        ToolResult.error(ToolErrorCode.ELEMENT_NOT_FOUND, "Nothing on screen")
+                    } else {
+                        ToolResult.success(found)
+                    }
                 }
 
                 "screen.snapshot" -> {
@@ -522,6 +529,17 @@ class AutomationEngineTest {
             assertEquals(emptyList(), host.calls.filter { it.first == "ui.tap" })
             assertEquals("no", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
             assertTrue(record.lines.any { it.endsWith("none in the window") }, record.lines.toString())
+        }
+
+    @Test
+    fun `tap by text reaches an element scrolled out of view`() =
+        runTest {
+            val host = FakeHost()
+            host.onlyHidden = true
+            host.found = "snapshot s9\ne50 button desc=\"Extend run, Until 2:30 PM\" [0,2720,1080,2136] click"
+            val record = engine(this, host).run(rule(listOf(ActionStep("ui.tap_text", mapOf("text" to "Extend run")))), "Test")
+            assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
+            assertEquals("e50", (host.calls.single { it.first == "ui.tap" }.second["element"] as JsonPrimitive).content)
         }
 
     @Test
