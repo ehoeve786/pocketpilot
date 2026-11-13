@@ -481,7 +481,10 @@ class AutomationUpdateTool(
 private const val CONFIRM = "confirm.ask"
 
 private fun ActionStep.isReviewed(): Boolean =
-    type in setOf("flow.run_rule", "flow.set_rule") || (AutomationCatalog.action(type)?.tier?.let { it > RiskTier.INTERACT } ?: true)
+    type in setOf("flow.run_rule", "flow.set_rule") ||
+        // A floating text's tap or long press runs another rule, like flow.run_rule.
+        (type == "overlay.text" && (!params["tap_rule"].isNullOrBlank() || !params["long_rule"].isNullOrBlank())) ||
+        (AutomationCatalog.action(type)?.tier?.let { it > RiskTier.INTERACT } ?: true)
 
 /** Each reviewed step with the steps it sits inside (without their other children) and the branch it is in, sorted. */
 private fun Rule.reviewedPaths(): List<String> {

@@ -28,7 +28,12 @@ class SnapshotCache<T>(
         shown: Boolean = true,
     ) {
         entries[snapshot.id] = Entry(snapshot, payload, shown)
-        while (entries.size > keep) entries.remove(entries.keys.first())?.let { onEvict(it.payload) }
+        // Shown and internal snapshots are kept [keep] each, so internal ones never push out what the caller read.
+        while (entries.values.count { it.shown == shown } > keep) {
+            val oldest = entries.entries.first { it.value.shown == shown }
+            entries.remove(oldest.key)
+            onEvict(oldest.value.payload)
+        }
     }
 
     @Synchronized

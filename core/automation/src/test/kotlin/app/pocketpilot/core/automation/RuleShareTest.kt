@@ -77,6 +77,20 @@ class RuleShareTest {
     }
 
     @Test
+    fun `the rules a floating text runs are rule references too`() {
+        val overlay = rule.copy(actions = listOf(ActionStep("overlay.text", mapOf("text" to "Hi", "tap_rule" to "a", "long_rule" to "b"))))
+
+        val mapped =
+            overlay
+                .mapRuleRefs { it.uppercase() }
+                .actions
+                .single()
+                .params
+
+        assertEquals(mapOf("text" to "Hi", "tap_rule" to "A", "long_rule" to "B"), mapped)
+    }
+
+    @Test
     fun `a shared rule with a blank name is not a rule`() {
         assertNull(parseSharedRule(rule.copy(name = "  ").shareFileJson()) { "x" })
     }

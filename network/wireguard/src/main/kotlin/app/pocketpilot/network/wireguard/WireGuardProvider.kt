@@ -103,53 +103,54 @@ class WireGuardProvider(
         poller =
             scope.launch(Dispatchers.IO) {
                 stopping?.join()
-                // The server's name may not resolve yet, right after boot or with no network. That is tried again,
-                // more slowly each time, instead of leaving the tunnel off until the owner switches it on again.
-                var wait = START_RETRY_MS
+                // A restart after the server's address changed comes back here, so a failed one is retried too.
                 while (isActive) {
-                    try {
-                        tunnel().start(config)
-                        break
-                    } catch (e: Throwable) {
-                        // The stack trace goes to logcat; the screen shows only what failed, not the code it failed in.
-                        Log.e(TAG, "WireGuard failed to start", e)
-                        mutableState.value = NetworkState.Error(e.message ?: e.toString())
-                        delay(wait)
-                        wait = (wait * 2).coerceAtMost(START_RETRY_MAX_MS)
-                    }
-                }
-                val host = mutableSetup.value.serverHost
-                var endpoint = host?.let(::addressesOf)
-                var endpointCheckedAt = System.currentTimeMillis()
-                var followedAt = 0L
-                while (isActive) {
-                    val before = state.value
-                    refresh { isActive }
-                    // Also catches a domain set after the tunnel came up, and a router whose address changed.
-                    val now = System.currentTimeMillis()
-                    if (state.value is NetworkState.Connected && now - followedAt > FOLLOW_RELAY_MS) {
-                        followedAt = now
-                        mutableSetup.value.serverHost?.let { certificates.followRelay(it) }
-                    }
-                    // The tunnel looks up the server's name once, when it starts. When the name now leads somewhere
-                    // else, such as a home connection that got a new address, it is started again to follow it.
-                    if (host != null && now - endpointCheckedAt > ENDPOINT_CHECK_MS) {
-                        endpointCheckedAt = now
-                        val current = addressesOf(host)
-                        val moved = current != null && endpoint?.let { known -> known.intersect(current).isEmpty() } == true
-                        if (current != null) endpoint = current
-                        if (moved) {
-                            Log.i(TAG, "The WireGuard server's address changed; restarting the tunnel")
-                            runCatching {
-                                tunnel().stop()
-                                // Not started again when the owner paused or stopped the tunnel meanwhile.
-                                if (isActive) tunnel().start(config)
-                                if (!isActive) tunnel().stop()
-                            }.onFailure { mutableState.value = NetworkState.Error(it.message ?: it.toString()) }
+                    // The server's name may not resolve yet, right after boot or with no network. That is tried again,
+                    // more slowly each time, instead of leaving the tunnel off until the owner switches it on again.
+                    var wait = START_RETRY_MS
+                    while (isActive) {
+                        try {
+                            tunnel().start(config)
+                            // Not left running when the owner paused or stopped the tunnel meanwhile.
+                            if (!isActive) tunnel().stop()
+                            break
+                        } catch (e: Throwable) {
+                            // The stack trace goes to logcat; the screen shows only what failed, not the code it failed in.
+                            Log.e(TAG, "WireGuard failed to start", e)
+                            mutableState.value = NetworkState.Error(e.message ?: e.toString())
+                            delay(wait)
+                            wait = (wait * 2).coerceAtMost(START_RETRY_MAX_MS)
                         }
                     }
-                    // A tunnel that stays up is read less often; the handshake time alone is not a change.
-                    poll.await(connected = state.value is NetworkState.Connected, changed = state.value != before)
+                    val host = mutableSetup.value.serverHost
+                    var endpoint = host?.let(::addressesOf)
+                    var endpointCheckedAt = System.currentTimeMillis()
+                    var followedAt = 0L
+                    poll@ while (isActive) {
+                        val before = state.value
+                        refresh { isActive }
+                        // Also catches a domain set after the tunnel came up, and a router whose address changed.
+                        val now = System.currentTimeMillis()
+                        if (state.value is NetworkState.Connected && now - followedAt > FOLLOW_RELAY_MS) {
+                            followedAt = now
+                            mutableSetup.value.serverHost?.let { certificates.followRelay(it) }
+                        }
+                        // The tunnel looks up the server's name once, when it starts. When the name now leads somewhere
+                        // else, such as a home connection that got a new address, it is started again to follow it.
+                        if (host != null && now - endpointCheckedAt > ENDPOINT_CHECK_MS) {
+                            endpointCheckedAt = now
+                            val current = addressesOf(host)
+                            val moved = current != null && endpoint?.let { known -> known.intersect(current).isEmpty() } == true
+                            if (current != null) endpoint = current
+                            if (moved) {
+                                Log.i(TAG, "The WireGuard server's address changed; restarting the tunnel")
+                                runCatching { tunnel().stop() }
+                                break@poll
+                            }
+                        }
+                        // A tunnel that stays up is read less often; the handshake time alone is not a change.
+                        poll.await(connected = state.value is NetworkState.Connected, changed = state.value != before)
+                    }
                 }
             }
     }

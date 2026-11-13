@@ -324,7 +324,16 @@ class LogWatcher(
         watching = lineTexts to crashes
         // Only the buffers the rules need: the system buffer holds most of the phone's personal log text.
         val buffers = listOfNotNull("main".takeIf { lineTexts.isNotEmpty() }, "crash".takeIf { crashes })
-        val needles = (lineTexts + listOfNotNull(CRASH_NEEDLE.takeIf { crashes })).take(LogFollowArgs.MAX_NEEDLES).toSet()
+        // The crash needle goes first so a long list cannot push it out. A text is cut to the length the reader takes;
+        // handle() still checks the whole text.
+        val needles =
+            (
+                listOfNotNull(
+                    CRASH_NEEDLE.takeIf { crashes },
+                ) + lineTexts.filter { it.isNotBlank() }.map { it.take(LogFollowArgs.MAX_NEEDLE) }
+            ).distinct()
+                .take(LogFollowArgs.MAX_NEEDLES)
+                .toSet()
         job =
             scope.launch {
                 var since = System.currentTimeMillis()

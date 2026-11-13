@@ -85,6 +85,7 @@
     <string name="feature_automations_search">Search</string>
     <string name="feature_automations_all">All</string>
     <string name="feature_automations_cancel">Cancel</string>
+    <string name="feature_automations_use_variable">Use a variable</string>
     <string name="feature_automations_done">Done</string>
     <string name="feature_automations_optional">(optional)</string>
     <string name="feature_automations_color_custom">Colour code</string>

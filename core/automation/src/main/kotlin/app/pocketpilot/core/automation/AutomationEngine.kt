@@ -555,15 +555,20 @@ class AutomationEngine(
                 val listed = AutomationJson.json.parseToJsonElement(list).jsonObject
                 // notify.list shows runs of 4 to 8 digits as "[code]", so the filter is masked the same way to still match.
                 val wanted = MASKED_DIGITS.replace(params.p("text"), "[code]")
-                val match =
+                val matches =
                     (listed["notifications"] as? JsonArray)
                         ?.map { it.jsonObject }
-                        ?.firstOrNull { n ->
+                        ?.filter { n ->
                             val pkg = n["package"]?.jsonPrimitive?.contentOrNull
                             val title = n["title"]?.jsonPrimitive?.contentOrNull
                             val text = n["text"]?.jsonPrimitive?.contentOrNull
                             anyOf(params.p("apps"), pkg) && (containsText(wanted, title) || containsText(wanted, text))
-                        } ?: throw AutomationFailure("No matching notification")
+                        }.orEmpty()
+                // With its digits masked, the filter cannot tell "Order 12345" from "Order 99999", so it must not guess.
+                if (matches.size > 1 && wanted != params.p("text")) {
+                    throw AutomationFailure("Several notifications match \"$wanted\"; numbers are hidden, so add other words to the filter")
+                }
+                val match = matches.firstOrNull() ?: throw AutomationFailure("No matching notification")
                 val key = match["key"]?.jsonPrimitive?.contentOrNull ?: throw AutomationFailure("No matching notification")
                 callTool(
                     context,

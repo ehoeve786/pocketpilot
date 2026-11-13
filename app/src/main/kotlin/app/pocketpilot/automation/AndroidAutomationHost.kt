@@ -223,7 +223,7 @@ class AndroidAutomationHost(
                 agent().runForAutomation(prompt, fromOutside)
             } catch (e: CancellationException) {
                 // The rule was stopped, and the agent with it. What it spent until then is kept for the monthly limit.
-                stoppedAgentCost = agent().current.value?.costUsd
+                stoppedAgentCost = agent().stoppedCostUsd
                 throw e
             } ?: return AgentOutcome(NO_AGENT, costUsd = 0.0, ok = false)
         return AgentOutcome(
