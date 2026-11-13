@@ -629,7 +629,8 @@ class AutomationEngine(
             }
 
             "ui.tap_run" -> {
-                val snapshot = callTool(context, "screen.snapshot", JsonObject(emptyMap()))
+                // Rows scrolled off the list are read too; ui.tap clicks them through Accessibility without scrolling.
+                val snapshot = callTool(context, "screen.snapshot", args("includeInvisible" to true, "maxNodes" to TAP_RUN_NODES))
                 val run = RunRows.pick(snapshot, params.p("from"), params.p("to"), RunRows.dayNames(params.p("days")))
                 context.vars[params.p("into")] = if (run == null) "no" else "yes"
                 if (run != null) {
@@ -1172,6 +1173,7 @@ class AutomationEngine(
 
         /** How many notifications "Act on a notification" looks through; the tool's own limit. */
         private const val NOTIFY_SEARCH = 100
+        private const val TAP_RUN_NODES = 2_000
         private val PLACEHOLDER = Regex("""\{[^{}]+\}""")
         private val CLICKABLE = Regex("""\bclick\b""")
         private val BOUNDS = Regex("""\[(-?\d+),(-?\d+),(-?\d+),(-?\d+)]""")

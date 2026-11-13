@@ -496,6 +496,8 @@ class AutomationEngineTest {
             assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
             val tap = host.calls.single { it.first == "ui.tap" }.second
             assertEquals("e49", (tap["element"] as JsonPrimitive).content)
+            val read = host.calls.first { it.first == "screen.snapshot" }.second
+            assertEquals("true", (read["includeInvisible"] as JsonPrimitive).content)
             assertEquals("yes", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
             assertTrue(record.lines.any { it.endsWith("took Monday 6:00am to 10:00am") }, record.lines.toString())
         }
