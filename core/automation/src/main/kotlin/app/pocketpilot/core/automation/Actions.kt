@@ -451,8 +451,8 @@ internal object Actions {
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
-                            textField("from", "Earliest start", default = "06:00", hint = "HH:mm"),
-                            textField("to", "Latest start", default = "15:00", hint = "HH:mm"),
+                            FieldDef("from", "Earliest start", FieldKind.TIME, default = "06:00"),
+                            FieldDef("to", "Latest start", FieldKind.TIME, default = "15:00"),
                             textField("into", "Save yes or no in variable", default = "run_found", hint = "yes when a run was taken"),
                         ),
                     tier = RiskTier.INTERACT,
@@ -1246,8 +1246,8 @@ internal object Actions {
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
-                            textField("from", "Earliest start", default = "06:00", hint = "HH:mm"),
-                            textField("to", "Latest start", default = "15:00", hint = "HH:mm"),
+                            FieldDef("from", "Earliest start", FieldKind.TIME, default = "06:00"),
+                            FieldDef("to", "Latest start", FieldKind.TIME, default = "15:00"),
                             textField("into", "Save in variables starting with", default = "run"),
                         ),
                     tier = RiskTier.READ,

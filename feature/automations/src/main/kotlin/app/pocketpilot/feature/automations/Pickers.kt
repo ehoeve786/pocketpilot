@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
@@ -36,7 +38,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -480,6 +484,10 @@ private fun FieldEditor(
             }
         }
 
+        FieldKind.TIME -> {
+            TimeField(label, value, onChange)
+        }
+
         else -> {
             OutlinedTextField(
                 value = value,
@@ -728,3 +736,55 @@ private fun IconField(
         Text(choices.firstOrNull { it.value == value }?.label.orEmpty(), style = MaterialTheme.typography.bodySmall)
     }
 }
+
+/** A time shown as "12:45 AM"; tapping it opens a clock with AM and PM. Saves HH:mm; a {variable} stays until a time is picked. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val time = hourMinute(value)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(time?.let { (h, m) -> twelveHour(h, m) } ?: value, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+    if (open) {
+        val state = rememberTimePickerState(time?.first ?: 0, time?.second ?: 0, is24Hour = false)
+        AlertDialog(
+            onDismissRequest = { open = false },
+            text = { TimePicker(state) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onChange("${state.hour.twoDigits()}:${state.minute.twoDigits()}")
+                        open = false
+                    },
+                ) { Text(stringResource(R.string.feature_automations_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { open = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
+            },
+        )
+    }
+}
+
+/** "HH:mm" as hour and minute, or null when it is not a time. */
+private fun hourMinute(text: String): Pair<Int, Int>? {
+    val parts = text.trim().split(':')
+    val hour = parts.getOrNull(0)?.toIntOrNull()
+    val minute = parts.getOrNull(1)?.toIntOrNull()
+    if (parts.size != 2 || hour == null || minute == null || hour !in 0..23 || minute !in 0..59) return null
+    return hour to minute
+}
+
+private fun twelveHour(
+    hour: Int,
+    minute: Int,
+): String = "${if (hour % 12 == 0) 12 else hour % 12}:${minute.twoDigits()} ${if (hour < 12) "AM" else "PM"}"
+
+private fun Int.twoDigits(): String = toString().padStart(2, '0')
