@@ -860,6 +860,12 @@ class AutomationEngine(
                 return if (address == null) "no address on the screen" else "{$into} = ${address.take(MAX_NOTE)}"
             }
 
+            "var.run_window" -> {
+                val into = params.p("into").ifBlank { "run" }
+                listOf("days", "from", "to").forEach { context.vars["${into}_$it"] = params.p(it) }
+                return "{${into}_days} = ${params.p("days")}, ${params.p("from")} to ${params.p("to")}"
+            }
+
             "var.random" -> {
                 val min = params.p("min").toIntOrNull() ?: 1
                 val max = params.p("max").toIntOrNull() ?: 6

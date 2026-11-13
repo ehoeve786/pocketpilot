@@ -1236,6 +1236,24 @@ internal object Actions {
                     kind = ActionKind.Engine,
                     sentence = { p -> "{${p.p("name")}} = random ${p.p("min")} to ${p.p("max")}" },
                 ),
+                ActionDef(
+                    type = "var.run_window",
+                    category = Category.VARIABLES,
+                    title = "Set run window",
+                    description =
+                        "Saves the days and start times once, as <into>_days, <into>_from and <into>_to, for later steps " +
+                            "such as Take the first open run to read as {run_days}, {run_from} and {run_to}.",
+                    fields =
+                        listOf(
+                            FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
+                            textField("from", "Earliest start", default = "06:00", hint = "HH:mm"),
+                            textField("to", "Latest start", default = "15:00", hint = "HH:mm"),
+                            textField("into", "Save in variables starting with", default = "run"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "Run window: ${p.p("days")} starting ${p.p("from")} to ${p.p("to")}" },
+                ),
             )
 
     /** Reads a tool's arguments given as text, for [ActionKind.Engine] steps that call any tool. */
