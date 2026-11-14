@@ -7,13 +7,14 @@
     <string name="feature_automations_copy_log">Copy log</string>
     <string name="feature_automations_variables_hint">Global variables are kept between runs, and any rule can read or change them.</string>
     <string name="feature_automations_no_global_variables">No global variables yet. Rules create them with Set variable, Global.</string>
+    <string name="feature_automations_empty_value">(empty)</string>
     <string name="feature_automations_add_variable">Add variable</string>
     <string name="feature_automations_edit_variable">Edit variable</string>
     <string name="feature_automations_delete_variable">Delete</string>
     <string name="feature_automations_variable_name">Name</string>
     <string name="feature_automations_variable_value">Value</string>
-    <string name="feature_automations_local_variables">Local variables</string>
-    <string name="feature_automations_variables_button">Variables</string>
+    <string name="feature_automations_local_variables">Variables from the last run</string>
+    <string name="feature_automations_variables_button">Last run</string>
     <string name="feature_automations_local_variables_text">Set by this rule\'s last run, for reading only. To give the rule starting values, add them under Rule variables.</string>
     <string name="feature_automations_no_local_variables">None. The last run set no variables.</string>
     <string name="feature_automations_new_rule">New rule</string>
@@ -21,6 +22,7 @@
     <string name="feature_automations_empty">No rules yet. Start from a template or tap New rule.</string>
     <string name="feature_automations_templates">Templates</string>
 
+    <string name="feature_automations_settings_title">Automations</string>
     <string name="feature_automations_pause_all">Pause all automations</string>
     <string name="feature_automations_pause_all_text">Rules keep their settings but none of them runs.</string>
     <string name="feature_automations_screen_read">Screen text check rate</string>
@@ -35,7 +37,7 @@
     <string name="feature_automations_ha_url">Address</string>
     <string name="feature_automations_ha_token">Access token</string>
     <string name="feature_automations_ha_token_saved">Saved; type a new one to replace it</string>
-    <string name="feature_automations_no_proposals">No proposals. When an AI app suggests a rule with automation.propose, it waits here for you.</string>
+    <string name="feature_automations_no_proposals">No proposals. When an AI app suggests a rule, it waits here for you to accept, change or decline.</string>
     <string name="feature_automations_no_runs">No runs yet.</string>
     <string name="feature_automations_no_matching_runs">No runs match these filters.</string>
     <string name="feature_automations_history_all_rules">All rules</string>

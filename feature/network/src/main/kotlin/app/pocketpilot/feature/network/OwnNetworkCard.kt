@@ -76,6 +76,13 @@ fun OwnNetworkCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.feature_network_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.feature_network_explainer), style = MaterialTheme.typography.bodySmall)
+            // Most owners use Tailscale; until this is set up its forms stay folded behind one button.
+            val unused = !wireGuardSetup.configured && certificate.domain.isBlank() && wireGuard is NetworkState.Stopped
+            var open by rememberSaveable { mutableStateOf(false) }
+            if (unused && !open) {
+                TextButton(onClick = { open = true }) { Text(stringResource(R.string.feature_network_set_up)) }
+                return@Column
+            }
             CertificateSection(certificate, actions)
             HorizontalDivider()
             WireGuardSection(wireGuard, wireGuardSetup, actions)

@@ -9,7 +9,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,6 +44,21 @@ internal fun DoctorCard(
     LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.doctor_title), style = MaterialTheme.typography.titleMedium)
+            // With every check passing, one line says so; the details are a tap away.
+            val allSet =
+                setupSteps.all { it.done || it.optional } &&
+                    capabilities.all { it.active != null } &&
+                    shizukuState == ShizukuState.CONNECTED
+            var details by rememberSaveable { mutableStateOf(false) }
+            if (allSet && !details) {
+                Text(
+                    stringResource(R.string.doctor_all_set),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                TextButton(onClick = { details = true }) { Text(stringResource(R.string.doctor_show_details)) }
+                return@Column
+            }
             SetupChecklist(setupSteps)
             capabilities.forEach { status ->
                 Column {
@@ -48,7 +68,19 @@ internal fun DoctorCard(
                         status.backends
                             .map { backend -> (if (backend.available) "✓ " else "✗ ") + backendLabel(backend.backendId) }
                             .joinToString("  ")
-                    Text(backends, style = MaterialTheme.typography.bodySmall)
+                    // Coloured like the setup steps' "Done", so every passing check reads the same.
+                    Text(
+                        backends,
+                        style = MaterialTheme.typography.bodySmall,
+                        color =
+                            if (status.active !=
+                                null
+                            ) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
                     if (status.active == null) {
                         Text(
                             stringResource(R.string.doctor_none),

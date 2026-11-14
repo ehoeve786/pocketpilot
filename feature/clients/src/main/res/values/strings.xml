@@ -9,4 +9,23 @@
     <string name="feature_clients_keep">Keep</string>
     <string name="feature_clients_kill_switch">Disconnect everything</string>
     <string name="feature_clients_kill_switch_explainer">Removes every connected app and turns public access off at once.</string>
+    <string name="feature_clients_can">Can %1$s</string>
+    <string name="feature_clients_never_used">Never used</string>
+    <string name="feature_clients_scope_apps_control">open and stop apps</string>
+    <string name="feature_clients_scope_apps_read">see apps</string>
+    <string name="feature_clients_scope_clipboard">clipboard</string>
+    <string name="feature_clients_scope_device">phone status</string>
+    <string name="feature_clients_scope_files_read">read files</string>
+    <string name="feature_clients_scope_files_write">change files</string>
+    <string name="feature_clients_scope_home_control">control Home Assistant</string>
+    <string name="feature_clients_scope_home_read">read Home Assistant</string>
+    <string name="feature_clients_scope_location">location</string>
+    <string name="feature_clients_scope_notify_act">answer notifications</string>
+    <string name="feature_clients_scope_notify_read">read notifications</string>
+    <string name="feature_clients_scope_screen">read the screen</string>
+    <string name="feature_clients_scope_settings">change settings</string>
+    <string name="feature_clients_scope_shell">shell commands</string>
+    <string name="feature_clients_scope_task">run tasks</string>
+    <string name="feature_clients_scope_termux">Termux commands</string>
+    <string name="feature_clients_scope_ui">tap and type</string>
 </resources>

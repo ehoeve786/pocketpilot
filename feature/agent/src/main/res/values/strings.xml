@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_agent_title">Agent mode</string>
-    <string name="feature_agent_explainer">The models that Agent automations and the Ask AI action use, and the transcripts of earlier runs. An agent works on this phone with the same tools and confirmations as connected apps.</string>
+    <string name="feature_agent_explainer">The models that Agent automations and the Ask AI action use. Their runs are under Activity, Agent. An agent works on this phone with the same tools and confirmations as connected apps.</string>
     <string name="feature_agent_profiles">Models</string>
     <string name="feature_agent_no_profiles">Add a model to start. Gemini has a free tier (key from aistudio.google.com); Ollama runs models on a computer at home.</string>
     <string name="feature_agent_add_profile">Add model</string>
@@ -54,4 +54,5 @@
     <string name="feature_agent_status_budget">Out of budget</string>
     <string name="feature_agent_status_failed">Failed</string>
     <string name="feature_agent_status_waiting">Waiting for your message</string>
+    <string name="feature_agent_no_runs">No Agent mode runs yet. The models are set up in Settings.</string>
 </resources>

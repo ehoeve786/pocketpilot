@@ -6,10 +6,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -72,6 +72,7 @@ data class McpStatus(
 
 /** Home's top block: server state, endpoint, connected clients, remote access and the on/off switch. */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun McpLiveStatusHeader(
     status: McpStatus,
     onServerChange: (Boolean) -> Unit,
@@ -109,8 +110,8 @@ fun McpLiveStatusHeader(
                 }
             }
             if (status.clients.isNotEmpty() || status.remote.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                // Wraps instead of scrolling, so a chip past the edge is never cut off with no sign of more.
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     status.clients.forEach { client ->

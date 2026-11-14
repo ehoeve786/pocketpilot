@@ -9,8 +9,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -155,8 +154,12 @@ fun AutomationsScreen(
     modifier: Modifier = Modifier,
     openProposals: Boolean = false,
     onProposalsOpened: () -> Unit = {},
+    /** Told whether a rule is open in the builder, so the app can give it the whole screen. */
+    onEditingChange: (Boolean) -> Unit = {},
 ) {
     var editing by rememberSaveable(stateSaver = RuleSaver) { mutableStateOf<Rule?>(null) }
+    val isEditing = editing != null
+    LaunchedEffect(isEditing) { onEditingChange(isEditing) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(openProposals) {
         if (openProposals) {
@@ -331,7 +334,6 @@ private fun RulesList(
                 }
             }
         }
-        item { SettingsCard(state, actions) }
     }
 }
 
@@ -361,8 +363,9 @@ private fun CategoryHeader(
     }
 }
 
+/** Automations' own settings, shown in the app's Settings. */
 @Composable
-private fun SettingsCard(
+fun AutomationSettingsCard(
     state: AutomationsState,
     actions: AutomationsActions,
 ) {
@@ -371,6 +374,7 @@ private fun SettingsCard(
     }
     LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.feature_automations_settings_title), style = MaterialTheme.typography.titleLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.feature_automations_pause_all), style = MaterialTheme.typography.titleMedium)
@@ -521,7 +525,6 @@ private fun HistoryList(runs: List<RunRecord>) {
 }
 
 /** The rule picker and the outcome chips above the run history, each outcome with its count for the chosen rule. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryFilters(
     runs: List<RunRecord>,
@@ -572,7 +575,8 @@ private fun HistoryFilters(
                 TextButton(onClick = onClear) { Text(stringResource(R.string.feature_automations_history_clear)) }
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // One scrolling row, so the filters do not take two rows above the runs.
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             RunOutcome.entries.forEach { outcome ->
                 FilterChip(
                     selected = outcome in filter.outcomes,
@@ -633,7 +637,6 @@ private fun RunCard(
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val outcome = outcomeLabel(run.outcome)
-    val failed = run.outcome == RunOutcome.FAILED
     LiquidGlassBentoCard(
         onClick = { open = !open },
         modifier = Modifier.fillMaxWidth(),
@@ -646,12 +649,20 @@ private fun RunCard(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f).clickable(onClick = onRule),
                 )
-                // A failed run is marked in the error colour, since the glass card has no tinted state.
-                Text(
-                    outcome,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                )
+                // The outcome is a coloured pill, so a failed run stands out in a long list.
+                val (container, content) =
+                    when (run.outcome) {
+                        RunOutcome.FAILED -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+                        RunOutcome.OK -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+                        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                Surface(shape = MaterialTheme.shapes.small, color = container, contentColor = content) {
+                    Text(
+                        outcome,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
                 // Copy stays in the header so it is one tap away while the card is collapsed.
                 IconButton(onClick = { copySensitive(context, RUN_LOG_LABEL, runLogText(run, context, outcome)) }) {
                     Icon(
