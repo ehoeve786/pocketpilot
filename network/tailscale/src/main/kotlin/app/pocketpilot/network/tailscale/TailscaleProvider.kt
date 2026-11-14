@@ -229,7 +229,8 @@ class TailscaleProvider(
         val funnelProblem = status.optString("funnelProblem").takeIf(String::isNotEmpty)
         // The node gave up on Funnel and says why. The owner's choice is cleared with it, so the next start does not
         // ask for public access again behind a screen that shows it off; the owner turns it on once it can work.
-        if (!public && (funnelProblem != null || error != null) && prefs.getBoolean(KEY_PUBLIC, false)) {
+        // A general error, such as no network after a reboot, is not Funnel failing and keeps the choice.
+        if (!public && funnelProblem != null && prefs.getBoolean(KEY_PUBLIC, false)) {
             prefs.edit().putBoolean(KEY_PUBLIC, false).apply()
         }
         val problem = funnelProblem ?: error.takeIf { public }

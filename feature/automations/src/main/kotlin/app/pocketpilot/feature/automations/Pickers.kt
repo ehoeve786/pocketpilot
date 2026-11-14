@@ -67,6 +67,7 @@ import app.pocketpilot.core.automation.FieldDef
 import app.pocketpilot.core.automation.FieldKind
 import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.PickSource
+import app.pocketpilot.core.automation.Placeholders
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.isCredentialKey
@@ -379,6 +380,21 @@ private fun FieldEditor(
     if (field.browse) {
         FileField(field.label, value, context, onChange)
         return
+    }
+    // A time or days field can hold a variable such as {run_from}, which the clock and the day chips cannot show.
+    if (field.kind == FieldKind.TIME || field.kind == FieldKind.DAYS) {
+        var typed by remember(field.key) { mutableStateOf(Placeholders.contains(value)) }
+        if (typed) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onChange,
+                label = { Text(label) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            return
+        }
+        TextButton(onClick = { typed = true }) { Text(stringResource(R.string.feature_automations_use_variable)) }
     }
     when (field.kind) {
         FieldKind.CHOICE -> {

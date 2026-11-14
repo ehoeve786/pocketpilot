@@ -182,7 +182,7 @@ fun checkSharedRule(
  */
 internal fun Rule.mapRuleRefs(transform: (String) -> String): Rule {
     fun params(map: Map<String, String>) =
-        map.mapValues { (key, value) -> if (key == RULE_REF && value.isNotBlank()) transform(value) else value }
+        map.mapValues { (key, value) -> if (key in RULE_REFS && value.isNotBlank()) transform(value) else value }
 
     fun group(g: ConstraintGroup): ConstraintGroup =
         g.copy(
@@ -211,4 +211,5 @@ internal fun Rule.mapRuleRefs(transform: (String) -> String): Rule {
     )
 }
 
-private const val RULE_REF = "rule"
+// overlay.text names the rules its tap and long press run.
+private val RULE_REFS = setOf("rule", "tap_rule", "long_rule")

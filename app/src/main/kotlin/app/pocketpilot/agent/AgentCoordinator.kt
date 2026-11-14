@@ -81,6 +81,11 @@ class AgentCoordinator(
         }
     }
 
+    /** What the last automation run that was stopped had spent, for the monthly limit. */
+    @Volatile
+    var stoppedCostUsd: Double? = null
+        private set
+
     /**
      * Runs [goal] for an automation with the owner's first usable model, falling back to the others, and
      * waits for it to end. Null when no model is set up or another run is in progress.
@@ -89,6 +94,7 @@ class AgentCoordinator(
         goal: String,
         fromOutside: Boolean,
     ): RunState? {
+        stoppedCostUsd = null
         val chain = profiles.profiles.value.filter(::usable)
         if (chain.isEmpty() || current.value?.active == true) return null
         // A run an AI app started gets no extra scopes: the owner's switches are for the owner's runs.
@@ -113,6 +119,8 @@ class AgentCoordinator(
         } catch (e: CancellationException) {
             // The rule was stopped. The run is on the app's scope, so it would go on working the phone without this.
             run.stop()
+            // Read from this run: [current] may still show the one before it.
+            stoppedCostUsd = run.state.value.costUsd
             throw e
         }
     }
