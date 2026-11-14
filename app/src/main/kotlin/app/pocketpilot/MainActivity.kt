@@ -69,6 +69,7 @@ import app.pocketpilot.designsystem.PocketPilotTheme
 import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.feature.agent.AgentActions
 import app.pocketpilot.feature.agent.AgentCard
+import app.pocketpilot.feature.automations.AutomationSettingsCard
 import app.pocketpilot.feature.automations.AutomationsActions
 import app.pocketpilot.feature.automations.AutomationsScreen
 import app.pocketpilot.feature.automations.AutomationsState
@@ -189,6 +190,7 @@ class MainActivity : ComponentActivity() {
 
     /** A proposal notification asked for the Proposals list. */
     private var openProposals by mutableStateOf(false)
+    private var automationsEditing by mutableStateOf(false)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -615,8 +617,23 @@ class MainActivity : ComponentActivity() {
                                 current = agent.current.collectAsStateWithLifecycle().value,
                                 history = agent.history.collectAsStateWithLifecycle().value,
                                 actions = agentActions,
+                                models = false,
                             )
                         },
+                        agentModelsCard = {
+                            AgentCard(
+                                profiles =
+                                    agent.profiles.profiles
+                                        .collectAsStateWithLifecycle()
+                                        .value,
+                                current = null,
+                                history = emptyList(),
+                                actions = agentActions,
+                                runs = false,
+                            )
+                        },
+                        automationSettingsCard = { AutomationSettingsCard(automationState, automationActions) },
+                        automationsFullScreen = automationsEditing,
                         shellEnabled = shellSwitch.enabled.collectAsStateWithLifecycle().value,
                         // Loosening a safeguard needs the owner, like approving an action does.
                         onShellChange = { on -> if (on) withOwner { shellSwitch.set(true) } else shellSwitch.set(false) },
@@ -646,6 +663,7 @@ class MainActivity : ComponentActivity() {
                                 actions = automationActions,
                                 openProposals = openProposals,
                                 onProposalsOpened = { openProposals = false },
+                                onEditingChange = { automationsEditing = it },
                             )
                         },
                         automationsBadge = automationData.rules.count { it.pending },

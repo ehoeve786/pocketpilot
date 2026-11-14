@@ -19,7 +19,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
@@ -107,11 +106,9 @@ fun SetupChecklist(steps: List<SetupStep>) {
 private fun StatusLine(step: SetupStep) {
     val (text, color) =
         when {
-            step.done -> stringResource(R.string.feature_onboarding_done) to DONE_GREEN
+            step.done -> stringResource(R.string.feature_onboarding_done) to MaterialTheme.colorScheme.primary
             step.optional -> stringResource(R.string.feature_onboarding_optional) to MaterialTheme.colorScheme.onSurfaceVariant
             else -> stringResource(R.string.feature_onboarding_not_yet) to MaterialTheme.colorScheme.error
         }
     Text((if (step.done) "✓ " else "○ ") + text, color = color, style = MaterialTheme.typography.bodySmall)
 }
-
-private val DONE_GREEN = Color(0xFF2E7D32)

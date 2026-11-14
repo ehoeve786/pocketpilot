@@ -46,4 +46,5 @@
     <string name="feature_network_copy_nginx">Copy nginx</string>
     <string name="feature_network_copy_caddy">Copy Caddy</string>
     <string name="feature_network_copy_peer">Copy server peer</string>
+    <string name="feature_network_set_up">Set up</string>
 </resources>

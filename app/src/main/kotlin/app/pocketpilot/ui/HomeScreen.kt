@@ -103,8 +103,14 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
-    /** Agent mode: model profiles and runs. */
+    /** Agent mode's runs, under Activity. */
     agentCard: @Composable () -> Unit = {},
+    /** Agent mode's models, in Settings. */
+    agentModelsCard: @Composable () -> Unit = {},
+    /** Automations' own settings (pause all, screen reading, spending limit, Home Assistant), in Settings. */
+    automationSettingsCard: @Composable () -> Unit = {},
+    /** True while a rule is open in the builder, which then takes the whole screen. */
+    automationsFullScreen: Boolean = false,
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
@@ -216,6 +222,8 @@ fun HomeScreen(
             onBack = { settingsOpen = false },
             modifier = modifier,
             ownNetworkCard = ownNetworkCard,
+            agentModelsCard = agentModelsCard,
+            automationSettingsCard = automationSettingsCard,
             remoteAccessRequest = remoteAccessRequest,
             onRemoteAccessShown = onRemoteAccessShown,
         )
@@ -223,13 +231,15 @@ fun HomeScreen(
     }
 
     val wide = LocalConfiguration.current.screenWidthDp >= RAIL_MIN_WIDTH_DP
+    // The rule builder is a full-screen task, so the app's bars step aside while it is open.
+    val fullScreen = destination == Destination.AUTOMATIONS && automationsFullScreen
     val badges =
         mapOf(
             Destination.HOME to if (approvals.isNotEmpty()) DOT_BADGE else 0,
             Destination.AUTOMATIONS to automationsBadge,
         )
     Row(modifier.fillMaxSize()) {
-        if (wide) {
+        if (wide && !fullScreen) {
             NavigationRail {
                 Destination.entries.forEach { item ->
                     NavigationRailItem(
@@ -251,36 +261,38 @@ fun HomeScreen(
         Scaffold(
             modifier = Modifier.weight(1f),
             topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.app_name)) },
-                    navigationIcon = {
-                        Image(
-                            painterResource(R.drawable.ic_app_logo),
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 16.dp).size(32.dp),
-                        )
-                    },
-                    actions = {
-                        IconButton(onClick = { confirmKill = true }) {
-                            Icon(
-                                painterResource(DsR.drawable.core_designsystem_ic_power),
-                                contentDescription = stringResource(R.string.nav_kill_switch),
-                                tint = MaterialTheme.colorScheme.error,
+                if (!fullScreen) {
+                    CenterAlignedTopAppBar(
+                        title = { Text(stringResource(R.string.app_name)) },
+                        navigationIcon = {
+                            Image(
+                                painterResource(R.drawable.ic_app_logo),
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = 16.dp).size(32.dp),
                             )
-                        }
-                        if (!wide) {
-                            IconButton(onClick = { settingsOpen = true }) {
+                        },
+                        actions = {
+                            IconButton(onClick = { confirmKill = true }) {
                                 Icon(
-                                    painterResource(DsR.drawable.core_designsystem_ic_settings),
-                                    contentDescription = stringResource(R.string.tab_settings),
+                                    painterResource(DsR.drawable.core_designsystem_ic_power),
+                                    contentDescription = stringResource(R.string.nav_kill_switch),
+                                    tint = MaterialTheme.colorScheme.error,
                                 )
                             }
-                        }
-                    },
-                )
+                            if (!wide) {
+                                IconButton(onClick = { settingsOpen = true }) {
+                                    Icon(
+                                        painterResource(DsR.drawable.core_designsystem_ic_settings),
+                                        contentDescription = stringResource(R.string.tab_settings),
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
             },
             bottomBar = {
-                if (!wide) {
+                if (!wide && !fullScreen) {
                     NavigationBar {
                         Destination.entries.forEach { item ->
                             NavigationBarItem(
@@ -331,10 +343,7 @@ fun HomeScreen(
                                     onSeeAllRules()
                                 },
                                 onOpenSettings = { settingsOpen = true },
-                                onManageModels = {
-                                    activityTab = ACTIVITY_AGENT_TAB
-                                    destination = Destination.ACTIVITY
-                                },
+                                onManageModels = { settingsOpen = true },
                             ),
                         wide = wide,
                         modifier = content,

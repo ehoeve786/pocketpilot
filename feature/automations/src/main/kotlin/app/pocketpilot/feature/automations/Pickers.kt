@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -110,7 +111,8 @@ internal fun CatalogPickerSheet(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // One scrolling row, so the list starts near the top instead of under six rows of chips.
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
                     selected = category == null,
                     onClick = { category = null },
@@ -366,6 +368,36 @@ private val DAYS = listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun DaysField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+) {
+    val selected =
+        value
+            .split(',')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .toSet()
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DAYS.forEach { day ->
+                FilterChip(
+                    selected = day in selected,
+                    onClick = {
+                        val next = if (day in selected) selected - day else selected + day
+                        onChange(DAYS.filter { it in next }.joinToString(","))
+                    },
+                    label = { Text(day.replaceFirstChar(Char::uppercase)) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun FieldEditor(
     field: FieldDef,
     value: String,
@@ -394,7 +426,12 @@ private fun FieldEditor(
             )
             return
         }
-        TextButton(onClick = { typed = true }) { Text(stringResource(R.string.feature_automations_use_variable)) }
+        // The link comes after the clock or the chips, so it reads as part of this field rather than the one above.
+        Column {
+            if (field.kind == FieldKind.TIME) TimeField(label, value, onChange) else DaysField(label, value, onChange)
+            TextButton(onClick = { typed = true }) { Text(stringResource(R.string.feature_automations_use_variable)) }
+        }
+        return
     }
     when (field.kind) {
         FieldKind.CHOICE -> {
@@ -433,30 +470,6 @@ private fun FieldEditor(
 
         FieldKind.COLOR -> {
             ColorField(label, value, onChange)
-        }
-
-        FieldKind.DAYS -> {
-            val selected =
-                value
-                    .split(',')
-                    .map(String::trim)
-                    .filter(String::isNotEmpty)
-                    .toSet()
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(label, style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DAYS.forEach { day ->
-                        FilterChip(
-                            selected = day in selected,
-                            onClick = {
-                                val next = if (day in selected) selected - day else selected + day
-                                onChange(DAYS.filter { it in next }.joinToString(","))
-                            },
-                            label = { Text(day.replaceFirstChar(Char::uppercase)) },
-                        )
-                    }
-                }
-            }
         }
 
         FieldKind.APP -> {
@@ -498,10 +511,6 @@ private fun FieldEditor(
                         .forEach { tool -> FilterChip(selected = false, onClick = { onChange(tool) }, label = { Text(tool) }) }
                 }
             }
-        }
-
-        FieldKind.TIME -> {
-            TimeField(label, value, onChange)
         }
 
         else -> {

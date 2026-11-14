@@ -1,5 +1,6 @@
 package app.pocketpilot.feature.clients
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,8 +22,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
-import java.text.DateFormat
-import java.util.Date
+
+/** Plain words for each scope a client can be granted; an unknown scope shows as it is. */
+private val SCOPE_LABELS =
+    mapOf(
+        "apps:control" to R.string.feature_clients_scope_apps_control,
+        "apps:read" to R.string.feature_clients_scope_apps_read,
+        "clipboard:rw" to R.string.feature_clients_scope_clipboard,
+        "device:read" to R.string.feature_clients_scope_device,
+        "files:read" to R.string.feature_clients_scope_files_read,
+        "files:write" to R.string.feature_clients_scope_files_write,
+        "home:control" to R.string.feature_clients_scope_home_control,
+        "home:read" to R.string.feature_clients_scope_home_read,
+        "location:read" to R.string.feature_clients_scope_location,
+        "notify:act" to R.string.feature_clients_scope_notify_act,
+        "notify:read" to R.string.feature_clients_scope_notify_read,
+        "screen:read" to R.string.feature_clients_scope_screen,
+        "settings:write" to R.string.feature_clients_scope_settings,
+        "shell:exec" to R.string.feature_clients_scope_shell,
+        "task:run" to R.string.feature_clients_scope_task,
+        "termux:run" to R.string.feature_clients_scope_termux,
+        "ui:interact" to R.string.feature_clients_scope_ui,
+    )
 
 /** One connected client. */
 data class ClientRow(
@@ -51,17 +72,25 @@ fun ClientsCard(
             if (clients.isEmpty()) {
                 Text(stringResource(R.string.feature_clients_none), style = MaterialTheme.typography.bodySmall)
             }
-            clients.forEach { client ->
+            // Most recently used first, so an old pairing that is never used sinks to the bottom.
+            clients.sortedByDescending { it.lastUsedAtMillis ?: 0L }.forEach { client ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("${client.name} (${client.redirectHost})", style = MaterialTheme.typography.bodyLarge)
-                        Text(client.scopes.joinToString(", "), style = MaterialTheme.typography.bodySmall)
-                        client.lastUsedAtMillis?.let {
-                            Text(
-                                stringResource(R.string.feature_clients_last_used, DateFormat.getDateTimeInstance().format(Date(it))),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
+                        Text(
+                            client.lastUsedAtMillis?.let {
+                                stringResource(R.string.feature_clients_last_used, DateUtils.getRelativeTimeSpanString(it).toString())
+                            } ?: stringResource(R.string.feature_clients_never_used),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            stringResource(
+                                R.string.feature_clients_can,
+                                client.scopes.map { scope -> SCOPE_LABELS[scope]?.let { stringResource(it) } ?: scope }.joinToString(", "),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                     TextButton(onClick = { removing = client }) { Text(stringResource(R.string.feature_clients_remove)) }
                 }

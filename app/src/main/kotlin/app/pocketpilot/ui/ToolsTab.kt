@@ -19,8 +19,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -39,7 +37,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -87,6 +84,9 @@ internal fun ToolsTab(
     var blockedOnly by rememberSaveable { mutableStateOf(false) }
     var openedTool by rememberSaveable { mutableStateOf<String?>(null) }
     var showAllApps by rememberSaveable { mutableStateOf(false) }
+    // Groups start folded, as about sixty tools make a long page; a search or filter shows every match.
+    var openGroups by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    val searching = query.isNotBlank() || tierFilter != null || blockedOnly
 
     fun modeOf(spec: ToolSpec): ToolMode = ToolModes.effectiveMode({ state.modes[it] }, spec)
 
@@ -149,7 +149,13 @@ internal fun ToolsTab(
         }
         groups.forEach { (group, specs) ->
             item(key = "group-${group.name}") {
-                ToolGroupSection(group, specs, ::modeOf) { openedTool = it.name }
+                ToolGroupSection(
+                    group = group,
+                    specs = specs,
+                    open = searching || group.name in openGroups,
+                    onToggle = { openGroups = if (group.name in openGroups) openGroups - group.name else openGroups + group.name },
+                    modeOf = ::modeOf,
+                ) { openedTool = it.name }
             }
         }
         item(key = "protected") {
@@ -177,66 +183,77 @@ internal fun ToolsTab(
 private fun ToolGroupSection(
     group: ToolGroup,
     specs: List<ToolSpec>,
+    open: Boolean,
+    onToggle: () -> Unit,
     modeOf: (ToolSpec) -> ToolMode,
     onOpen: (ToolSpec) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            stringResource(group.label),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
-        )
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(group.label),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            Text(specs.size.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                painterResource(if (open) R.drawable.ic_collapse else R.drawable.ic_expand),
+                contentDescription = stringResource(if (open) R.string.tools_collapse else R.string.tools_expand),
+                tint = MaterialTheme.colorScheme.outline,
+            )
+        }
+        if (!open) return@Column
         LiquidGlassBentoCard(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(0.dp),
         ) {
             Column {
                 specs.forEach { spec ->
-                    val mode = modeOf(spec)
-                    ListItem(
-                        modifier = Modifier.clickable { onOpen(spec) },
-                        leadingContent = { TierIcon(spec.riskTier) },
-                        headlineContent = { Text(spec.title) },
-                        supportingContent = {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onOpen(spec) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(spec.title, style = MaterialTheme.typography.bodyLarge)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
                                     spec.name,
                                     style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                RiskTierTag(spec.riskTier)
+                                // Read and Interact are the usual tiers; only the riskier ones get a tag.
+                                if (spec.riskTier >= RiskTier.SENSITIVE) RiskTierTag(spec.riskTier)
                             }
-                        },
-                        trailingContent = {
-                            Text(
-                                stringResource(mode.label),
-                                style = MaterialTheme.typography.labelLarge,
-                                color =
-                                    if (mode == ToolMode.BLOCK) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                            )
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    )
+                        }
+                        ModePill(modeOf(spec))
+                    }
                 }
             }
         }
     }
 }
 
-/** A shield for SENSITIVE, a warning for DESTRUCTIVE, and the wrench for the rest. */
+/** A tool's Allow, Ask or Block setting as a coloured pill, so it reads as a setting rather than a label. */
 @Composable
-private fun TierIcon(tier: RiskTier) {
-    val (icon, tint) =
-        when (tier) {
-            RiskTier.DESTRUCTIVE -> DsR.drawable.core_designsystem_ic_warning to MaterialTheme.colorScheme.error
-            RiskTier.SENSITIVE -> DsR.drawable.core_designsystem_ic_shield to MaterialTheme.colorScheme.secondary
-            else -> DsR.drawable.core_designsystem_ic_build to MaterialTheme.colorScheme.onSurfaceVariant
+private fun ModePill(mode: ToolMode) {
+    val (container, content) =
+        when (mode) {
+            ToolMode.BLOCK -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+            ToolMode.ASK -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+            else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
         }
-    Icon(painterResource(icon), contentDescription = riskTierLabel(tier), tint = tint)
+    Surface(shape = MaterialTheme.shapes.small, color = container, contentColor = content) {
+        Text(
+            stringResource(mode.label),
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+    }
 }
 
 /** A tool's description, its Allow, Ask or Block choice capped by its tier, and its last calls. */

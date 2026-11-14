@@ -185,7 +185,7 @@ internal fun HomeTab(
                     StatusColumn(state, actions, status, now)
                 }
             }
-            liveLog(events, state.tiers, now, filter, { filter = it }, { opened = it })
+            // The same log is under Activity, so a phone's Home stops at the status cards.
         }
     }
     opened?.let { event -> AuditDetailSheet(event, state.tiers[event.tool]) { opened = null } }
@@ -208,24 +208,40 @@ private fun StatusColumn(
     state.crashReport?.let { CrashCard(it, actions.onDismissCrash) }
     if (state.clientsStopped) StoppedCard(actions.onAllowClients)
     NeedsYou(state.approvals, doctorProblems(state.setupSteps, state.shizukuState), actions)
-    // The Bento row: rules take the wider tile, the glanceable numbers stack in the narrower one.
-    BentoPair(
-        start = { tile ->
-            PinnedRulesSection(
-                rules = state.pinnedRules,
-                onToggle = actions.onPinnedToggle,
-                onSeeAll = actions.onSeeAllRules,
-                modifier = tile,
-            )
-        },
-        end = { tile ->
-            Column(tile, verticalArrangement = Arrangement.spacedBy(BentoGap)) {
-                ProviderHealthCard(providerRows(state.providers, now), onManage = actions.onManageModels)
-                TelemetryCard(telemetryItems(state, now))
-            }
-        },
-    )
-    ConnectCard(state.serverState, state.token)
+    if (state.pinnedRules.isEmpty()) {
+        // With nothing pinned, the hint takes its own short row instead of stretching to the height of the tiles beside it.
+        PinnedRulesSection(
+            rules = state.pinnedRules,
+            onToggle = actions.onPinnedToggle,
+            onSeeAll = actions.onSeeAllRules,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        BentoPair(
+            start = { tile -> ProviderHealthCard(providerRows(state.providers, now), onManage = actions.onManageModels, modifier = tile) },
+            end = { tile -> TelemetryCard(telemetryItems(state, now), modifier = tile) },
+            startWeight = 1f,
+        )
+    } else {
+        // The Bento row: rules take the wider tile, the glanceable numbers stack in the narrower one.
+        BentoPair(
+            start = { tile ->
+                PinnedRulesSection(
+                    rules = state.pinnedRules,
+                    onToggle = actions.onPinnedToggle,
+                    onSeeAll = actions.onSeeAllRules,
+                    modifier = tile,
+                )
+            },
+            end = { tile ->
+                Column(tile, verticalArrangement = Arrangement.spacedBy(BentoGap)) {
+                    ProviderHealthCard(providerRows(state.providers, now), onManage = actions.onManageModels)
+                    TelemetryCard(telemetryItems(state, now))
+                }
+            },
+        )
+    }
+    // Once an app has connected, the command is only needed again from Settings, under Doctor.
+    if (state.clients.isEmpty()) ConnectCard(state.serverState, state.token)
 }
 
 /** Pending approvals and Doctor problems; hidden when nothing waits. */

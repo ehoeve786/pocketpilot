@@ -69,12 +69,14 @@ object Describe {
         return def.sentence(named(def.fields, RuleValidator.withDefaults(def.fields, spec.params), appName))
     }
 
+    /** [ruleName] turns a rule id in a rule field into the rule's name, or "" when it is not known. */
     fun action(
         step: ActionStep,
         appName: (String) -> String = { it },
+        ruleName: (String) -> String = { "" },
     ): String {
         val def = AutomationCatalog.action(step.type) ?: return "Unknown action ${step.type}"
-        val base = def.sentence(named(def.fields, RuleValidator.withDefaults(def.fields, step.params), appName))
+        val base = def.sentence(named(def.fields, RuleValidator.withDefaults(def.fields, step.params), appName, ruleName))
         return if (def.conditional && !step.constraints.isEmpty) "$base ${group(step.constraints, appName)}" else base
     }
 
@@ -97,15 +99,24 @@ object Describe {
         }
     }
 
-    /** The params with each package name in an app field (comma-separated) replaced by [appName]. */
+    /**
+     * The params with each package name in an app field (comma-separated) replaced by [appName], and each rule id
+     * in a rule field by [ruleName].
+     */
     private fun named(
         fields: List<FieldDef>,
         params: Map<String, String>,
         appName: (String) -> String,
+        ruleName: (String) -> String = { "" },
     ): Map<String, String> {
         val appKeys = fields.filter { it.kind == FieldKind.APP }.map { it.key }.toSet()
+        val ruleKeys = fields.filter { it.kind == FieldKind.RULE }.map { it.key }.toSet()
         return params.mapValues { (key, value) ->
-            if (key in appKeys) value.split(',').map { appName(it.trim()) }.joinToString(", ") else value
+            when (key) {
+                in appKeys -> value.split(',').map { appName(it.trim()) }.joinToString(", ")
+                in ruleKeys -> ruleName(value)
+                else -> value
+            }
         }
     }
 }

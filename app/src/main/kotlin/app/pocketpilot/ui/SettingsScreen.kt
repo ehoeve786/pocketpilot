@@ -106,6 +106,10 @@ internal fun SettingsScreen(
     modifier: Modifier = Modifier,
     /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
+    /** Agent mode's models. */
+    agentModelsCard: @Composable () -> Unit = {},
+    /** Automations' own settings. */
+    automationSettingsCard: @Composable () -> Unit = {},
     /** Counts up each time a setup step asks for remote access; the screen scrolls to that card. */
     remoteAccessRequest: Int = 0,
     /** Clears [remoteAccessRequest] once handled, so a later open of Settings does not scroll again. */
@@ -184,6 +188,8 @@ internal fun SettingsScreen(
                     },
                 )
             }
+            agentModelsCard()
+            automationSettingsCard()
             SecretsLockCard(state.secretsLocked, actions.onSecretsLockChange)
             TokenCard(state.token, state.eventKey, actions.onRotateToken)
             FoldersCard(state.sharedFolders, actions.onAddFolder, actions.onRemoveFolder)

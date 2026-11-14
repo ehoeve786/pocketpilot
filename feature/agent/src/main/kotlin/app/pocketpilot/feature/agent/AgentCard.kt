@@ -99,21 +99,30 @@ fun AgentCard(
     history: List<RunState>,
     actions: AgentActions,
     modifier: Modifier = Modifier,
+    /** Settings shows the models; Activity shows the runs. */
+    models: Boolean = true,
+    runs: Boolean = true,
 ) {
     LiquidGlassBentoCard(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.feature_agent_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.feature_agent_explainer), style = MaterialTheme.typography.bodySmall)
-            ProfilesSection(profiles, actions)
+            if (models) {
+                Text(stringResource(R.string.feature_agent_explainer), style = MaterialTheme.typography.bodySmall)
+                ProfilesSection(profiles, actions)
+            }
+            if (!runs) return@Column
+            if (!models && current == null && history.isEmpty()) {
+                Text(stringResource(R.string.feature_agent_no_runs), style = MaterialTheme.typography.bodySmall)
+            }
             current?.let {
-                HorizontalDivider()
+                if (models) HorizontalDivider()
                 Text(stringResource(R.string.feature_agent_run_title), style = MaterialTheme.typography.titleSmall)
                 RunView(it, expandedByDefault = true)
                 if (it.active) RunControls(it.status, actions)
             }
             val earlier = history.filter { it.id != current?.id }.take(HISTORY_SHOWN)
             if (earlier.isNotEmpty()) {
-                HorizontalDivider()
+                if (models || current != null) HorizontalDivider()
                 Text(stringResource(R.string.feature_agent_history), style = MaterialTheme.typography.titleSmall)
                 earlier.forEach { RunView(it, expandedByDefault = false) }
             }

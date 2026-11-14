@@ -118,7 +118,7 @@
     <string name="doctor_allow_notifications">Allow notification access</string>
     <string name="backend_notification_listener">Notification access</string>
     <string name="backend_shared_folders">Shared folders</string>
-    <string name="backend_home_assistant">Address and token in Automations settings</string>
+    <string name="backend_home_assistant">Address and token in Settings, under Automations</string>
     <string name="capability_read_files">Files in shared folders</string>
     <string name="capability_home_assistant">Home Assistant</string>
     <string name="folders_title">Shared folders</string>
@@ -152,4 +152,8 @@
     <string name="home_setup_guide">Open the setup guide</string>
     <string name="settings_secrets_lost">Some saved secrets could not be read, usually because the key store was reset. Enter them again.</string>
     <string name="biometric_no_screen_lock">This phone has no screen lock, so approvals cannot ask for your fingerprint or face. Set a screen lock to use it.</string>
+    <string name="tools_expand">Expand</string>
+    <string name="tools_collapse">Collapse</string>
+    <string name="doctor_all_set">Everything is set up and working.</string>
+    <string name="doctor_show_details">Show details</string>
 </resources>
