@@ -355,7 +355,7 @@ private fun CategoryHeader(
         Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Icon(
             painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
-            contentDescription = stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+            contentDescription = stringResource(if (open) R.string.feature_automations_fold else R.string.feature_automations_unfold),
             tint = MaterialTheme.colorScheme.outline,
         )
     }

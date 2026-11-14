@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -246,6 +247,8 @@ internal fun RuleEditor(
 
     Column(modifier.fillMaxSize()) {
         TopAppBar(
+            // The home screen's bar above already leaves room for the status bar.
+            windowInsets = WindowInsets(0, 0, 0, 0),
             title = { Text(stringResource(if (isNew) R.string.feature_automations_new_rule else R.string.feature_automations_edit_rule)) },
             navigationIcon = {
                 IconButton(onClick = onClose) {
@@ -579,7 +582,7 @@ private fun EditorSection(
             Icon(
                 painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
                 contentDescription =
-                    stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+                    stringResource(if (open) R.string.feature_automations_fold else R.string.feature_automations_unfold),
                 tint = MaterialTheme.colorScheme.outline,
             )
         }
@@ -662,7 +665,8 @@ private fun ConstraintGroupEditor(
     onChange: (ConstraintGroup) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (group.items.size > 1 || onRemove != null || (depth > 0 && group.items.isNotEmpty())) {
+        // One condition needs no mode, unless it was set to something other than All, such as None.
+        if (group.items.size > 1 || onRemove != null || group.mode != GroupMode.ALL) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { ModeMenu(group.mode) { onChange(group.copy(mode = it)) } }
                 if (onRemove != null) {
@@ -743,6 +747,7 @@ private fun ActionListEditor(
     sideload: Boolean,
     ruleName: (String) -> String,
     depth: Int,
+    extraAdd: (@Composable () -> Unit)? = null,
     onChange: (List<ActionStep>) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(if (depth == 0) 6.dp else 0.dp)) {
@@ -763,7 +768,11 @@ private fun ActionListEditor(
             )
         }
         val add = stringResource(R.string.feature_automations_add_action)
-        AddButton(add) { sheets.pickAction(add, sideload) { onChange(steps + it) } }
+        // Add Else sits beside Add action, so nested blocks do not stack a column of add buttons.
+        Row {
+            AddButton(add) { sheets.pickAction(add, sideload) { onChange(steps + it) } }
+            extraAdd?.invoke()
+        }
     }
 }
 
@@ -865,7 +874,7 @@ private fun ActionStepRow(
                         Icon(
                             painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
                             contentDescription =
-                                stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+                                stringResource(if (open) R.string.feature_automations_fold else R.string.feature_automations_unfold),
                             tint = MaterialTheme.colorScheme.outline,
                         )
                     }
@@ -888,12 +897,17 @@ private fun ActionStepRow(
                     .rail(MaterialTheme.colorScheme.outlineVariant)
                     .padding(start = 10.dp),
             ) {
-                if (isIf) Text(stringResource(R.string.feature_automations_then), style = MaterialTheme.typography.labelLarge)
-                ActionListEditor(step.children, sheets, sideload, ruleName, depth + 1) { onChange(step.copy(children = it)) }
-                if (isIf && step.elseChildren.isEmpty()) {
-                    val addElse = stringResource(R.string.feature_automations_add_else)
-                    AddButton(addElse) { sheets.pickAction(addElse, sideload) { onChange(step.copy(elseChildren = listOf(it))) } }
-                } else if (isIf) {
+                val hasElse = isIf && step.elseChildren.isNotEmpty()
+                if (hasElse) Text(stringResource(R.string.feature_automations_then), style = MaterialTheme.typography.labelLarge)
+                val addElse = stringResource(R.string.feature_automations_add_else)
+                val extraAdd: (@Composable () -> Unit)? =
+                    if (isIf && !hasElse) {
+                        { AddButton(addElse) { sheets.pickAction(addElse, sideload) { onChange(step.copy(elseChildren = listOf(it))) } } }
+                    } else {
+                        null
+                    }
+                ActionListEditor(step.children, sheets, sideload, ruleName, depth + 1, extraAdd) { onChange(step.copy(children = it)) }
+                if (hasElse) {
                     Text(stringResource(R.string.feature_automations_else), style = MaterialTheme.typography.labelLarge)
                     ActionListEditor(step.elseChildren, sheets, sideload, ruleName, depth + 1) { onChange(step.copy(elseChildren = it)) }
                 }

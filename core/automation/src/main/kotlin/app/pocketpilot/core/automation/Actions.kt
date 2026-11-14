@@ -1001,7 +1001,14 @@ internal object Actions {
                         ),
                     tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Engine,
-                    sentence = { p -> "Call ${p.p("tool")}" },
+                    sentence = { p ->
+                        "Call ${p.p("tool")}" +
+                            p
+                                .p("into")
+                                .ifBlank { null }
+                                ?.let { " into {$it}" }
+                                .orEmpty()
+                    },
                 ),
                 // AI
                 ActionDef(
@@ -1083,7 +1090,7 @@ internal object Actions {
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
                     conditional = true,
-                    sentence = { p -> "Wait until (up to ${p.p("timeout")} s)" },
+                    sentence = { p -> "Wait up to ${p.p("timeout")} s until" },
                 ),
                 ActionDef(
                     type = "flow.stop",
@@ -1144,7 +1151,9 @@ internal object Actions {
                         ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
-                    sentence = { p -> "{${p.p("name")}} = ${p.p("value").take(30)}" },
+                    sentence = { p ->
+                        if (p.p("value").isEmpty()) "Clear {${p.p("name")}}" else "{${p.p("name")}} = ${p.p("value").take(30)}"
+                    },
                 ),
                 ActionDef(
                     type = "stopwatch",
@@ -1219,7 +1228,14 @@ internal object Actions {
                         ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
-                    sentence = { p -> "${p.p("op").replaceFirstChar(Char::uppercase)} {${p.p("name")}}" },
+                    sentence = { p ->
+                        val name = "{${p.p("name")}}"
+                        when (p.p("op")) {
+                            "extract" -> "Extract ${p.p("find")} from $name"
+                            "replace" -> "Replace \"${p.p("find")}\" with \"${p.p("with")}\" in $name"
+                            else -> "${p.p("op").replaceFirstChar(Char::uppercase)} $name"
+                        }
+                    },
                 ),
                 ActionDef(
                     type = "var.random",

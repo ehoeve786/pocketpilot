@@ -294,7 +294,18 @@ internal object Constraints {
                         textField("value", "Value", required = false),
                     ),
                 source = Source.POCKETPILOT,
-                sentence = { p -> "{${p.p("name")}} ${p.p("op").replace('_', ' ')} ${p.p("value")}".trim() },
+                sentence = { p ->
+                    val name = "{${p.p("name")}}"
+                    // Text is quoted so where it starts and ends is clear; a number or a regex is shown as written.
+                    val text = "\"${p.p("value")}\""
+                    when (p.p("op")) {
+                        "equals" -> "$name is $text"
+                        "not_equals" -> "$name is not $text"
+                        "contains" -> "$name contains $text"
+                        "set", "not_set" -> "$name is ${p.p("op").replace('_', ' ')}"
+                        else -> "$name ${p.p("op")} ${p.p("value")}".trim()
+                    }
+                },
                 check = { p -> compare(variable(p.p("name")), p.p("op"), p["value"].orEmpty()) },
             ),
             // Rule state

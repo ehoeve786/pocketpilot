@@ -67,4 +67,36 @@ class DescribeTest {
         )
         assertEquals("Run another rule", Describe.action(ActionStep("flow.run_rule", mapOf("rule" to "r1"))))
     }
+
+    @Test
+    fun `variable steps read as sentences`() {
+        fun compare(
+            op: String,
+            value: String = "",
+        ) = Describe.constraint(ConstraintSpec("variable.compare", mapOf("name" to "trigger.text", "op" to op, "value" to value)))
+
+        assertEquals("{trigger.text} contains \"Extend run\"", compare("contains", "Extend run"))
+        assertEquals("{trigger.text} is not \"x\"", compare("not_equals", "x"))
+        assertEquals("{trigger.text} matches ^[0-9]+$", compare("matches", "^[0-9]+$"))
+        assertEquals("{trigger.text} is not set", compare("not_set"))
+        assertEquals("Clear {lt}", Describe.action(ActionStep("var.set", mapOf("name" to "lt"))))
+        assertEquals("{lt} = {s}", Describe.action(ActionStep("var.set", mapOf("name" to "lt", "value" to "{s}"))))
+        assertEquals(
+            "Extract [0-9]+ from {y}",
+            Describe.action(ActionStep("var.text", mapOf("name" to "y", "op" to "extract", "find" to "[0-9]+"))),
+        )
+        assertEquals(
+            "Call screen.snapshot into {s}",
+            Describe.action(
+                ActionStep(
+                    "tool.call",
+                    mapOf(
+                        "tool" to "screen.snapshot",
+                        "into" to "s",
+                    ),
+                ),
+            ),
+        )
+        assertEquals("Wait up to 6 s until", Describe.action(ActionStep("flow.wait_until", mapOf("timeout" to "6"))))
+    }
 }
