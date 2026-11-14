@@ -806,9 +806,10 @@ private fun ActionStepRow(
     val container = def?.container == true
     val isIf = step.type == "flow.if"
     val packages = LocalContext.current.packageManager
-    var open by rememberSaveable(step.type, index, depth) { mutableStateOf(true) }
-    val editOptions = { sheets.editOptions(step, onChange) }
     val hidden = step.children.size + step.elseChildren.size
+    // Folded by default so the rule reads compactly; an empty block opens so actions can be added to it.
+    var open by rememberSaveable(step.type, index, depth) { mutableStateOf(hidden == 0) }
+    val editOptions = { sheets.editOptions(step, onChange) }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
