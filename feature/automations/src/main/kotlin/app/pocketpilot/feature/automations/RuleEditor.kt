@@ -1,7 +1,9 @@
 package app.pocketpilot.feature.automations
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,11 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -27,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +42,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,12 +87,30 @@ private sealed interface EditorSheet {
     ) : EditorSheet
 }
 
+/** A step whose condition and failure setting are open in a sheet. Changes apply as they are made. */
+private class StepOptions(
+    step: ActionStep,
+    val onChange: (ActionStep) -> Unit,
+) {
+    var step by mutableStateOf(step)
+}
+
 /** Opens sheets for the editor's sections, so nested editors share one sheet slot. */
 private class Sheets(
     /** False in the Play build, which hides sideload-only triggers and conditions. */
     private val sideload: Boolean,
 ) {
     var open by mutableStateOf<EditorSheet?>(null)
+
+    /** Shown under [open], so a condition picked for the step opens on top of it. */
+    var options by mutableStateOf<StepOptions?>(null)
+
+    fun editOptions(
+        step: ActionStep,
+        onChange: (ActionStep) -> Unit,
+    ) {
+        options = StepOptions(step, onChange)
+    }
 
     fun pickTrigger(
         title: String,
@@ -271,7 +299,11 @@ internal fun RuleEditor(
                 onChange = { rule = rule.copy(category = it) },
             )
 
-            EditorSection(stringResource(R.string.feature_automations_when), stringResource(R.string.feature_automations_when_text)) {
+            EditorSection(
+                stringResource(R.string.feature_automations_when),
+                stringResource(R.string.feature_automations_when_text),
+                count = rule.triggers.size,
+            ) {
                 rule.triggers.forEachIndexed { i, spec ->
                     val def = AutomationCatalog.trigger(spec.type)
                     ItemRow(
@@ -298,13 +330,19 @@ internal fun RuleEditor(
                 }
             }
 
-            EditorSection(stringResource(R.string.feature_automations_only_if), stringResource(R.string.feature_automations_only_if_text)) {
+            EditorSection(
+                stringResource(R.string.feature_automations_only_if),
+                stringResource(R.string.feature_automations_only_if_text),
+                count = rule.constraints.items.size,
+            ) {
                 ConstraintGroupEditor(rule.constraints, sheets, depth = 0) { rule = rule.copy(constraints = it) }
             }
 
             EditorSection(
                 stringResource(R.string.feature_automations_rule_variables),
                 stringResource(R.string.feature_automations_rule_variables_text),
+                count = rule.variables.size,
+                startOpen = rule.variables.isNotEmpty(),
             ) {
                 rule.variables.toList().sortedBy { it.first }.forEach { (name, value) ->
                     val type = rule.variableTypes[name] ?: VariableType.STRING
@@ -321,7 +359,11 @@ internal fun RuleEditor(
                 }
             }
 
-            EditorSection(stringResource(R.string.feature_automations_then), null) {
+            EditorSection(
+                stringResource(R.string.feature_automations_then),
+                hint = null,
+                count = if (rule.runAs == RunMode.DIRECT) rule.actions.size else 0,
+            ) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     RunMode.entries.forEachIndexed { i, mode ->
                         SegmentedButton(
@@ -421,6 +463,10 @@ internal fun RuleEditor(
         )
     }
 
+    sheets.options?.let { options ->
+        StepOptionsSheet(options, sheets, onDismiss = { sheets.options = null })
+    }
+
     when (val sheet = sheets.open) {
         is EditorSheet.Pick -> {
             CatalogPickerSheet(sheet.title, sheet.items, onPick = sheet.onPick, onDismiss = { sheets.open = null })
@@ -469,14 +515,13 @@ private fun variableOptions(
 }
 
 /** The rule's category: type a new one, or tap one of the categories the other rules already use. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryField(
     category: String,
     existing: List<String>,
     onChange: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
             value = category,
             onValueChange = onChange,
@@ -485,30 +530,57 @@ private fun CategoryField(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            existing.forEach { name ->
-                FilterChip(
-                    selected = name == category.trim(),
-                    onClick = { onChange(name) },
-                    label = { Text(name) },
-                )
+        if (existing.isNotEmpty()) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                existing.forEach { name ->
+                    FilterChip(
+                        selected = name == category.trim(),
+                        onClick = { onChange(name) },
+                        label = { Text(name) },
+                    )
+                }
             }
         }
     }
 }
 
+/** One part of the rule. Its heading folds it away, and then shows how many items it holds. */
 @Composable
 private fun EditorSection(
     title: String,
     hint: String?,
+    count: Int,
+    startOpen: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    var open by rememberSaveable(title) { mutableStateOf(startOpen) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-        if (hint != null) {
-            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { open = !open }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (open || count == 0) title else "$title ($count)",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
+                contentDescription =
+                    stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+                tint = MaterialTheme.colorScheme.outline,
+            )
         }
-        content()
+        if (open) {
+            if (hint != null && count == 0) {
+                Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            content()
+        }
     }
 }
 
@@ -521,7 +593,7 @@ private fun ItemRow(
 ) {
     LiquidGlassBentoCard(onClick = onClick, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(vertical = 12.dp))
+            Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
             IconButton(onClick = onDelete) {
                 Icon(
                     painterResource(R.drawable.feature_automations_ic_close),
@@ -537,30 +609,61 @@ private fun AddButton(
     label: String,
     onClick: () -> Unit,
 ) {
-    TextButton(onClick = onClick) {
+    TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 8.dp)) {
         Icon(painterResource(R.drawable.feature_automations_ic_add), contentDescription = null, Modifier.size(18.dp))
         Text(label, modifier = Modifier.padding(start = 4.dp))
     }
 }
 
-/** Conditions combined by All, Any, None or Exactly one, with groups nested up to [MAX_DEPTH]. */
-@OptIn(ExperimentalLayoutApi::class)
+/** How a group combines its conditions, as one button that opens the four choices. */
+@Composable
+private fun ModeMenu(
+    mode: GroupMode,
+    onChange: (GroupMode) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Text(modeLabel(mode))
+            Icon(painterResource(R.drawable.feature_automations_ic_down), contentDescription = null, Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            GroupMode.entries.forEach { entry ->
+                DropdownMenuItem(
+                    text = { Text(modeLabel(entry)) },
+                    onClick = {
+                        open = false
+                        onChange(entry)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Conditions combined by All, Any, None or Exactly one, with groups nested up to [MAX_DEPTH]. A nested group
+ * passes [onRemove], shown beside its mode.
+ */
 @Composable
 private fun ConstraintGroupEditor(
     group: ConstraintGroup,
     sheets: Sheets,
     depth: Int,
+    onRemove: (() -> Unit)? = null,
     onChange: (ConstraintGroup) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (group.items.size > 1 || depth > 0) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                GroupMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = group.mode == mode,
-                        onClick = { onChange(group.copy(mode = mode)) },
-                        label = { Text(modeLabel(mode)) },
-                    )
+        if (group.items.size > 1 || onRemove != null || (depth > 0 && group.items.isNotEmpty())) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { ModeMenu(group.mode) { onChange(group.copy(mode = it)) } }
+                if (onRemove != null) {
+                    IconButton(onClick = onRemove) {
+                        Icon(
+                            painterResource(R.drawable.feature_automations_ic_close),
+                            contentDescription = stringResource(R.string.feature_automations_remove),
+                        )
+                    }
                 }
             }
         }
@@ -585,21 +688,13 @@ private fun ConstraintGroupEditor(
 
                 is ConstraintNode.Group -> {
                     LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
-                        Column(Modifier.padding(8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    stringResource(R.string.feature_automations_group),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                IconButton(onClick = { onChange(group.copy(items = group.items.without(i))) }) {
-                                    Icon(
-                                        painterResource(R.drawable.feature_automations_ic_close),
-                                        contentDescription = stringResource(R.string.feature_automations_remove),
-                                    )
-                                }
-                            }
-                            ConstraintGroupEditor(node.group, sheets, depth + 1) { inner ->
+                        Column(Modifier.padding(start = 8.dp, bottom = 4.dp)) {
+                            ConstraintGroupEditor(
+                                node.group,
+                                sheets,
+                                depth + 1,
+                                onRemove = { onChange(group.copy(items = group.items.without(i))) },
+                            ) { inner ->
                                 onChange(group.copy(items = group.items.replace(i, ConstraintNode.Group(inner))))
                             }
                         }
@@ -641,7 +736,7 @@ private fun ActionListEditor(
     depth: Int,
     onChange: (List<ActionStep>) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(if (depth == 0) 6.dp else 0.dp)) {
         steps.forEachIndexed { i, step ->
             ActionStepCard(
                 index = i,
@@ -653,6 +748,7 @@ private fun ActionListEditor(
                 canMoveDown = i < steps.lastIndex,
                 onChange = { onChange(steps.replace(i, it)) },
                 onMove = { delta -> onChange(steps.move(i, i + delta)) },
+                onDuplicate = { onChange(steps.toMutableList().also { it.add(i + 1, step) }) },
                 onDelete = { onChange(steps.without(i)) },
             )
         }
@@ -661,7 +757,10 @@ private fun ActionListEditor(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * One action as a short row: its sentence, what limits it, and a menu for the rest. A top-level action is a
+ * card; an action inside If, Repeat or While is a plain row beside a line, so nesting does not narrow the text.
+ */
 @Composable
 private fun ActionStepCard(
     index: Int,
@@ -673,125 +772,241 @@ private fun ActionStepCard(
     canMoveDown: Boolean,
     onChange: (ActionStep) -> Unit,
     onMove: (Int) -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val row: @Composable () -> Unit = {
+        ActionStepRow(index, step, sheets, sideload, depth, canMoveUp, canMoveDown, onChange, onMove, onDuplicate, onDelete)
+    }
+    if (depth == 0) {
+        LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+            Column(Modifier.padding(start = 12.dp, bottom = 4.dp)) { row() }
+        }
+    } else {
+        row()
+    }
+}
+
+@Composable
+private fun ActionStepRow(
+    index: Int,
+    step: ActionStep,
+    sheets: Sheets,
+    sideload: Boolean,
+    depth: Int,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onChange: (ActionStep) -> Unit,
+    onMove: (Int) -> Unit,
+    onDuplicate: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val def = AutomationCatalog.action(step.type)
-    var more by rememberSaveable(step.type, index, depth) { mutableStateOf(!step.constraints.isEmpty || step.onError != OnError.STOP) }
-    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
-        Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clickable(enabled = def != null && def.fields.isNotEmpty()) {
-                            if (def != null) {
-                                sheets.editFields(def.title, def.description, def.fields, step.params) { onChange(step.copy(params = it)) }
-                            }
-                        }.padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            "${index + 1}. ${Describe.action(step, LocalContext.current.packageManager::appLabel)}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f, false),
-                        )
-                        val tier = step.tier()
-                        if (tier >= RiskTier.SENSITIVE) TierTag(tier)
-                    }
-                    if (def == null) {
-                        Text(step.type, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
-                    }
-                }
-                IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
-                    Icon(
-                        painterResource(R.drawable.feature_automations_ic_up),
-                        contentDescription = stringResource(R.string.feature_automations_move_up),
-                    )
-                }
-                IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
-                    Icon(
-                        painterResource(R.drawable.feature_automations_ic_down),
-                        contentDescription = stringResource(R.string.feature_automations_move_down),
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        painterResource(R.drawable.feature_automations_ic_delete),
-                        contentDescription = stringResource(R.string.feature_automations_remove),
-                    )
-                }
-            }
+    val conditional = def?.conditional == true
+    val container = def?.container == true
+    val isIf = step.type == "flow.if"
+    val packages = LocalContext.current.packageManager
+    var open by rememberSaveable(step.type, index, depth) { mutableStateOf(true) }
+    val editOptions = { sheets.editOptions(step, onChange) }
+    val hidden = step.children.size + step.elseChildren.size
 
-            val conditional = def?.conditional == true
-            if (conditional) {
-                Text(
-                    stringResource(
-                        if (step.type ==
-                            "flow.if"
-                        ) {
-                            R.string.feature_automations_if_condition
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().clickable {
+                        if (def != null && def.fields.isNotEmpty()) {
+                            sheets.editFields(def.title, def.description, def.fields, step.params) { onChange(step.copy(params = it)) }
                         } else {
-                            R.string.feature_automations_step_condition_required
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                ConstraintGroupEditor(step.constraints, sheets, depth = 1) { onChange(step.copy(constraints = it)) }
-            }
-            if (def?.container == true) {
-                Column(Modifier.padding(start = 8.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            editOptions()
+                        }
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
-                        stringResource(
-                            if (step.type ==
-                                "flow.if"
-                            ) {
-                                R.string.feature_automations_then
-                            } else {
-                                R.string.feature_automations_inner_actions
-                            },
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
+                        "${index + 1}. ${Describe.action(step, packages::appLabel)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f, false),
                     )
-                    ActionListEditor(step.children, sheets, sideload, depth + 1) { onChange(step.copy(children = it)) }
-                    if (step.type == "flow.if") {
-                        Text(stringResource(R.string.feature_automations_else), style = MaterialTheme.typography.labelLarge)
-                        ActionListEditor(step.elseChildren, sheets, sideload, depth + 1) { onChange(step.copy(elseChildren = it)) }
-                    }
+                    val tier = step.tier()
+                    if (tier >= RiskTier.SENSITIVE) TierTag(tier)
+                }
+                if (def == null) {
+                    Text(step.type, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                }
+                StepNotes(step, conditional, Describe.group(step.constraints, packages::appLabel), editOptions)
+                if (container && !open) {
+                    Text(
+                        stringResource(R.string.feature_automations_actions_hidden, hidden),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { open = true },
+                    )
                 }
             }
+            if (container) {
+                IconButton(onClick = { open = !open }) {
+                    Icon(
+                        painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
+                        contentDescription =
+                            stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+            StepMenu(
+                canMoveUp = canMoveUp,
+                canMoveDown = canMoveDown,
+                onOptions = editOptions,
+                onMove = onMove,
+                onDuplicate = onDuplicate,
+                onDelete = onDelete,
+            )
+        }
 
-            if (!conditional) {
-                TextButton(onClick = { more = !more }) {
-                    Text(stringResource(if (more) R.string.feature_automations_less else R.string.feature_automations_more_options))
-                }
-                if (more) {
-                    Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.feature_automations_step_condition), style = MaterialTheme.typography.labelLarge)
-                        ConstraintGroupEditor(step.constraints, sheets, depth = 1) { onChange(step.copy(constraints = it)) }
-                    }
-                }
-            }
-            if (more || conditional) {
-                Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.feature_automations_on_error), style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(
-                            selected = step.onError == OnError.STOP,
-                            onClick = { onChange(step.copy(onError = OnError.STOP)) },
-                            label = { Text(stringResource(R.string.feature_automations_on_error_stop)) },
-                        )
-                        FilterChip(
-                            selected = step.onError == OnError.CONTINUE,
-                            onClick = { onChange(step.copy(onError = OnError.CONTINUE)) },
-                            label = { Text(stringResource(R.string.feature_automations_on_error_continue)) },
-                        )
-                    }
+        if (container && open) {
+            Column(
+                Modifier
+                    .padding(bottom = 4.dp)
+                    .rail(MaterialTheme.colorScheme.outlineVariant)
+                    .padding(start = 10.dp),
+            ) {
+                if (isIf) Text(stringResource(R.string.feature_automations_then), style = MaterialTheme.typography.labelLarge)
+                ActionListEditor(step.children, sheets, sideload, depth + 1) { onChange(step.copy(children = it)) }
+                if (isIf && step.elseChildren.isEmpty()) {
+                    val addElse = stringResource(R.string.feature_automations_add_else)
+                    AddButton(addElse) { sheets.pickAction(addElse, sideload) { onChange(step.copy(elseChildren = listOf(it))) } }
+                } else if (isIf) {
+                    Text(stringResource(R.string.feature_automations_else), style = MaterialTheme.typography.labelLarge)
+                    ActionListEditor(step.elseChildren, sheets, sideload, depth + 1) { onChange(step.copy(elseChildren = it)) }
                 }
             }
         }
     }
 }
+
+/** What limits a step, in small text under its sentence. Tapping it opens the step's condition and errors. */
+@Composable
+private fun StepNotes(
+    step: ActionStep,
+    conditional: Boolean,
+    condition: String,
+    onClick: () -> Unit,
+) {
+    val notes =
+        buildList {
+            if (!conditional && !step.constraints.isEmpty) add(stringResource(R.string.feature_automations_only_if_note, condition))
+            if (step.onError == OnError.CONTINUE) add(stringResource(R.string.feature_automations_continues_note))
+        }
+    if (notes.isNotEmpty()) {
+        Text(
+            notes.joinToString("\n"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable(onClick = onClick),
+        )
+    }
+    if (conditional && step.constraints.isEmpty) {
+        Text(
+            stringResource(R.string.feature_automations_add_condition),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable(onClick = onClick),
+        )
+    }
+}
+
+/** The step's other controls behind one button, so the sentence keeps the row's width. */
+@Composable
+private fun StepMenu(
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onOptions: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val item: @Composable (Int, Boolean, () -> Unit) -> Unit = { label, enabled, action ->
+        DropdownMenuItem(
+            text = { Text(stringResource(label)) },
+            enabled = enabled,
+            onClick = {
+                open = false
+                action()
+            },
+        )
+    }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(
+                painterResource(R.drawable.feature_automations_ic_more),
+                contentDescription = stringResource(R.string.feature_automations_step_menu),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            item(R.string.feature_automations_more_options, true, onOptions)
+            item(R.string.feature_automations_move_up, canMoveUp) { onMove(-1) }
+            item(R.string.feature_automations_move_down, canMoveDown) { onMove(1) }
+            item(R.string.feature_automations_duplicate, true, onDuplicate)
+            item(R.string.feature_automations_remove, true, onDelete)
+        }
+    }
+}
+
+/** A step's condition and what happens when it fails, in a sheet over the editor. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun StepOptionsSheet(
+    options: StepOptions,
+    sheets: Sheets,
+    onDismiss: () -> Unit,
+) {
+    val step = options.step
+    val def = AutomationCatalog.action(step.type)
+    val change: (ActionStep) -> Unit = {
+        options.step = it
+        options.onChange(it)
+    }
+    val conditionLabel =
+        when {
+            step.type == "flow.if" -> R.string.feature_automations_if_condition
+            def?.conditional == true -> R.string.feature_automations_step_condition_required
+            else -> R.string.feature_automations_step_condition
+        }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(def?.title ?: step.type, style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(conditionLabel), style = MaterialTheme.typography.labelLarge)
+            ConstraintGroupEditor(step.constraints, sheets, depth = 1) { change(step.copy(constraints = it)) }
+            Text(stringResource(R.string.feature_automations_on_error), style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(
+                    selected = step.onError == OnError.STOP,
+                    onClick = { change(step.copy(onError = OnError.STOP)) },
+                    label = { Text(stringResource(R.string.feature_automations_on_error_stop)) },
+                )
+                FilterChip(
+                    selected = step.onError == OnError.CONTINUE,
+                    onClick = { change(step.copy(onError = OnError.CONTINUE)) },
+                    label = { Text(stringResource(R.string.feature_automations_on_error_continue)) },
+                )
+            }
+            Button(onClick = onDismiss) { Text(stringResource(R.string.feature_automations_done)) }
+        }
+    }
+}
+
+/** A line down the left edge, marking the actions that belong to the step above. */
+private fun Modifier.rail(color: Color): Modifier =
+    drawBehind { drawLine(color, Offset(0f, 0f), Offset(0f, size.height), strokeWidth = 2.dp.toPx()) }
 
 private fun <T> List<T>.replace(
     index: Int,

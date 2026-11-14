@@ -105,7 +105,6 @@
     <string name="feature_automations_add_group">Add group</string>
     <string name="feature_automations_add_action">Add action</string>
     <string name="feature_automations_variables">Use in actions: %1$s</string>
-    <string name="feature_automations_group">Group</string>
     <string name="feature_automations_mode_all">All of these</string>
     <string name="feature_automations_mode_any">Any of these</string>
     <string name="feature_automations_mode_none">None of these</string>
@@ -117,13 +116,17 @@
     <string name="feature_automations_problems">Before this rule can run</string>
     <string name="feature_automations_if_condition">If</string>
     <string name="feature_automations_step_condition_required">Condition</string>
-    <string name="feature_automations_inner_actions">Actions</string>
     <string name="feature_automations_more_options">Condition and errors</string>
-    <string name="feature_automations_less">Hide</string>
     <string name="feature_automations_step_condition">Only run this action if</string>
     <string name="feature_automations_on_error">If it fails</string>
     <string name="feature_automations_on_error_stop">Stop the rule</string>
     <string name="feature_automations_on_error_continue">Keep going</string>
+    <string name="feature_automations_only_if_note">Only if %1$s</string>
+    <string name="feature_automations_continues_note">Keeps going if it fails</string>
+    <string name="feature_automations_actions_hidden">Actions hidden: %1$d</string>
+    <string name="feature_automations_add_else">Add Else action</string>
+    <string name="feature_automations_step_menu">More</string>
+    <string name="feature_automations_duplicate">Duplicate</string>
     <string name="feature_automations_move_up">Move up</string>
     <string name="feature_automations_move_down">Move down</string>
     <string name="feature_automations_category">Category</string>
