@@ -1101,7 +1101,7 @@ internal object Actions {
                     fields = listOf(FieldDef("rule", "Rule", FieldKind.RULE)),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
-                    sentence = { "Run another rule" },
+                    sentence = { p -> p.p("rule").ifBlank { null }?.let { "Run \"$it\"" } ?: "Run another rule" },
                 ),
                 ActionDef(
                     type = "flow.set_rule",
@@ -1111,7 +1111,7 @@ internal object Actions {
                     fields = listOf(FieldDef("rule", "Rule", FieldKind.RULE), choiceField("state", "Turn", ON_OFF)),
                     tier = RiskTier.INTERACT,
                     kind = ActionKind.Engine,
-                    sentence = { p -> "Turn a rule ${p.p("state")}" },
+                    sentence = { p -> "Turn ${p.p("rule").ifBlank { null }?.let { "\"$it\"" } ?: "a rule"} ${p.p("state")}" },
                 ),
                 ActionDef(
                     type = "flow.log",

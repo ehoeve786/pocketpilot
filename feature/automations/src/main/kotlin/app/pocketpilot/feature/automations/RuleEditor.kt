@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -221,6 +223,12 @@ internal fun RuleEditor(
     val localTypes = rule.localVariableTypes()
     val variablePicks = variableOptions(localTypes.keys + lastVariables.keys, localTypes, state.variables, state.variableTypes)
     val packageManager = LocalContext.current.packageManager
+    val ruleName: (String) -> String = { id ->
+        state.rules
+            .firstOrNull { it.id == id }
+            ?.name
+            .orEmpty()
+    }
     val triggerPicks =
         rule.triggers.distinctBy { it.type }.map { PickOption(it.type, Describe.trigger(it, packageManager::appLabel)) } +
             PickOption("manual", "Started by hand or by another rule")
@@ -395,7 +403,7 @@ internal fun RuleEditor(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    ActionListEditor(rule.actions, sheets, state.sideload, depth = 0) { rule = rule.copy(actions = it) }
+                    ActionListEditor(rule.actions, sheets, state.sideload, ruleName, depth = 0) { rule = rule.copy(actions = it) }
                 }
             }
 
@@ -733,6 +741,7 @@ private fun ActionListEditor(
     steps: List<ActionStep>,
     sheets: Sheets,
     sideload: Boolean,
+    ruleName: (String) -> String,
     depth: Int,
     onChange: (List<ActionStep>) -> Unit,
 ) {
@@ -743,6 +752,7 @@ private fun ActionListEditor(
                 step = step,
                 sheets = sheets,
                 sideload = sideload,
+                ruleName = ruleName,
                 depth = depth,
                 canMoveUp = i > 0,
                 canMoveDown = i < steps.lastIndex,
@@ -767,6 +777,7 @@ private fun ActionStepCard(
     step: ActionStep,
     sheets: Sheets,
     sideload: Boolean,
+    ruleName: (String) -> String,
     depth: Int,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
@@ -776,7 +787,7 @@ private fun ActionStepCard(
     onDelete: () -> Unit,
 ) {
     val row: @Composable () -> Unit = {
-        ActionStepRow(index, step, sheets, sideload, depth, canMoveUp, canMoveDown, onChange, onMove, onDuplicate, onDelete)
+        ActionStepRow(index, step, sheets, sideload, ruleName, depth, canMoveUp, canMoveDown, onChange, onMove, onDuplicate, onDelete)
     }
     if (depth == 0) {
         LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
@@ -793,6 +804,7 @@ private fun ActionStepRow(
     step: ActionStep,
     sheets: Sheets,
     sideload: Boolean,
+    ruleName: (String) -> String,
     depth: Int,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
@@ -812,58 +824,61 @@ private fun ActionStepRow(
     val editOptions = { sheets.editOptions(step, onChange) }
 
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f).padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().clickable {
-                        if (def != null && def.fields.isNotEmpty()) {
-                            sheets.editFields(def.title, def.description, def.fields, step.params) { onChange(step.copy(params = it)) }
-                        } else {
-                            editOptions()
-                        }
-                    },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        "${index + 1}. ${Describe.action(step, packages::appLabel)}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f, false),
-                    )
-                    val tier = step.tier()
-                    if (tier >= RiskTier.SENSITIVE) TierTag(tier)
+        // The row's buttons keep their own 40dp size instead of growing to 48dp, so each action is a shorter row.
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            if (def != null && def.fields.isNotEmpty()) {
+                                sheets.editFields(def.title, def.description, def.fields, step.params) { onChange(step.copy(params = it)) }
+                            } else {
+                                editOptions()
+                            }
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            "${index + 1}. ${Describe.action(step, packages::appLabel, ruleName)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f, false),
+                        )
+                        val tier = step.tier()
+                        if (tier >= RiskTier.SENSITIVE) TierTag(tier)
+                    }
+                    if (def == null) {
+                        Text(step.type, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                    }
+                    StepNotes(step, conditional, Describe.group(step.constraints, packages::appLabel), editOptions)
+                    if (container && !open) {
+                        Text(
+                            stringResource(R.string.feature_automations_actions_hidden, hidden),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.clickable { open = true },
+                        )
+                    }
                 }
-                if (def == null) {
-                    Text(step.type, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                if (container) {
+                    IconButton(onClick = { open = !open }) {
+                        Icon(
+                            painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
+                            contentDescription =
+                                stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+                            tint = MaterialTheme.colorScheme.outline,
+                        )
+                    }
                 }
-                StepNotes(step, conditional, Describe.group(step.constraints, packages::appLabel), editOptions)
-                if (container && !open) {
-                    Text(
-                        stringResource(R.string.feature_automations_actions_hidden, hidden),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable { open = true },
-                    )
-                }
+                StepMenu(
+                    canMoveUp = canMoveUp,
+                    canMoveDown = canMoveDown,
+                    onOptions = editOptions,
+                    onMove = onMove,
+                    onDuplicate = onDuplicate,
+                    onDelete = onDelete,
+                )
             }
-            if (container) {
-                IconButton(onClick = { open = !open }) {
-                    Icon(
-                        painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
-                        contentDescription =
-                            stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
-                        tint = MaterialTheme.colorScheme.outline,
-                    )
-                }
-            }
-            StepMenu(
-                canMoveUp = canMoveUp,
-                canMoveDown = canMoveDown,
-                onOptions = editOptions,
-                onMove = onMove,
-                onDuplicate = onDuplicate,
-                onDelete = onDelete,
-            )
         }
 
         if (container && open) {
@@ -874,13 +889,13 @@ private fun ActionStepRow(
                     .padding(start = 10.dp),
             ) {
                 if (isIf) Text(stringResource(R.string.feature_automations_then), style = MaterialTheme.typography.labelLarge)
-                ActionListEditor(step.children, sheets, sideload, depth + 1) { onChange(step.copy(children = it)) }
+                ActionListEditor(step.children, sheets, sideload, ruleName, depth + 1) { onChange(step.copy(children = it)) }
                 if (isIf && step.elseChildren.isEmpty()) {
                     val addElse = stringResource(R.string.feature_automations_add_else)
                     AddButton(addElse) { sheets.pickAction(addElse, sideload) { onChange(step.copy(elseChildren = listOf(it))) } }
                 } else if (isIf) {
                     Text(stringResource(R.string.feature_automations_else), style = MaterialTheme.typography.labelLarge)
-                    ActionListEditor(step.elseChildren, sheets, sideload, depth + 1) { onChange(step.copy(elseChildren = it)) }
+                    ActionListEditor(step.elseChildren, sheets, sideload, ruleName, depth + 1) { onChange(step.copy(elseChildren = it)) }
                 }
             }
         }

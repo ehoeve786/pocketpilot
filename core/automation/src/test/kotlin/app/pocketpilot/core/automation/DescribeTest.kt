@@ -50,4 +50,21 @@ class DescribeTest {
             Describe.group(outer),
         )
     }
+
+    @Test
+    fun `rule actions name their rule when it is known`() {
+        val names = mapOf("r1" to "Courier: refresh")
+        val ruleName: (String) -> String = { names[it].orEmpty() }
+
+        assertEquals(
+            "Turn \"Courier: refresh\" on",
+            Describe.action(ActionStep("flow.set_rule", mapOf("rule" to "r1", "state" to "on")), ruleName = ruleName),
+        )
+        assertEquals("Run \"Courier: refresh\"", Describe.action(ActionStep("flow.run_rule", mapOf("rule" to "r1")), ruleName = ruleName))
+        assertEquals(
+            "Turn a rule off",
+            Describe.action(ActionStep("flow.set_rule", mapOf("rule" to "gone", "state" to "off")), ruleName = ruleName),
+        )
+        assertEquals("Run another rule", Describe.action(ActionStep("flow.run_rule", mapOf("rule" to "r1"))))
+    }
 }
