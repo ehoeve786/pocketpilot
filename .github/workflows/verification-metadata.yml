@@ -50,6 +50,10 @@ jobs:
       - name: Write verification metadata
         run: ./gradlew --write-verification-metadata sha256 checkModuleGraph :app:assembleDebug test :app:lintDebug
 
+      # The diff also goes to the log, so the new checksums can be read without downloading the artifact.
+      - name: Show what changed
+        run: git diff --no-color gradle/verification-metadata.xml
+
       - name: Upload the metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
