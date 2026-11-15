@@ -156,4 +156,19 @@
     <string name="tools_collapse">Collapse</string>
     <string name="doctor_all_set">Everything is set up and working.</string>
     <string name="doctor_show_details">Show details</string>
+    <string name="settings_section_remote">Remote access</string>
+    <string name="settings_section_apps">Connected apps</string>
+    <string name="settings_section_agent">Agent mode</string>
+    <string name="settings_section_automations">Automations</string>
+    <string name="settings_section_security">Token and security</string>
+    <string name="settings_summary_on">On</string>
+    <string name="settings_summary_off">Off</string>
+    <string name="settings_summary_tailnet_on">On your tailnet</string>
+    <string name="settings_summary_public">%1$s, public</string>
+    <string name="settings_summary_apps">%1$d connected</string>
+    <string name="settings_summary_agent">The models Agent mode uses</string>
+    <string name="settings_summary_automations">Pause all, screen reading, spending limit, Home Assistant</string>
+    <string name="settings_summary_security">Fingerprint, screenshots, local token, event key</string>
+    <string name="settings_summary_folders">%1$d shared</string>
+    <string name="settings_summary_doctor_problem">Something needs your attention</string>
 </resources>
