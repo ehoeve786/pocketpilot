@@ -171,4 +171,8 @@
     <string name="settings_summary_security">Fingerprint, screenshots, local token, event key</string>
     <string name="settings_summary_folders">%1$d shared</string>
     <string name="settings_summary_doctor_problem">Something needs your attention</string>
+    <string name="tools_mixed">Mixed</string>
+    <string name="tools_all_allow">Allow all</string>
+    <string name="tools_all_ask">Ask for all</string>
+    <string name="tools_all_block">Block all</string>
 </resources>

@@ -152,6 +152,8 @@ fun HomeScreen(
     toolModes: Map<String, ToolMode> = emptyMap(),
     /** Sets a tool's mode; null returns it to its tier's default. */
     onToolModeChange: (String, ToolMode?) -> Unit = { _, _ -> },
+    /** Sets one mode on a group of tools at once, from a group's "all" menu. */
+    onToolModesChange: (List<String>, ToolMode) -> Unit = { _, _ -> },
     /** Package names PocketPilot never reads or acts in. */
     protectedApps: List<String> = emptyList(),
     /** The Automations destination, filled by the automations feature. */
@@ -367,6 +369,7 @@ fun HomeScreen(
                                 shellRemoteEnabled = shellRemoteEnabled,
                             ),
                         onModeChange = onToolModeChange,
+                        onModesChange = onToolModesChange,
                         onShellChange = onShellChange,
                         onShellRemoteChange = onShellRemoteChange,
                         modifier = content,

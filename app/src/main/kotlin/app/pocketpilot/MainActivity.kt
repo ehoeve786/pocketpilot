@@ -656,6 +656,7 @@ class MainActivity : ComponentActivity() {
                         tools = tools,
                         toolModes = toolModes.modes.collectAsStateWithLifecycle().value,
                         onToolModeChange = { tool, mode -> tools.firstOrNull { it.name == tool }?.let { setToolMode(it, mode) } },
+                        onToolModesChange = { names, mode -> setToolModes(tools.filter { it.name in names }, mode) },
                         protectedApps = AppPolicy.DEFAULT_DENY.sorted(),
                         automationsContent = {
                             AutomationsScreen(
@@ -737,6 +738,20 @@ class MainActivity : ComponentActivity() {
         val before = ToolModes.effectiveMode(toolModes, spec)
         val after = mode?.takeIf { it in ToolModes.allowedModes(spec) } ?: ToolModes.defaultMode(spec)
         if (after.ordinal < before.ordinal) withOwner { toolModes.set(spec.name, after) } else toolModes.set(spec.name, after)
+    }
+
+    /**
+     * Sets [mode] on every tool in [specs] that allows it; the others keep their tier's default. Loosening any of
+     * them asks the owner once for the whole group, as [setToolMode] does for one.
+     */
+    private fun setToolModes(
+        specs: List<ToolSpec>,
+        mode: ToolMode,
+    ) {
+        val changes = specs.map { it to (mode.takeIf { m -> m in ToolModes.allowedModes(it) } ?: ToolModes.defaultMode(it)) }
+        val loosens = changes.any { (spec, after) -> after.ordinal < ToolModes.effectiveMode(toolModes, spec).ordinal }
+        val apply = { changes.forEach { (spec, after) -> toolModes.set(spec.name, after) } }
+        if (loosens) withOwner(apply) else apply()
     }
 
     /** Exempts PocketPilot from battery optimization through Shizuku, or opens the system list. */

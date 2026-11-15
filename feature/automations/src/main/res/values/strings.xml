@@ -133,6 +133,7 @@
     <string name="feature_automations_duplicate">Duplicate</string>
     <string name="feature_automations_move_up">Move up</string>
     <string name="feature_automations_move_down">Move down</string>
+    <string name="feature_automations_category_switch">All rules in %1$s</string>
     <string name="feature_automations_category">Category</string>
     <string name="feature_automations_uncategorized">Uncategorized</string>
 </resources>
