@@ -4,18 +4,23 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -75,6 +80,7 @@ internal class ToolsTabState(
 internal fun ToolsTab(
     state: ToolsTabState,
     onModeChange: (String, ToolMode?) -> Unit,
+    onModesChange: (List<String>, ToolMode) -> Unit,
     onShellChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onShellRemoteChange: (Boolean) -> Unit = {},
@@ -155,6 +161,7 @@ internal fun ToolsTab(
                     open = searching || group.name in openGroups,
                     onToggle = { openGroups = if (group.name in openGroups) openGroups - group.name else openGroups + group.name },
                     modeOf = ::modeOf,
+                    onSetAll = { mode -> onModesChange(specs.map { it.name }, mode) },
                 ) { openedTool = it.name }
             }
         }
@@ -186,25 +193,36 @@ private fun ToolGroupSection(
     open: Boolean,
     onToggle: () -> Unit,
     modeOf: (ToolSpec) -> ToolMode,
+    onSetAll: (ToolMode) -> Unit,
     onOpen: (ToolSpec) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // The group as a pill: its name, how many tools, one mode for all of them, and the fold arrow.
+        Surface(
+            onClick = onToggle,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                stringResource(group.label),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f),
-            )
-            Text(specs.size.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Icon(
-                painterResource(if (open) R.drawable.ic_collapse else R.drawable.ic_expand),
-                contentDescription = stringResource(if (open) R.string.tools_collapse else R.string.tools_expand),
-                tint = MaterialTheme.colorScheme.outline,
-            )
+            Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(group.label),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    specs.size.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                GroupModeMenu(specs.map(modeOf).distinct().singleOrNull(), onSetAll)
+                Icon(
+                    painterResource(if (open) R.drawable.ic_collapse else R.drawable.ic_expand),
+                    contentDescription = stringResource(if (open) R.string.tools_collapse else R.string.tools_expand),
+                    tint = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
         if (!open) return@Column
         LiquidGlassBentoCard(
@@ -233,6 +251,39 @@ private fun ToolGroupSection(
                         ModePill(modeOf(spec))
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * A group's mode, or Mixed when its tools differ, with a menu that sets Allow, Ask or Block on all of them.
+ * A tool that cannot be allowed (a destructive one) keeps asking.
+ */
+@Composable
+private fun GroupModeMenu(
+    common: ToolMode?,
+    onSetAll: (ToolMode) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }) {
+            Text(common?.let { stringResource(it.label) } ?: stringResource(R.string.tools_mixed))
+            Icon(painterResource(R.drawable.ic_expand), contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            listOf(
+                ToolMode.ALLOW to R.string.tools_all_allow,
+                ToolMode.ASK to R.string.tools_all_ask,
+                ToolMode.BLOCK to R.string.tools_all_block,
+            ).forEach { (mode, label) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    onClick = {
+                        open = false
+                        onSetAll(mode)
+                    },
+                )
             }
         }
     }

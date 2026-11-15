@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -57,6 +58,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -305,6 +308,9 @@ private fun RulesList(
                     count = group.size,
                     open = open,
                     onToggle = { if (open) expanded.remove(category) else expanded.add(category) },
+                    // On while any rule in it is on; turning it off stops them all, turning it on starts them all.
+                    enabled = group.any { it.enabled },
+                    onEnabledChange = { on -> group.forEach { actions.setEnabled(it.id, on) } },
                 )
             }
             if (open) {
@@ -337,29 +343,38 @@ private fun RulesList(
     }
 }
 
-/** A category's name, its rule count and a chevron that folds its rules away. */
+/** A category as a pill: its name, its rule count, a switch for all its rules and a chevron that folds them away. */
 @Composable
 private fun CategoryHeader(
     name: String,
     count: Int,
     open: Boolean,
     onToggle: () -> Unit,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val label = name.ifEmpty { stringResource(R.string.feature_automations_uncategorized) }
+    val switchLabel = stringResource(R.string.feature_automations_category_switch, label)
+    Surface(
+        onClick = onToggle,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            name.ifEmpty { stringResource(R.string.feature_automations_uncategorized) },
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.weight(1f),
-        )
-        Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Icon(
-            painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
-            contentDescription = stringResource(if (open) R.string.feature_automations_fold else R.string.feature_automations_unfold),
-            tint = MaterialTheme.colorScheme.outline,
-        )
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange,
+                modifier = Modifier.padding(horizontal = 8.dp).semantics { contentDescription = switchLabel },
+            )
+            Icon(
+                painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
+                contentDescription = stringResource(if (open) R.string.feature_automations_fold else R.string.feature_automations_unfold),
+                tint = MaterialTheme.colorScheme.outline,
+            )
+        }
     }
 }
 

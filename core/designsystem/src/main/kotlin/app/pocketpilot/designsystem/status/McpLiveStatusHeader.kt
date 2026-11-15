@@ -81,8 +81,12 @@ fun McpLiveStatusHeader(
     modifier: Modifier = Modifier,
 ) {
     val running = status.phase != ServerPhase.Stopped
-    LiquidGlassBentoCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(20.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val switchState =
+        stringResource(if (running) R.string.core_designsystem_status_server_on else R.string.core_designsystem_status_server_off)
+    val serverLabel = stringResource(R.string.core_designsystem_status_server)
+    LiquidGlassBentoCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // The server switch shares the status line, so Home fits on one screen.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StatusDot(status.phase, pulsing = status.callInFlight)
                 Spacer(Modifier.width(12.dp))
@@ -91,6 +95,15 @@ fun McpLiveStatusHeader(
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = running,
+                    onCheckedChange = onServerChange,
+                    modifier =
+                        Modifier.semantics {
+                            contentDescription = serverLabel
+                            stateDescription = switchState
+                        },
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -109,7 +122,9 @@ fun McpLiveStatusHeader(
                     )
                 }
             }
-            if (status.clients.isNotEmpty() || status.remote.isNotEmpty()) {
+            // Only links that are up get a chip; one that is off is in Settings, and its chip pushed the row onto two lines.
+            val remote = status.remote.filter { it.up }
+            if (status.clients.isNotEmpty() || remote.isNotEmpty()) {
                 // Wraps instead of scrolling, so a chip past the edge is never cut off with no sign of more.
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -135,7 +150,7 @@ fun McpLiveStatusHeader(
                             border = null,
                         )
                     }
-                    status.remote.forEach { link ->
+                    remote.forEach { link ->
                         AssistChip(
                             onClick = {},
                             enabled = link.up,
@@ -153,19 +168,6 @@ fun McpLiveStatusHeader(
                         )
                     }
                 }
-            }
-            val switchState =
-                stringResource(if (running) R.string.core_designsystem_status_server_on else R.string.core_designsystem_status_server_off)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.semantics { stateDescription = switchState },
-            ) {
-                Text(
-                    stringResource(R.string.core_designsystem_status_server),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(checked = running, onCheckedChange = onServerChange)
             }
         }
     }
