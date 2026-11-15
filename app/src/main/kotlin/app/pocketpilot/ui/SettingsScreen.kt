@@ -74,6 +74,8 @@ internal class SettingsState(
     val screenLockMissing: Boolean = false,
     val secretsLost: Boolean = false,
     val secretsLocked: Boolean = true,
+    /** PocketPilot's own privileged process serves calls, so Doctor does not ask for Shizuku. */
+    val builtInRunning: Boolean = false,
 )
 
 /** The Settings screen's callbacks. */
@@ -110,6 +112,8 @@ internal fun SettingsScreen(
     agentModelsCard: @Composable () -> Unit = {},
     /** Automations' own settings. */
     automationSettingsCard: @Composable () -> Unit = {},
+    /** PocketPilot's own privileged access over Wireless debugging, under Accessibility. */
+    builtInAccessCard: @Composable () -> Unit = {},
     /** Counts up each time a setup step asks for remote access; the screen scrolls to that card. */
     remoteAccessRequest: Int = 0,
     /** Clears [remoteAccessRequest] once handled, so a later open of Settings does not scroll again. */
@@ -153,6 +157,7 @@ internal fun SettingsScreen(
                 Text(stringResource(R.string.settings_secrets_lost), style = MaterialTheme.typography.bodyMedium)
             }
             AccessibilityCard(state.accessibilityOn, actions.onOpenAccessibilitySettings, actions.onOpenAppInfo)
+            builtInAccessCard()
             Box(Modifier.onGloballyPositioned { remoteCardTop = it.positionInParent().y }) {
                 RemoteAccessCard(
                     state = state.remoteState,
@@ -203,6 +208,7 @@ internal fun SettingsScreen(
                 actions.onGrantShizuku,
                 actions.onAllowNotifications,
                 state.setupSteps,
+                builtInRunning = state.builtInRunning,
             )
             Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyMedium)
             Text(

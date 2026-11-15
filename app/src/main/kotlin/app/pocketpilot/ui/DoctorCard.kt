@@ -40,6 +40,8 @@ internal fun DoctorCard(
     onAllowNotifications: () -> Unit = {},
     /** Every setup step, re-checked with its one-tap fix. */
     setupSteps: List<SetupStep> = emptyList(),
+    /** PocketPilot's own privileged process is running; Shizuku is then not needed. */
+    builtInRunning: Boolean = false,
 ) {
     LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -94,6 +96,10 @@ internal fun DoctorCard(
                 }
             }
             Text(stringResource(R.string.doctor_shizuku_title), style = MaterialTheme.typography.bodyMedium)
+            if (builtInRunning) {
+                Text(stringResource(R.string.doctor_builtin_running), style = MaterialTheme.typography.bodySmall)
+                return@Column
+            }
             Text(
                 stringResource(
                     when (shizukuState) {

@@ -141,6 +141,10 @@
             android:name=".control.ControlStopReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".privileged.PairingReplyReceiver"
+            android:exported="false" />
+
         <!-- Only the system sends these protected broadcasts. -->
         <receiver
             android:name=".server.StartupReceiver"

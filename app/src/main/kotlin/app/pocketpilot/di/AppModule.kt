@@ -28,6 +28,7 @@ import app.pocketpilot.capability.device.AndroidSensorReader
 import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
+import app.pocketpilot.capability.shizuku.PrivilegedStarter
 import app.pocketpilot.capability.shizuku.ShizukuAppAdmin
 import app.pocketpilot.capability.shizuku.ShizukuAppController
 import app.pocketpilot.capability.shizuku.ShizukuConnection
@@ -228,6 +229,14 @@ object AppModule {
     fun shizukuConnection(
         @ApplicationContext context: Context,
     ): ShizukuConnection = ShizukuConnection(context)
+
+    @Provides
+    @Singleton
+    fun privilegedStarter(
+        @ApplicationContext context: Context,
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): PrivilegedStarter = PrivilegedStarter(context, shizuku, scope)
 
     @Provides
     @Singleton

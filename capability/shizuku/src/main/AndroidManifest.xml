@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- PocketPilot's own privileged process (PrivilegedStarter). Wireless debugging is turned on and off with
+         WRITE_SECURE_SETTINGS, which the started process grants through `pm grant`; its port is found over
+         mDNS, which newer Android versions put behind the local network permissions. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <uses-permission android:name="android.permission.USE_LOOPBACK_INTERFACE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
 
     <application>
         <!-- Shizuku hands its binder to PocketPilot through this provider. Only the shell user holds
@@ -7,6 +21,15 @@
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <!-- PocketPilot's own privileged process (PrivilegedMain) hands its binder over here. The same rule:
+             only the shell and root users hold INTERACT_ACROSS_USERS_FULL. -->
+        <provider
+            android:name="app.pocketpilot.capability.shizuku.PrivilegedBinderProvider"
+            android:authorities="${applicationId}.privileged"
             android:enabled="true"
             android:exported="true"
             android:multiprocess="false"
