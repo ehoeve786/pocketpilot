@@ -1,0 +1,280 @@
+package app.pocketpilot.capability.shizuku
+
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.provider.Settings
+import app.pocketpilot.capability.shizuku.adb.AdbAuthException
+import app.pocketpilot.capability.shizuku.adb.AdbClient
+import app.pocketpilot.capability.shizuku.adb.AdbKey
+import app.pocketpilot.capability.shizuku.adb.AdbMdns
+import app.pocketpilot.capability.shizuku.adb.AdbPairingClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.io.IOException
+
+/** Where PocketPilot's own privileged process stands, shown in Settings and Doctor. */
+data class BuiltInStatus(
+    val phase: Phase,
+    /** What went wrong last, in words for the owner. */
+    val problem: String? = null,
+) {
+    enum class Phase {
+        /** Wireless debugging has not been paired with PocketPilot yet. */
+        NOT_PAIRED,
+
+        /** Paired, not running, and not trying right now. */
+        STOPPED,
+        STARTING,
+        RUNNING,
+    }
+}
+
+/**
+ * Pairs PocketPilot with wireless debugging once, then starts [PrivilegedMain] through adb whenever it is not
+ * running: when the app starts (after a boot or an update), when Wi-Fi comes back, and after a failure with a
+ * growing wait. With TCP mode on, adb also listens on [TCP_PORT] until the next reboot, so a restart works
+ * without Wi-Fi.
+ */
+class PrivilegedStarter(
+    private val context: Context,
+    private val connection: ShizukuConnection,
+    private val scope: CoroutineScope,
+) {
+    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val key by lazy { AdbKey(File(context.noBackupFilesDir, "adb/adbkey")) }
+    private val mdns = AdbMdns(context)
+    private val lock = Mutex()
+    private var retry: Job? = null
+    private var failures = 0
+
+    private val mutableStatus = MutableStateFlow(BuiltInStatus(if (paired) BuiltInStatus.Phase.STOPPED else BuiltInStatus.Phase.NOT_PAIRED))
+    val status: StateFlow<BuiltInStatus> = mutableStatus.asStateFlow()
+
+    val paired: Boolean get() = prefs.getBoolean(KEY_PAIRED, false)
+
+    /** Keep adb on [TCP_PORT] after a start, so the process can be restarted without Wi-Fi until the next reboot. */
+    var tcpMode: Boolean
+        get() = prefs.getBoolean(KEY_TCP, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_TCP, value).apply()
+        }
+
+    private var started = false
+
+    /** Starts watching; call once from the app's process. */
+    fun init() {
+        if (started) return
+        started = true
+        scope.launch {
+            connection.source.collect { source ->
+                if (source == PrivilegedSource.BUILT_IN) {
+                    failures = 0
+                    retry?.cancel()
+                    mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.RUNNING)
+                } else if (paired && mutableStatus.value.phase == BuiltInStatus.Phase.RUNNING) {
+                    // It stopped (or PocketPilot was updated): start it again.
+                    mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STOPPED)
+                    schedule(RESTART_DELAY_MS)
+                }
+            }
+        }
+        // A process that survived the app's own restart hands its binder over within a few seconds.
+        if (paired) schedule(FIRST_START_DELAY_MS)
+        context.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(
+            NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(),
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    if (paired && !running()) schedule(WIFI_DELAY_MS)
+                }
+            },
+        )
+    }
+
+    /** Pairs with the code shown under Wireless debugging, Pair device with pairing code, then starts. */
+    suspend fun pair(code: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val digits = code.filter(Char::isDigit)
+                require(digits.length == PAIRING_CODE_LENGTH) { "The pairing code has $PAIRING_CODE_LENGTH digits" }
+                val port =
+                    mdns.find(AdbMdns.TLS_PAIRING, DISCOVERY_TIMEOUT_MS)
+                        ?: throw IOException("Open Wireless debugging, Pair device with pairing code, and keep it on screen")
+                AdbPairingClient(LOCALHOST, port, digits, key).use { it.pair() }
+                prefs.edit().putBoolean(KEY_PAIRED, true).apply()
+                mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STOPPED)
+            }.onSuccess { scope.launch { start() } }
+        }
+
+    /** Forgets the pairing and stops the process; Shizuku is used again if it is there. */
+    fun forget() {
+        prefs.edit().putBoolean(KEY_PAIRED, false).apply()
+        retry?.cancel()
+        if (connection.source.value == PrivilegedSource.BUILT_IN) runCatching { connection.service().destroy() }
+        PrivilegedToken.renew(context)
+        mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.NOT_PAIRED)
+    }
+
+    /** Starts the process now unless it runs; returns what went wrong. */
+    suspend fun start(): Result<Unit> =
+        lock.withLock {
+            if (running()) return@withLock Result.success(Unit)
+            if (!paired) return@withLock Result.failure(IllegalStateException("Pair wireless debugging with PocketPilot first"))
+            mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STARTING)
+            val result = runCatching { launch() }
+            if (result.isSuccess) {
+                failures = 0
+                mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.RUNNING)
+            } else {
+                failures++
+                val problem = result.exceptionOrNull()?.message ?: "Could not start"
+                mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STOPPED, problem)
+                schedule(RETRY_DELAYS_MS[minOf(failures, RETRY_DELAYS_MS.size) - 1])
+            }
+            result
+        }
+
+    private fun running() = connection.source.value == PrivilegedSource.BUILT_IN
+
+    private fun schedule(delayMs: Long) {
+        retry?.cancel()
+        retry =
+            scope.launch {
+                delay(delayMs)
+                if (paired && !running()) start()
+            }
+    }
+
+    private suspend fun launch() {
+        withContext(Dispatchers.IO) {
+            val resolver = context.contentResolver
+            val canWrite = context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
+            val wifiWasOn = Settings.Global.getInt(resolver, ADB_WIFI_ENABLED, 0) == 1
+            try {
+                connect(canWrite, wifiWasOn).use { client ->
+                    val output = StringBuilder()
+                    client.run("shell:${command(PrivilegedToken.renew(context))}") { chunk ->
+                        if (output.length < MAX_OUTPUT) output.append(String(chunk))
+                    }
+                    if (STARTED_MARK !in output) throw IOException("adb did not start PocketPilot: ${output.toString().trim()}")
+                }
+                // Wireless debugging stays on until the process has connected, so turning it off cannot catch it
+                // before it has left adb's session.
+                withTimeoutOrNull(BINDER_TIMEOUT_MS) { connection.source.first { it == PrivilegedSource.BUILT_IN } }
+                    ?: throw IOException("PocketPilot's privileged process started but did not connect")
+                if (canWrite) {
+                    // Paired keys that go unused for a week are dropped unless this is off.
+                    Settings.Global.putLong(resolver, ADB_ALLOWED_CONNECTION_TIME, 0L)
+                }
+            } finally {
+                // Wireless debugging is left as the owner had it; some apps refuse to run while it is on.
+                if (canWrite && !wifiWasOn) Settings.Global.putInt(resolver, ADB_WIFI_ENABLED, 0)
+            }
+        }
+    }
+
+    /** An authenticated adb connection: TCP mode's port first, then wireless debugging's port from mDNS. */
+    private suspend fun connect(
+        canWrite: Boolean,
+        wifiWasOn: Boolean,
+    ): AdbClient {
+        if (tcpMode) tryConnect(TCP_PORT)?.let { return it }
+        val resolver = context.contentResolver
+        if (!wifiWasOn) {
+            if (!canWrite) throw IOException("Turn on Wireless debugging in Developer options")
+            if (Settings.Global.getInt(resolver, Settings.Global.ADB_ENABLED, 0) == 0) {
+                Settings.Global.putInt(resolver, Settings.Global.ADB_ENABLED, 1)
+            }
+            Settings.Global.putInt(resolver, ADB_WIFI_ENABLED, 1)
+        }
+        val port =
+            mdns.find(AdbMdns.TLS_CONNECT, DISCOVERY_TIMEOUT_MS)
+                ?: throw IOException("Wireless debugging is not reachable; it needs Wi-Fi")
+        val client = AdbClient(LOCALHOST, port, key)
+        try {
+            client.connect()
+        } catch (e: AdbAuthException) {
+            client.close()
+            throw e
+        }
+        if (!tcpMode) return client
+        // adbd restarts on its TCP port; the wireless debugging connection ends with it.
+        runCatching { client.run("tcpip:$TCP_PORT") }
+        client.close()
+        repeat(TCP_ATTEMPTS) {
+            delay(TCP_WAIT_MS)
+            tryConnect(TCP_PORT)?.let { return it }
+        }
+        throw IOException("adb did not come back on port $TCP_PORT")
+    }
+
+    private fun tryConnect(port: Int): AdbClient? {
+        val client = AdbClient(LOCALHOST, port, key)
+        return try {
+            client.connect()
+            client
+        } catch (e: IOException) {
+            client.close()
+            null
+        }
+    }
+
+    /**
+     * The shell command adb runs: grant PocketPilot WRITE_SECURE_SETTINGS (to turn wireless debugging on next
+     * time) and NEARBY_WIFI_DEVICES (for mDNS on Android versions that ask for it), stop an older copy, and start
+     * [PrivilegedMain] detached (hangups ignored, in its own session where toybox has setsid), so it outlives this
+     * adb session.
+     */
+    private fun command(token: String): String {
+        val apk = context.applicationInfo.sourceDir
+        require('\'' !in apk) { "Unexpected APK path" }
+        val pkg = context.packageName
+        val uid = context.applicationInfo.uid
+        val main = PrivilegedMain::class.java.name
+        return "pm grant $pkg ${Manifest.permission.WRITE_SECURE_SETTINGS} >/dev/null 2>&1; " +
+            "pm grant $pkg ${Manifest.permission.NEARBY_WIFI_DEVICES} >/dev/null 2>&1; " +
+            "for p in \$(pidof $PROCESS_NAME); do kill \$p; done; " +
+            "trap '' HUP; S=; command -v setsid >/dev/null 2>&1 && S=setsid; " +
+            "(CLASSPATH='$apk' \$S app_process /system/bin --nice-name=$PROCESS_NAME $main " +
+            "--package=$pkg --uid=$uid --token=$token --apk='$apk' </dev/null >/dev/null 2>&1 &); " +
+            "echo $STARTED_MARK"
+    }
+
+    companion object {
+        const val TCP_PORT = 5555
+        const val PROCESS_NAME = "pocketpilot_privileged"
+        private const val PREFS = "pocketpilot_privileged_starter"
+        private const val KEY_PAIRED = "paired"
+        private const val KEY_TCP = "tcp_mode"
+        private const val LOCALHOST = "127.0.0.1"
+        private const val ADB_WIFI_ENABLED = "adb_wifi_enabled"
+        private const val ADB_ALLOWED_CONNECTION_TIME = "adb_allowed_connection_time"
+        private const val STARTED_MARK = "pocketpilot-started"
+        private const val PAIRING_CODE_LENGTH = 6
+        private const val DISCOVERY_TIMEOUT_MS = 20_000L
+        private const val BINDER_TIMEOUT_MS = 20_000L
+        private const val FIRST_START_DELAY_MS = 5_000L
+        private const val RESTART_DELAY_MS = 2_000L
+        private const val WIFI_DELAY_MS = 3_000L
+        private const val TCP_ATTEMPTS = 10
+        private const val TCP_WAIT_MS = 1_000L
+        private const val MAX_OUTPUT = 2_000
+        private val RETRY_DELAYS_MS = longArrayOf(30_000L, 120_000L, 600_000L, 1_800_000L)
+    }
+}

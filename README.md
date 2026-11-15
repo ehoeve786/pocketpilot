@@ -1,6 +1,6 @@
 # PocketPilot
 
-PocketPilot turns an Android phone into an MCP server that any AI client can drive: Claude, ChatGPT, Gemini, DeepSeek, Qwen, Ollama or a local model. It needs no root and no PC after setup, and works through Shizuku, Accessibility and MediaProjection.
+PocketPilot turns an Android phone into an MCP server that any AI client can drive: Claude, ChatGPT, Gemini, DeepSeek, Qwen, Ollama or a local model. It needs no root and no PC after setup, and works through its own Wireless debugging access (or Shizuku), Accessibility and MediaProjection.
 
 **Status:** beta in development. Shizuku and Accessibility control, remote access (Tailscale and WireGuard), the MCP server, Agent mode and the automation engine are built. Remaining work is tracked in the technical specification.
 

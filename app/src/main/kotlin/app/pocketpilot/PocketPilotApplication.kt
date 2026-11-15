@@ -2,9 +2,11 @@ package app.pocketpilot
 
 import android.app.Application
 import app.pocketpilot.automation.AutomationRuntime
+import app.pocketpilot.capability.shizuku.PrivilegedStarter
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.diagnostics.CrashReports
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -12,6 +14,11 @@ class PocketPilotApplication : Application() {
     @Inject lateinit var shizuku: ShizukuConnection
 
     @Inject lateinit var automations: dagger.Lazy<AutomationRuntime>
+
+    /** PocketPilot's own privileged process, started over wireless debugging. */
+    @Inject lateinit var privileged: PrivilegedStarter
+
+    @Inject lateinit var appScope: CoroutineScope
 
     val crashReports by lazy { CrashReports(this) }
 
@@ -22,6 +29,7 @@ class PocketPilotApplication : Application() {
         // privileged process created from this app must not start it again.
         if (!isPrivilegedProcess()) {
             shizuku.start()
+            privileged.init()
             // Rules that are on start listening again whenever the process starts: after a reboot,
             // an update, an alarm or the owner opening the app.
             automations.get().init()

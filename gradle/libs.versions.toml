@@ -16,6 +16,13 @@ mcpKotlinSdk = "0.15.0"
 ktor = "3.5.1"
 # Shizuku client API; the privileged UserService contract is versioned separately in capability/shizuku.
 shizuku = "13.1.5"
+# PocketPilot's own adb pairing (capability/shizuku): NDK and CMake for the native SPAKE2 code, with BoringSSL and
+# libc++ as prefab packages, the same set Shizuku builds with.
+ndk = "29.0.13113456"
+cmake = "3.22.1"
+boringsslPrefab = "20250114"
+libcxxPrefab = "27.0.12077973"
+hiddenApiBypass = "6.1"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 
@@ -47,6 +54,9 @@ ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref =
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+boringssl-prefab = { group = "io.github.vvb2060.ndk", name = "boringssl", version.ref = "boringsslPrefab" }
+libcxx-prefab = { group = "org.lsposed.libcxx", name = "libcxx", version.ref = "libcxxPrefab" }
+hiddenapibypass = { group = "org.lsposed.hiddenapibypass", name = "hiddenapibypass", version.ref = "hiddenApiBypass" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 
 # Dependencies of the included build-logic build

@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -46,6 +47,8 @@ import app.pocketpilot.capability.accessibility.PocketPilotA11yService
 import app.pocketpilot.capability.api.DeviceInfoSource
 import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
+import app.pocketpilot.capability.shizuku.PrivilegedSource
+import app.pocketpilot.capability.shizuku.PrivilegedStarter
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.capability.shizuku.ShizukuState
@@ -86,6 +89,7 @@ import app.pocketpilot.onboarding.OnboardingStore
 import app.pocketpilot.onboarding.SetupActions
 import app.pocketpilot.onboarding.SetupState
 import app.pocketpilot.onboarding.setupSteps
+import app.pocketpilot.privileged.PairingNotifier
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.ScreenshotLock
 import app.pocketpilot.security.ShellSwitch
@@ -95,6 +99,8 @@ import app.pocketpilot.server.PocketPilotService
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.http.ServerState
 import app.pocketpilot.server.oauth.AuthorizationServer
+import app.pocketpilot.ui.BuiltInAccessCard
+import app.pocketpilot.ui.BuiltInActions
 import app.pocketpilot.ui.HomeProvider
 import app.pocketpilot.ui.HomeProviderState
 import app.pocketpilot.ui.HomeScreen
@@ -128,6 +134,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var capabilityGraph: CapabilityGraph
 
     @Inject lateinit var shizuku: ShizukuConnection
+
+    @Inject lateinit var privileged: PrivilegedStarter
 
     @Inject lateinit var tailscale: TailscaleProvider
 
@@ -633,6 +641,32 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         automationSettingsCard = { AutomationSettingsCard(automationState, automationActions) },
+                        builtInAccessCard = {
+                            var tcpMode by remember { mutableStateOf(privileged.tcpMode) }
+                            BuiltInAccessCard(
+                                status = privileged.status.collectAsStateWithLifecycle().value,
+                                tcpMode = tcpMode,
+                                actions =
+                                    BuiltInActions(
+                                        // The code arrives through a notification, so notifications are allowed first.
+                                        onPair = {
+                                            val allowed = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                                            if (allowed == PackageManager.PERMISSION_GRANTED) {
+                                                PairingNotifier.begin(this@MainActivity)
+                                            } else {
+                                                notificationPermissionOnly.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            }
+                                        },
+                                        onStart = { appScope.launch { privileged.start() } },
+                                        onForget = privileged::forget,
+                                        onTcpModeChange = { on ->
+                                            privileged.tcpMode = on
+                                            tcpMode = on
+                                        },
+                                    ),
+                            )
+                        },
+                        builtInRunning = shizuku.source.collectAsStateWithLifecycle().value == PrivilegedSource.BUILT_IN,
                         automationsFullScreen = automationsEditing,
                         shellEnabled = shellSwitch.enabled.collectAsStateWithLifecycle().value,
                         // Loosening a safeguard needs the owner, like approving an action does.

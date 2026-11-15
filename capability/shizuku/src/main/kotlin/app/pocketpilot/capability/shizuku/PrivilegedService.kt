@@ -1,6 +1,8 @@
 package app.pocketpilot.capability.shizuku
 
 import android.content.Context
+import android.os.Binder
+import android.os.Parcel
 import android.os.ParcelFileDescriptor
 import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.IntentArgs
@@ -28,6 +30,24 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
     /** Shizuku 13 calls this constructor when it exists. */
     @Suppress("UNUSED_PARAMETER")
     constructor(context: Context) : this()
+
+    /**
+     * The only uid allowed to call, when PrivilegedMain started this process; -1 under Shizuku, which hands the
+     * binder only to PocketPilot itself.
+     */
+    @Volatile
+    var allowedUid: Int = -1
+
+    override fun onTransact(
+        code: Int,
+        data: Parcel,
+        reply: Parcel?,
+        flags: Int,
+    ): Boolean {
+        val allowed = allowedUid
+        if (allowed >= 0 && Binder.getCallingUid() != allowed) throw SecurityException("Only PocketPilot may call this service")
+        return super.onTransact(code, data, reply, flags)
+    }
 
     override fun getVersion(): Int = VERSION
 

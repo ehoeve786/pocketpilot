@@ -109,6 +109,10 @@ fun HomeScreen(
     agentModelsCard: @Composable () -> Unit = {},
     /** Automations' own settings (pause all, screen reading, spending limit, Home Assistant), in Settings. */
     automationSettingsCard: @Composable () -> Unit = {},
+    /** PocketPilot's own privileged access, in Settings. */
+    builtInAccessCard: @Composable () -> Unit = {},
+    /** PocketPilot's own privileged process is running. */
+    builtInRunning: Boolean = false,
     /** True while a rule is open in the builder, which then takes the whole screen. */
     automationsFullScreen: Boolean = false,
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
@@ -202,6 +206,7 @@ fun HomeScreen(
                     shizukuState = shizukuState,
                     setupSteps = setupSteps,
                     secretsLocked = secretsLocked,
+                    builtInRunning = builtInRunning,
                 ),
             actions =
                 SettingsActions(
@@ -224,6 +229,7 @@ fun HomeScreen(
             ownNetworkCard = ownNetworkCard,
             agentModelsCard = agentModelsCard,
             automationSettingsCard = automationSettingsCard,
+            builtInAccessCard = builtInAccessCard,
             remoteAccessRequest = remoteAccessRequest,
             onRemoteAccessShown = onRemoteAccessShown,
         )
