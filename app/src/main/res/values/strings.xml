@@ -191,6 +191,9 @@
     <string name="settings_summary_automations">Pause all, screen reading, spending limit, Home Assistant</string>
     <string name="settings_summary_security">Fingerprint, screenshots, local token, event key</string>
     <string name="settings_summary_folders">%1$d shared</string>
+    <string name="settings_summary_builtin_not_paired">Not paired; works without the Shizuku app</string>
+    <string name="settings_summary_builtin_stopped">Paired, not running</string>
+    <string name="settings_summary_builtin_running">Running</string>
     <string name="settings_summary_doctor_problem">Something needs your attention</string>
     <string name="tools_mixed">Mixed</string>
     <string name="tools_all_allow">Allow all</string>

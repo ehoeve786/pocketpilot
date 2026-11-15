@@ -667,6 +667,10 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         builtInRunning = shizuku.source.collectAsStateWithLifecycle().value == PrivilegedSource.BUILT_IN,
+                        builtInPhase =
+                            privileged.status
+                                .collectAsStateWithLifecycle()
+                                .value.phase,
                         automationsFullScreen = automationsEditing,
                         shellEnabled = shellSwitch.enabled.collectAsStateWithLifecycle().value,
                         // Loosening a safeguard needs the owner, like approving an action does.

@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
 import app.pocketpilot.capability.files.SharedFolder
+import app.pocketpilot.capability.shizuku.BuiltInStatus
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
@@ -72,6 +73,8 @@ internal class SettingsState(
     val secretsLocked: Boolean = true,
     /** PocketPilot's own privileged process serves calls, so Doctor does not ask for Shizuku. */
     val builtInRunning: Boolean = false,
+    /** Where PocketPilot's own privileged process stands, for its row in the section list. */
+    val builtInPhase: BuiltInStatus.Phase = BuiltInStatus.Phase.NOT_PAIRED,
 )
 
 /** The Settings screen's callbacks. */
@@ -96,6 +99,7 @@ private enum class SettingsSection(
     @param:StringRes val title: Int,
 ) {
     SCREEN(R.string.accessibility_title),
+    PRIVILEGED(R.string.builtin_title),
     REMOTE(R.string.settings_section_remote),
     APPS(R.string.settings_section_apps),
     AGENT(R.string.settings_section_agent),
@@ -122,7 +126,7 @@ internal fun SettingsScreen(
     agentModelsCard: @Composable () -> Unit = {},
     /** Automations' own settings. */
     automationSettingsCard: @Composable () -> Unit = {},
-    /** PocketPilot's own privileged access over Wireless debugging, in the Screen section under Accessibility. */
+    /** PocketPilot's own privileged access over Wireless debugging, in its own section. */
     builtInAccessCard: @Composable () -> Unit = {},
     /** Counts up each time a setup step asks for remote access; Settings then opens on that section. */
     remoteAccessRequest: Int = 0,
@@ -230,6 +234,17 @@ private fun sectionSummary(
             stringResource(if (state.accessibilityOn) R.string.settings_summary_on else R.string.settings_summary_off)
         }
 
+        SettingsSection.PRIVILEGED -> {
+            stringResource(
+                when (state.builtInPhase) {
+                    BuiltInStatus.Phase.NOT_PAIRED -> R.string.settings_summary_builtin_not_paired
+                    BuiltInStatus.Phase.STOPPED -> R.string.settings_summary_builtin_stopped
+                    BuiltInStatus.Phase.STARTING -> R.string.builtin_starting
+                    BuiltInStatus.Phase.RUNNING -> R.string.settings_summary_builtin_running
+                },
+            )
+        }
+
         SettingsSection.REMOTE -> {
             val connected = state.remoteState is NetworkState.Connected
             val tailnet = stringResource(if (connected) R.string.settings_summary_tailnet_on else R.string.settings_summary_off)
@@ -279,6 +294,9 @@ private fun SectionContent(
     when (section) {
         SettingsSection.SCREEN -> {
             AccessibilityCard(state.accessibilityOn, actions.onOpenAccessibilitySettings, actions.onOpenAppInfo)
+        }
+
+        SettingsSection.PRIVILEGED -> {
             builtInAccessCard()
         }
 

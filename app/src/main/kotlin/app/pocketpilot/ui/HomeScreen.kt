@@ -41,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
 import app.pocketpilot.capability.files.SharedFolder
+import app.pocketpilot.capability.shizuku.BuiltInStatus
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.audit.AuditEvent
 import app.pocketpilot.core.capabilities.CapabilityStatus
@@ -113,6 +114,8 @@ fun HomeScreen(
     builtInAccessCard: @Composable () -> Unit = {},
     /** PocketPilot's own privileged process is running. */
     builtInRunning: Boolean = false,
+    /** Where PocketPilot's own privileged process stands. */
+    builtInPhase: BuiltInStatus.Phase = BuiltInStatus.Phase.NOT_PAIRED,
     /** True while a rule is open in the builder, which then takes the whole screen. */
     automationsFullScreen: Boolean = false,
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
@@ -209,6 +212,7 @@ fun HomeScreen(
                     setupSteps = setupSteps,
                     secretsLocked = secretsLocked,
                     builtInRunning = builtInRunning,
+                    builtInPhase = builtInPhase,
                 ),
             actions =
                 SettingsActions(
