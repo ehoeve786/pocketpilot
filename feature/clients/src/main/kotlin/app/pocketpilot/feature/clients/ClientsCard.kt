@@ -84,13 +84,19 @@ fun ClientsCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            stringResource(
-                                R.string.feature_clients_can,
-                                client.scopes.map { scope -> SCOPE_LABELS[scope]?.let { stringResource(it) } ?: scope }.joinToString(", "),
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        // A pairing that was never finished has no access to list.
+                        if (client.scopes.isNotEmpty()) {
+                            Text(
+                                stringResource(
+                                    R.string.feature_clients_can,
+                                    client.scopes
+                                        .map { scope ->
+                                            SCOPE_LABELS[scope]?.let { stringResource(it) } ?: scope
+                                        }.joinToString(", "),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                     TextButton(onClick = { removing = client }) { Text(stringResource(R.string.feature_clients_remove)) }
                 }
