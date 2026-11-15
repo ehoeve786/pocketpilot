@@ -1,7 +1,9 @@
 package app.pocketpilot.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,11 +32,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -51,9 +50,6 @@ import app.pocketpilot.feature.clients.ClientsCard
 import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import kotlin.math.roundToInt
 import app.pocketpilot.core.designsystem.R as DsR
 
 /** What the Settings screen shows. */
@@ -95,9 +91,23 @@ internal class SettingsActions(
     val onSecretsLockChange: (Boolean) -> Unit,
 )
 
+/** Settings' sections; the list shows one row each, and a tap opens that section on its own page. */
+private enum class SettingsSection(
+    @param:StringRes val title: Int,
+) {
+    SCREEN(R.string.accessibility_title),
+    REMOTE(R.string.settings_section_remote),
+    APPS(R.string.settings_section_apps),
+    AGENT(R.string.settings_section_agent),
+    AUTOMATIONS(R.string.settings_section_automations),
+    SECURITY(R.string.settings_section_security),
+    FOLDERS(R.string.folders_title),
+    DOCTOR(R.string.doctor_title),
+}
+
 /**
- * Settings, opened from the gear: Accessibility, remote access, connected apps, the local token,
- * shared folders, the biometric lock, the setup guide and Doctor.
+ * Settings, opened from the gear: a short list of sections (screen access, remote access, connected apps,
+ * Agent mode, automations, token and security, shared folders, Doctor), each opening on its own page.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,30 +122,29 @@ internal fun SettingsScreen(
     agentModelsCard: @Composable () -> Unit = {},
     /** Automations' own settings. */
     automationSettingsCard: @Composable () -> Unit = {},
-    /** PocketPilot's own privileged access over Wireless debugging, under Accessibility. */
+    /** PocketPilot's own privileged access over Wireless debugging, in the Screen section under Accessibility. */
     builtInAccessCard: @Composable () -> Unit = {},
-    /** Counts up each time a setup step asks for remote access; the screen scrolls to that card. */
+    /** Counts up each time a setup step asks for remote access; Settings then opens on that section. */
     remoteAccessRequest: Int = 0,
-    /** Clears [remoteAccessRequest] once handled, so a later open of Settings does not scroll again. */
+    /** Clears [remoteAccessRequest] once handled, so a later open of Settings does not jump there again. */
     onRemoteAccessShown: () -> Unit = {},
 ) {
-    val scroll = rememberScrollState()
-    // Null until the card has been laid out, so a request made as Settings opens waits for the measured position.
-    var remoteCardTop by remember { mutableStateOf<Float?>(null) }
+    var section by rememberSaveable { mutableStateOf<SettingsSection?>(null) }
     LaunchedEffect(remoteAccessRequest) {
         if (remoteAccessRequest > 0) {
-            val top = snapshotFlow { remoteCardTop }.filterNotNull().first()
-            scroll.animateScrollTo(top.roundToInt())
+            section = SettingsSection.REMOTE
             onRemoteAccessShown()
         }
     }
+    BackHandler(enabled = section != null) { section = null }
+    val open = section
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.tab_settings)) },
+                title = { Text(stringResource(open?.title ?: R.string.tab_settings)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (open != null) section = null else onBack() }) {
                         Icon(
                             painterResource(DsR.drawable.core_designsystem_ic_arrow_back),
                             contentDescription = stringResource(R.string.nav_back),
@@ -149,29 +158,146 @@ internal fun SettingsScreen(
             modifier =
                 Modifier
                     .padding(padding)
-                    .verticalScroll(scroll)
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (state.secretsLost) {
-                Text(stringResource(R.string.settings_secrets_lost), style = MaterialTheme.typography.bodyMedium)
+            if (open == null) {
+                if (state.secretsLost) {
+                    Text(stringResource(R.string.settings_secrets_lost), style = MaterialTheme.typography.bodyMedium)
+                }
+                SectionList(state) { section = it }
+                Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(
+                        R.string.home_build,
+                        state.policyProfile.flavor.name
+                            .lowercase(),
+                        state.versionName,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                SectionContent(open, state, actions, ownNetworkCard, agentModelsCard, automationSettingsCard, builtInAccessCard)
             }
+        }
+    }
+}
+
+/** One card with a row per section: its name, a line on its state, and a chevron. */
+@Composable
+private fun SectionList(
+    state: SettingsState,
+    onOpen: (SettingsSection) -> Unit,
+) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+        Column {
+            SettingsSection.entries.forEach { section ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpen(section) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(section.title), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            sectionSummary(section, state),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        painterResource(R.drawable.ic_chevron_right),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun sectionSummary(
+    section: SettingsSection,
+    state: SettingsState,
+): String =
+    when (section) {
+        SettingsSection.SCREEN -> {
+            stringResource(if (state.accessibilityOn) R.string.settings_summary_on else R.string.settings_summary_off)
+        }
+
+        SettingsSection.REMOTE -> {
+            val connected = state.remoteState is NetworkState.Connected
+            val tailnet = stringResource(if (connected) R.string.settings_summary_tailnet_on else R.string.settings_summary_off)
+            if (state.publicState.enabled) stringResource(R.string.settings_summary_public, tailnet) else tailnet
+        }
+
+        SettingsSection.APPS -> {
+            stringResource(R.string.settings_summary_apps, state.clients.size)
+        }
+
+        SettingsSection.AGENT -> {
+            stringResource(R.string.settings_summary_agent)
+        }
+
+        SettingsSection.AUTOMATIONS -> {
+            stringResource(R.string.settings_summary_automations)
+        }
+
+        SettingsSection.SECURITY -> {
+            stringResource(R.string.settings_summary_security)
+        }
+
+        SettingsSection.FOLDERS -> {
+            stringResource(R.string.settings_summary_folders, state.sharedFolders.size)
+        }
+
+        SettingsSection.DOCTOR -> {
+            val allSet =
+                state.setupSteps.all { it.done || it.optional } &&
+                    state.capabilities.all { it.active != null } &&
+                    state.shizukuState == ShizukuState.CONNECTED
+            stringResource(if (allSet) R.string.doctor_all_set else R.string.settings_summary_doctor_problem)
+        }
+    }
+
+/** The cards of one section, on their own page. */
+@Composable
+private fun SectionContent(
+    section: SettingsSection,
+    state: SettingsState,
+    actions: SettingsActions,
+    ownNetworkCard: @Composable () -> Unit,
+    agentModelsCard: @Composable () -> Unit,
+    automationSettingsCard: @Composable () -> Unit,
+    builtInAccessCard: @Composable () -> Unit,
+) {
+    when (section) {
+        SettingsSection.SCREEN -> {
             AccessibilityCard(state.accessibilityOn, actions.onOpenAccessibilitySettings, actions.onOpenAppInfo)
             builtInAccessCard()
-            Box(Modifier.onGloballyPositioned { remoteCardTop = it.positionInParent().y }) {
-                RemoteAccessCard(
-                    state = state.remoteState,
-                    public = state.publicState,
-                    onTurnOn = actions.remoteActions.turnOn,
-                    onTurnOff = actions.remoteActions.turnOff,
-                    onSignIn = actions.remoteActions.signIn,
-                    onSignOut = actions.remoteActions.signOut,
-                    onPublicChange = actions.remoteActions.setPublic,
-                    onAutoOffChange = actions.remoteActions.setAutoOff,
-                    logs = actions.remoteActions.logs,
-                )
-            }
+        }
+
+        SettingsSection.REMOTE -> {
+            RemoteAccessCard(
+                state = state.remoteState,
+                public = state.publicState,
+                onTurnOn = actions.remoteActions.turnOn,
+                onTurnOff = actions.remoteActions.turnOff,
+                onSignIn = actions.remoteActions.signIn,
+                onSignOut = actions.remoteActions.signOut,
+                onPublicChange = actions.remoteActions.setPublic,
+                onAutoOffChange = actions.remoteActions.setAutoOff,
+                logs = actions.remoteActions.logs,
+            )
             ownNetworkCard()
+        }
+
+        SettingsSection.APPS -> {
             // Revokes every client and stops the tunnel, so it asks first, as the Home screen's kill switch does.
             var confirmKill by rememberSaveable { mutableStateOf(false) }
             ClientsCard(state.clients, actions.onRevokeClient, onKillSwitch = { confirmKill = true })
@@ -193,15 +319,27 @@ internal fun SettingsScreen(
                     },
                 )
             }
+        }
+
+        SettingsSection.AGENT -> {
             agentModelsCard()
+        }
+
+        SettingsSection.AUTOMATIONS -> {
             automationSettingsCard()
+        }
+
+        SettingsSection.SECURITY -> {
+            BiometricCard(state.biometricApprovals, state.screenLockMissing, actions.onBiometricChange)
             SecretsLockCard(state.secretsLocked, actions.onSecretsLockChange)
             TokenCard(state.token, state.eventKey, actions.onRotateToken)
+        }
+
+        SettingsSection.FOLDERS -> {
             FoldersCard(state.sharedFolders, actions.onAddFolder, actions.onRemoveFolder)
-            BiometricCard(state.biometricApprovals, state.screenLockMissing, actions.onBiometricChange)
-            OutlinedButton(onClick = actions.onOpenSetup, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.home_setup_guide))
-            }
+        }
+
+        SettingsSection.DOCTOR -> {
             DoctorCard(
                 state.capabilities,
                 state.shizukuState,
@@ -210,17 +348,9 @@ internal fun SettingsScreen(
                 state.setupSteps,
                 builtInRunning = state.builtInRunning,
             )
-            Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyMedium)
-            Text(
-                stringResource(
-                    R.string.home_build,
-                    state.policyProfile.flavor.name
-                        .lowercase(),
-                    state.versionName,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            OutlinedButton(onClick = actions.onOpenSetup, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.home_setup_guide))
+            }
         }
     }
 }
