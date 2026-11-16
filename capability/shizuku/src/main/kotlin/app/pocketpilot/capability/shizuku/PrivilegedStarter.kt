@@ -8,6 +8,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.provider.Settings
+import app.pocketpilot.capability.api.shell.ShellReply
 import app.pocketpilot.capability.shizuku.adb.AdbAuthException
 import app.pocketpilot.capability.shizuku.adb.AdbClient
 import app.pocketpilot.capability.shizuku.adb.AdbKey
@@ -107,16 +108,22 @@ class PrivilegedStarter(
         )
     }
 
-    /** Pairs with the code shown under Wireless debugging, Pair device with pairing code, then starts. */
-    suspend fun pair(code: String): Result<Unit> =
+    /**
+     * Pairs with the code shown under Wireless debugging, Pair device with pairing code, then starts. [input] is
+     * the six-digit code, optionally with the port from the same dialog ("246994 37611" or "...:37611"), which
+     * skips looking the port up on the network.
+     */
+    suspend fun pair(input: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val digits = code.filter(Char::isDigit)
-                require(digits.length == PAIRING_CODE_LENGTH) { "The pairing code has $PAIRING_CODE_LENGTH digits" }
+                val (code, typedPort) = PairingInput.parse(input)
                 val port =
-                    mdns.find(AdbMdns.TLS_PAIRING, DISCOVERY_TIMEOUT_MS)
-                        ?: throw IOException("Open Wireless debugging, Pair device with pairing code, and keep it on screen")
-                AdbPairingClient(LOCALHOST, port, digits, key).use { it.pair() }
+                    typedPort
+                        ?: mdns.find(AdbMdns.TLS_PAIRING, DISCOVERY_TIMEOUT_MS)
+                        ?: throw IOException(
+                            "${mdns.lastProblem}. Type the code and the port shown under it, for example 123456 37611",
+                        )
+                AdbPairingClient(LOCALHOST, port, code, key).use { it.pair() }
                 prefs.edit().putBoolean(KEY_PAIRED, true).apply()
                 mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STOPPED)
             }.onSuccess { scope.launch { start() } }
@@ -205,7 +212,8 @@ class PrivilegedStarter(
         }
         val port =
             mdns.find(AdbMdns.TLS_CONNECT, DISCOVERY_TIMEOUT_MS)
-                ?: throw IOException("Wireless debugging is not reachable; it needs Wi-Fi")
+                ?: portFromShizuku()
+                ?: throw IOException("${mdns.lastProblem}; Wireless debugging needs Wi-Fi")
         val client = AdbClient(LOCALHOST, port, key)
         try {
             client.connect()
@@ -222,6 +230,20 @@ class PrivilegedStarter(
             tryConnect(TCP_PORT)?.let { return it }
         }
         throw IOException("adb did not come back on port $TCP_PORT")
+    }
+
+    /** While Shizuku still serves calls, it can read wireless debugging's port without the network. */
+    private fun portFromShizuku(): Int? {
+        if (connection.source.value != PrivilegedSource.SHIZUKU) return null
+        return runCatching {
+            val reply = connection.service().runReadOnly(arrayOf("getprop", "service.adb.tls.port"), "", PROP_TIMEOUT_MS)
+            ShellReply
+                .decode(reply)
+                .stdout
+                .trim()
+                .toIntOrNull()
+                ?.takeIf { it > 0 }
+        }.getOrNull()
     }
 
     private fun tryConnect(port: Int): AdbClient? {
@@ -266,7 +288,7 @@ class PrivilegedStarter(
         private const val ADB_WIFI_ENABLED = "adb_wifi_enabled"
         private const val ADB_ALLOWED_CONNECTION_TIME = "adb_allowed_connection_time"
         private const val STARTED_MARK = "pocketpilot-started"
-        private const val PAIRING_CODE_LENGTH = 6
+        private const val PROP_TIMEOUT_MS = 5_000L
         private const val DISCOVERY_TIMEOUT_MS = 20_000L
         private const val BINDER_TIMEOUT_MS = 20_000L
         private const val FIRST_START_DELAY_MS = 5_000L
@@ -276,5 +298,24 @@ class PrivilegedStarter(
         private const val TCP_WAIT_MS = 1_000L
         private const val MAX_OUTPUT = 2_000
         private val RETRY_DELAYS_MS = longArrayOf(30_000L, 120_000L, 600_000L, 1_800_000L)
+    }
+}
+
+/** What the owner typed into the pairing notification: the six-digit code, and the port when they gave it. */
+internal object PairingInput {
+    private const val CODE_LENGTH = 6
+    private val PORTS = 1024..65535
+
+    fun parse(input: String): Pair<String, Int?> {
+        val numbers = Regex("\\d+").findAll(input).map { it.value }.toList()
+        val code = numbers.firstOrNull { it.length == CODE_LENGTH }
+        require(code != null) { "The pairing code has $CODE_LENGTH digits" }
+        // An address's parts have at most three digits, so the port is the other number of four or five.
+        val port =
+            numbers
+                .filter { it != code && it.length in 4..5 }
+                .mapNotNull(String::toIntOrNull)
+                .firstOrNull { it in PORTS }
+        return code to port
     }
 }
