@@ -26,18 +26,18 @@ class AuthorizationServerTest {
     private fun authorize(
         clientId: String,
         scopes: Set<Scope> = setOf(Scope.SCREEN_READ),
+        resource: String? = null,
     ): String {
-        val id =
-            server.beginAuthorization(
-                mapOf(
-                    "response_type" to "code",
-                    "client_id" to clientId,
-                    "redirect_uri" to redirect,
-                    "code_challenge" to challenge(),
-                    "code_challenge_method" to "S256",
-                    "state" to "s1",
-                ),
+        val params =
+            mapOf(
+                "response_type" to "code",
+                "client_id" to clientId,
+                "redirect_uri" to redirect,
+                "code_challenge" to challenge(),
+                "code_challenge_method" to "S256",
+                "state" to "s1",
             )
+        val id = server.beginAuthorization(if (resource == null) params else params + ("resource" to resource))
         pairWithPhoneCode(id)
         server.approve(id, scopes)
         val status = assertIs<AuthorizationStatus.Redirect>(server.authorizationStatus(id))
@@ -286,5 +286,57 @@ class AuthorizationServerTest {
         val client = server.register("Claude", listOf(redirect))
         val tokens = exchange(client.id, authorize(client.id, setOf(Scope.SHELL_EXEC, Scope.SCREEN_READ)))
         assertEquals(setOf(Scope.SCREEN_READ), assertNotNull(server.authenticate(tokens.accessToken)).scopes)
+    }
+
+    @Test
+    fun `approving a reconnected app removes its earlier copies`() {
+        val first = server.register("Claude", listOf(redirect))
+        authorize(first.id, resource = "https://phone.example.ts.net/mcp")
+        now += 60_000
+        val second = server.register("Claude", listOf(redirect))
+        authorize(second.id, resource = "https://phone.example.ts.net/mcp/")
+        assertEquals(listOf(second.id), server.clients.value.map(ClientSummary::id))
+    }
+
+    @Test
+    fun `a grant from before resources were kept is replaced too`() {
+        val old = server.register("Claude", listOf(redirect))
+        authorize(old.id)
+        val reconnected = server.register("Claude", listOf(redirect))
+        authorize(reconnected.id, resource = "https://phone.example.ts.net/mcp")
+        assertEquals(listOf(reconnected.id), server.clients.value.map(ClientSummary::id))
+    }
+
+    @Test
+    fun `connections to another address or from another app stay`() {
+        val funnel = server.register("Claude", listOf(redirect))
+        authorize(funnel.id, resource = "https://phone.example.ts.net/mcp")
+        val tailnet = server.register("Claude", listOf(redirect))
+        authorize(tailnet.id, resource = "https://phone.tail1234.ts.net/mcp")
+        val other = server.register("ChatGPT", listOf(redirect))
+        authorize(other.id, resource = "https://phone.example.ts.net/mcp")
+        assertEquals(
+            setOf(funnel.id, tailnet.id, other.id),
+            server.clients.value
+                .map(ClientSummary::id)
+                .toSet(),
+        )
+    }
+
+    @Test
+    fun `only the owner's approval removes anything`() {
+        val approved = server.register("Claude", listOf(redirect))
+        authorize(approved.id)
+        server.register("Claude", listOf(redirect))
+        assertTrue(approved.id in server.clients.value.map(ClientSummary::id))
+    }
+
+    @Test
+    fun `a registration never approved within a day is dropped`() {
+        val abandoned = server.register("Claude", listOf(redirect))
+        now += 25 * 60 * 60 * 1000L
+        val fresh = server.register("Claude", listOf(redirect))
+        assertEquals(listOf(fresh.id), server.clients.value.map(ClientSummary::id))
+        assertFalse(abandoned.id in server.clients.value.map(ClientSummary::id))
     }
 }
