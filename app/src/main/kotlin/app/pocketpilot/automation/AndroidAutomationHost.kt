@@ -55,7 +55,10 @@ import app.pocketpilot.core.policy.ConfirmationRequest
 import app.pocketpilot.core.policy.Confirmer
 import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -104,6 +107,9 @@ class AndroidAutomationHost(
 
     /** One speech at a time: a second speak step waits for the first, so each one gets its own listener and finishes. */
     private val speechLock = Mutex()
+
+    /** Speech a rule does not wait for outlives the step that started it. */
+    private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override suspend fun callTool(
         session: Session,
@@ -258,7 +264,11 @@ class AndroidAutomationHost(
 
             "media.control" -> media(params["command"].orEmpty())
 
-            "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"])
+            "speak" -> {
+                val say = suspend { speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"]) }
+                // "wait" = no: the rule carries on while the phone speaks; a failure then only loses the speech.
+                if (params["wait"] == "no") speechScope.launch { runCatching { say() } } else say()
+            }
 
             "vibrate" -> vibrate(params["ms"]?.toLongOrNull() ?: DEFAULT_VIBRATE_MS)
 
