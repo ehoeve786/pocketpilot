@@ -656,10 +656,10 @@ class MainActivity : ComponentActivity() {
                                     BuiltInActions(
                                         onPair = {
                                             val missing =
-                                                listOf(Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.NEARBY_WIFI_DEVICES)
-                                                    .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-                                                    // Nearby devices exists from Android 13; before that mDNS needs nothing.
-                                                    .filter { it != Manifest.permission.NEARBY_WIFI_DEVICES || Build.VERSION.SDK_INT >= 33 }
+                                                (
+                                                    listOf(Manifest.permission.POST_NOTIFICATIONS) +
+                                                        PrivilegedStarter.localNetworkPermissions()
+                                                ).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
                                             if (missing.isEmpty()) {
                                                 PairingNotifier.begin(this@MainActivity)
                                             } else {
