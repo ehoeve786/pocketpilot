@@ -1,13 +1,16 @@
 package app.pocketpilot.capability.shizuku
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import android.provider.Settings
+import app.pocketpilot.capability.api.shell.ShellReply
 import app.pocketpilot.capability.shizuku.adb.AdbAuthException
 import app.pocketpilot.capability.shizuku.adb.AdbClient
 import app.pocketpilot.capability.shizuku.adb.AdbKey
@@ -26,6 +29,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.io.File
 import java.io.IOException
 
@@ -107,16 +111,22 @@ class PrivilegedStarter(
         )
     }
 
-    /** Pairs with the code shown under Wireless debugging, Pair device with pairing code, then starts. */
-    suspend fun pair(code: String): Result<Unit> =
+    /**
+     * Pairs with the code shown under Wireless debugging, Pair device with pairing code, then starts. [input] is
+     * the six-digit code, optionally with the port from the same dialog ("246994 37611" or "...:37611"), which
+     * skips looking the port up on the network.
+     */
+    suspend fun pair(input: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val digits = code.filter(Char::isDigit)
-                require(digits.length == PAIRING_CODE_LENGTH) { "The pairing code has $PAIRING_CODE_LENGTH digits" }
+                val (code, typedPort) = PairingInput.parse(input)
                 val port =
-                    mdns.find(AdbMdns.TLS_PAIRING, DISCOVERY_TIMEOUT_MS)
-                        ?: throw IOException("Open Wireless debugging, Pair device with pairing code, and keep it on screen")
-                AdbPairingClient(LOCALHOST, port, digits, key).use { it.pair() }
+                    typedPort
+                        ?: mdns.find(AdbMdns.TLS_PAIRING, DISCOVERY_TIMEOUT_MS)
+                        ?: throw IOException(
+                            "${mdns.lastProblem}. Type the code and the port shown under it, for example 123456 37611",
+                        )
+                AdbPairingClient(LOCALHOST, port, code, key).use { it.pair() }
                 prefs.edit().putBoolean(KEY_PAIRED, true).apply()
                 mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STOPPED)
             }.onSuccess { scope.launch { start() } }
@@ -202,10 +212,17 @@ class PrivilegedStarter(
                 Settings.Global.putInt(resolver, Settings.Global.ADB_ENABLED, 1)
             }
             Settings.Global.putInt(resolver, ADB_WIFI_ENABLED, 1)
+            // On a Wi-Fi network wireless debugging has not been allowed on, Android asks and switches it back off.
+            delay(AUTHORIZE_WAIT_MS)
+            if (Settings.Global.getInt(resolver, ADB_WIFI_ENABLED, 0) == 0) {
+                throw IOException("Wireless debugging is not allowed on this Wi-Fi; turn it on once and tap Always allow on this network")
+            }
         }
         val port =
             mdns.find(AdbMdns.TLS_CONNECT, DISCOVERY_TIMEOUT_MS)
-                ?: throw IOException("Wireless debugging is not reachable; it needs Wi-Fi")
+                ?: portFromProperty()
+                ?: portFromShizuku()
+                ?: throw IOException("${mdns.lastProblem}; Wireless debugging needs Wi-Fi")
         val client = AdbClient(LOCALHOST, port, key)
         try {
             client.connect()
@@ -222,6 +239,29 @@ class PrivilegedStarter(
             tryConnect(TCP_PORT)?.let { return it }
         }
         throw IOException("adb did not come back on port $TCP_PORT")
+    }
+
+    /** adbd keeps its port in a system property, as the Shizuku fork reads TCP mode's; some builds let apps read it. */
+    @SuppressLint("PrivateApi")
+    private fun portFromProperty(): Int? =
+        runCatching {
+            HiddenApiBypass.addHiddenApiExemptions("Landroid/os/SystemProperties;")
+            val get = Class.forName("android.os.SystemProperties").getMethod("getInt", String::class.java, Int::class.javaPrimitiveType)
+            (get.invoke(null, "service.adb.tls.port", -1) as Int).takeIf { it > 0 }
+        }.getOrNull()
+
+    /** While Shizuku still serves calls, it can read wireless debugging's port without the network. */
+    private fun portFromShizuku(): Int? {
+        if (connection.source.value != PrivilegedSource.SHIZUKU) return null
+        return runCatching {
+            val reply = connection.service().runReadOnly(arrayOf("getprop", "service.adb.tls.port"), "", PROP_TIMEOUT_MS)
+            ShellReply
+                .decode(reply)
+                .stdout
+                .trim()
+                .toIntOrNull()
+                ?.takeIf { it > 0 }
+        }.getOrNull()
     }
 
     private fun tryConnect(port: Int): AdbClient? {
@@ -249,6 +289,7 @@ class PrivilegedStarter(
         val main = PrivilegedMain::class.java.name
         return "pm grant $pkg ${Manifest.permission.WRITE_SECURE_SETTINGS} >/dev/null 2>&1; " +
             "pm grant $pkg ${Manifest.permission.NEARBY_WIFI_DEVICES} >/dev/null 2>&1; " +
+            "pm grant $pkg $ACCESS_LOCAL_NETWORK >/dev/null 2>&1; " +
             "for p in \$(pidof $PROCESS_NAME); do kill \$p; done; " +
             "trap '' HUP; S=; command -v setsid >/dev/null 2>&1 && S=setsid; " +
             "(CLASSPATH='$apk' \$S app_process /system/bin --nice-name=$PROCESS_NAME $main " +
@@ -266,7 +307,22 @@ class PrivilegedStarter(
         private const val ADB_WIFI_ENABLED = "adb_wifi_enabled"
         private const val ADB_ALLOWED_CONNECTION_TIME = "adb_allowed_connection_time"
         private const val STARTED_MARK = "pocketpilot-started"
-        private const val PAIRING_CODE_LENGTH = 6
+        private const val PROP_TIMEOUT_MS = 5_000L
+        private const val AUTHORIZE_WAIT_MS = 2_000L
+        private const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
+
+        /**
+         * The run-time permissions mDNS discovery and the pairing connection need, as the Shizuku fork asks for
+         * them: local network access from Android 17, Nearby devices before that (from Android 13).
+         */
+        fun localNetworkPermissions(): List<String> =
+            when {
+                Build.VERSION.SDK_INT >= ANDROID_17 -> listOf(ACCESS_LOCAL_NETWORK)
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> listOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                else -> emptyList()
+            }
+
+        private const val ANDROID_17 = 37
         private const val DISCOVERY_TIMEOUT_MS = 20_000L
         private const val BINDER_TIMEOUT_MS = 20_000L
         private const val FIRST_START_DELAY_MS = 5_000L
@@ -276,5 +332,24 @@ class PrivilegedStarter(
         private const val TCP_WAIT_MS = 1_000L
         private const val MAX_OUTPUT = 2_000
         private val RETRY_DELAYS_MS = longArrayOf(30_000L, 120_000L, 600_000L, 1_800_000L)
+    }
+}
+
+/** What the owner typed into the pairing notification: the six-digit code, and the port when they gave it. */
+internal object PairingInput {
+    private const val CODE_LENGTH = 6
+    private val PORTS = 1024..65535
+
+    fun parse(input: String): Pair<String, Int?> {
+        val numbers = Regex("\\d+").findAll(input).map { it.value }.toList()
+        val code = numbers.firstOrNull { it.length == CODE_LENGTH }
+        require(code != null) { "The pairing code has $CODE_LENGTH digits" }
+        // An address's parts have at most three digits, so the port is the other number of four or five.
+        val port =
+            numbers
+                .filter { it != code && it.length in 4..5 }
+                .mapNotNull(String::toIntOrNull)
+                .firstOrNull { it in PORTS }
+        return code to port
     }
 }

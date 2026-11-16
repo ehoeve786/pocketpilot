@@ -446,6 +446,12 @@ class MainActivity : ComponentActivity() {
                 }
             // The setup step only asks for the permission; starting the server stays the owner's choice.
             val notificationPermissionOnly = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+            // Pairing finds wireless debugging over mDNS, which newer Android versions put behind Nearby devices;
+            // the code is typed into a notification, so both are asked for before pairing starts.
+            val pairingPermissions =
+                rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                    PairingNotifier.begin(this@MainActivity)
+                }
             val folderPicker =
                 rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
                     tree?.let { runCatching { sharedFolders.add(it) } }
@@ -648,13 +654,16 @@ class MainActivity : ComponentActivity() {
                                 tcpMode = tcpMode,
                                 actions =
                                     BuiltInActions(
-                                        // The code arrives through a notification, so notifications are allowed first.
                                         onPair = {
-                                            val allowed = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                                            if (allowed == PackageManager.PERMISSION_GRANTED) {
+                                            val missing =
+                                                (
+                                                    listOf(Manifest.permission.POST_NOTIFICATIONS) +
+                                                        PrivilegedStarter.localNetworkPermissions()
+                                                ).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+                                            if (missing.isEmpty()) {
                                                 PairingNotifier.begin(this@MainActivity)
                                             } else {
-                                                notificationPermissionOnly.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                                pairingPermissions.launch(missing.toTypedArray())
                                             }
                                         },
                                         onStart = { appScope.launch { privileged.start() } },

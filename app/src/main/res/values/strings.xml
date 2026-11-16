@@ -56,8 +56,8 @@
     <string name="builtin_tcp">Restart without Wi-Fi</string>
     <string name="builtin_tcp_explainer">Keeps adb listening on port 5555 until the next reboot, so PocketPilot can restart its process off Wi-Fi. Devices on the same network still need the phone to allow them.</string>
     <string name="builtin_pair_channel">Pairing</string>
-    <string name="builtin_pair_notification_text">In Wireless debugging, tap Pair device with pairing code, then enter the code here.</string>
-    <string name="builtin_pair_code_label">Pairing code</string>
+    <string name="builtin_pair_notification_text">In Wireless debugging, tap Pair device with pairing code, then enter the code here. If pairing cannot find the phone, add the port shown under the code, for example 123456 37611.</string>
+    <string name="builtin_pair_code_label">Code (and port)</string>
     <string name="builtin_pair_enter_code">Enter code</string>
     <string name="builtin_pairing">Pairing…</string>
     <string name="builtin_paired">Paired. PocketPilot is starting its privileged access.</string>
