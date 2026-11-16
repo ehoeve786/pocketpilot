@@ -660,6 +660,7 @@ internal object Actions {
                                 ),
                             ),
                             FieldDef("volume", "Volume", FieldKind.PERCENT, required = false, default = "100"),
+                            choiceField("wait", "Wait until spoken", YES_NO),
                         ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Native,
