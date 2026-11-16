@@ -264,11 +264,8 @@ class AndroidAutomationHost(
 
             "media.control" -> media(params["command"].orEmpty())
 
-            "speak" -> {
-                val say = suspend { speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"]) }
-                // "wait" = no: the rule carries on while the phone speaks; a failure then only loses the speech.
-                if (params["wait"] == "no") speechScope.launch { runCatching { say() } } else say()
-            }
+            // "wait" = no: the rule carries on while the phone speaks; a failure then only loses the speech.
+            "speak" -> if (params["wait"] == "no") speechScope.launch { runCatching { speak(params) } } else speak(params)
 
             "vibrate" -> vibrate(params["ms"]?.toLongOrNull() ?: DEFAULT_VIBRATE_MS)
 
@@ -389,6 +386,8 @@ class AndroidAutomationHost(
         audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
         audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
     }
+
+    private suspend fun speak(params: Map<String, String>) = speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"])
 
     private suspend fun speak(
         text: String,
