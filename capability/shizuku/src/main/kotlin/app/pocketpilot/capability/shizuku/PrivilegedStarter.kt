@@ -16,6 +16,7 @@ import app.pocketpilot.capability.shizuku.adb.AdbClient
 import app.pocketpilot.capability.shizuku.adb.AdbKey
 import app.pocketpilot.capability.shizuku.adb.AdbMdns
 import app.pocketpilot.capability.shizuku.adb.AdbPairingClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -148,6 +149,8 @@ class PrivilegedStarter(
             if (!paired) return@withLock Result.failure(IllegalStateException("Pair wireless debugging with PocketPilot first"))
             mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STARTING)
             val result = runCatching { launch() }
+            // Being cancelled is not a failed start: it is passed on, not shown as the reason.
+            result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
             if (result.isSuccess) {
                 failures = 0
                 mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.RUNNING)
@@ -162,12 +165,16 @@ class PrivilegedStarter(
 
     private fun running() = connection.source.value == PrivilegedSource.BUILT_IN
 
+    /**
+     * Starts after [delayMs], replacing a start that is still waiting. Only the wait can be cancelled: a start
+     * already under way runs in its own coroutine, so Wi-Fi coming back or another trigger cannot cut it off.
+     */
     private fun schedule(delayMs: Long) {
         retry?.cancel()
         retry =
             scope.launch {
                 delay(delayMs)
-                if (paired && !running()) start()
+                scope.launch { if (paired && !running()) start() }
             }
     }
 
