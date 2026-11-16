@@ -109,6 +109,7 @@ class AuthorizationServer(
         val codeChallenge: String,
         var result: AuthorizationStatus = AuthorizationStatus.Waiting,
         var failedPairings: Int = 0,
+        val resource: String? = null,
     )
 
     // Registration (RFC 7591)
@@ -125,6 +126,7 @@ class AuthorizationServer(
                 throw OAuthException("invalid_redirect_uri", "Redirect URIs must be https, or http on localhost: $uri")
             }
         }
+        dropAbandonedClients()
         if (state.clients.size >= MAX_CLIENTS) {
             dropOldestUnusedClient() ?: throw OAuthException("invalid_client_metadata", "Too many clients are registered")
         }
@@ -204,7 +206,13 @@ class AuthorizationServer(
             // The oldest prompt gives way, so a flood of requests from other clients cannot keep the owner's sign-in out.
             waitingNow.minByOrNull { it.value.request.createdAtMillis }?.key?.let(::deny)
         }
-        waiting[id] = PendingAuthorization(request, redirectUri, oauthState, challenge)
+        val resource =
+            params["resource"]
+                ?.trim()
+                ?.trimEnd('/')
+                ?.take(MAX_RESOURCE)
+                ?.takeIf { it.isNotEmpty() }
+        waiting[id] = PendingAuthorization(request, redirectUri, oauthState, challenge, resource = resource)
         mutablePending.update { it + request }
         return id
     }
@@ -252,8 +260,10 @@ class AuthorizationServer(
                 clientId = pendingAuth.request.clientId,
                 scopes = scopes.filter { it in GRANTABLE }.map(Scope::value).toSet(),
                 createdAtMillis = now,
+                resource = pendingAuth.resource,
             )
         update { it.copy(grants = it.grants + grant) }
+        replaceOlderConnections(grant)
         val code = "ppac_" + randomToken(TOKEN_BYTES)
         codes.values.removeAll { it.expiresAtMillis < now }
         codes[code] =
@@ -428,6 +438,37 @@ class AuthorizationServer(
         return if (client.name == host) host else "${client.name} ($host)"
     }
 
+    /**
+     * Reconnecting an app registers it again, so the owner's approval of the new one removes the earlier copies of
+     * the same connection: the same self-chosen name and redirect URIs, signed in for the same MCP address (or one
+     * that is not known). It runs only on the owner's approval, so registering a look-alike cannot remove anything,
+     * and a second connector that signs in to a different address (Funnel and tailnet, say) keeps its own.
+     */
+    private fun replaceOlderConnections(grant: Grant) {
+        val client = state.clients.firstOrNull { it.id == grant.clientId } ?: return
+        val older =
+            state.clients
+                .filter { it.id != client.id && it.name == client.name && it.redirectUris.toSet() == client.redirectUris.toSet() }
+                .filter { other ->
+                    val grants = state.grants.filter { it.clientId == other.id }
+                    grants.isEmpty() || grants.any { it.resource == null || grant.resource == null || it.resource == grant.resource }
+                }
+        older.forEach { revokeClient(it.id) }
+    }
+
+    /** Registrations the owner never approved within a day were abandoned sign-ins; they go. */
+    private fun dropAbandonedClients() {
+        val cutoff = clock.nowMillis() - ABANDONED_CLIENT_MS
+        val withGrants = state.grants.map(Grant::clientId).toSet()
+        val waitingFor = waiting.values.map { it.request.clientId }.toSet()
+        val abandoned =
+            state.clients
+                .filter { it.id !in withGrants && it.id !in waitingFor && it.createdAtMillis < cutoff }
+                .map(OAuthClient::id)
+                .toSet()
+        if (abandoned.isNotEmpty()) update { s -> s.copy(clients = s.clients.filterNot { it.id in abandoned }) }
+    }
+
     private fun dropOldestUnusedClient(): Unit? {
         val withGrants = state.grants.map(Grant::clientId).toSet()
         val victim = state.clients.filter { it.id !in withGrants }.minByOrNull(OAuthClient::createdAtMillis) ?: return null
@@ -468,6 +509,8 @@ class AuthorizationServer(
         private const val CLIENT_ID_BYTES = 16
         private const val REQUEST_ID_BYTES = 16
         private const val MAX_CLIENTS = 50
+        private const val MAX_RESOURCE = 300
+        private const val ABANDONED_CLIENT_MS = 24 * 60 * 60 * 1000L
         private const val MAX_NAME_LENGTH = 80
 
         /** Sign-ins that may wait for the owner at once, across all clients. */

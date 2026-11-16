@@ -24,6 +24,11 @@ data class Grant(
     val scopes: Set<String>,
     val createdAtMillis: Long,
     val lastUsedAtMillis: Long = createdAtMillis,
+    /**
+     * The MCP address the client signed in for (RFC 8707 `resource`), such as the Funnel or tailnet URL; null when
+     * the client sent none or the grant is older than this field.
+     */
+    val resource: String? = null,
 )
 
 @Serializable
