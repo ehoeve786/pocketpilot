@@ -2,7 +2,10 @@ package app.pocketpilot.capability.shizuku
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -102,6 +105,26 @@ class PrivilegedStarter(
         }
         // A process that survived the app's own restart hands its binder over within a few seconds.
         if (paired) schedule(FIRST_START_DELAY_MS)
+        // After a reboot Android may ask to allow wireless debugging on this Wi-Fi, which cannot be answered while the
+        // phone is locked; as the Shizuku fork does, the start is tried again as soon as the owner unlocks.
+        val unlocked =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    context: Context,
+                    intent: Intent,
+                ) {
+                    if (paired && !running() && mutableStatus.value.phase != BuiltInStatus.Phase.STARTING) {
+                        failures = 0
+                        schedule(UNLOCK_DELAY_MS)
+                    }
+                }
+            }
+        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(unlocked, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(unlocked, filter)
+        }
         context.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(
             NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(),
             object : ConnectivityManager.NetworkCallback() {
@@ -316,6 +339,7 @@ class PrivilegedStarter(
         private const val STARTED_MARK = "pocketpilot-started"
         private const val PROP_TIMEOUT_MS = 5_000L
         private const val AUTHORIZE_WAIT_MS = 2_000L
+        private const val UNLOCK_DELAY_MS = 1_500L
         private const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
 
         /**
