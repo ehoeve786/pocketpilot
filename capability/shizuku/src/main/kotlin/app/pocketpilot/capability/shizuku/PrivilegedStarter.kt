@@ -36,6 +36,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.io.File
 import java.io.IOException
+import java.net.ConnectException
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.net.SocketTimeoutException
 
 /** Where PocketPilot's own privileged process stands, shown in Settings and Doctor. */
 data class BuiltInStatus(
@@ -150,7 +154,7 @@ class PrivilegedStarter(
                         ?: throw IOException(
                             "${mdns.lastProblem}. Type the code and the port shown under it, for example 123456 37611",
                         )
-                AdbPairingClient(LOCALHOST, port, code, key).use { it.pair() }
+                pairOnAnyAddress(port, code)
                 prefs.edit().putBoolean(KEY_PAIRED, true).apply()
                 mutableStatus.value = BuiltInStatus(BuiltInStatus.Phase.STOPPED)
             }.onSuccess { scope.launch { start() } }
@@ -253,13 +257,7 @@ class PrivilegedStarter(
                 ?: portFromProperty()
                 ?: portFromShizuku()
                 ?: throw IOException("${mdns.lastProblem}; Wireless debugging needs Wi-Fi")
-        val client = AdbClient(LOCALHOST, port, key)
-        try {
-            client.connect()
-        } catch (e: AdbAuthException) {
-            client.close()
-            throw e
-        }
+        val client = connectOnAnyAddress(port)
         if (!tcpMode) return client
         // adbd restarts on its TCP port; the wireless debugging connection ends with it.
         runCatching { client.run("tcpip:$TCP_PORT") }
@@ -294,15 +292,65 @@ class PrivilegedStarter(
         }.getOrNull()
     }
 
-    private fun tryConnect(port: Int): AdbClient? {
-        val client = AdbClient(LOCALHOST, port, key)
-        return try {
-            client.connect()
-            client
-        } catch (e: IOException) {
-            client.close()
-            null
+    private fun tryConnect(port: Int): AdbClient? = runCatching { connectOnAnyAddress(port) }.getOrNull()
+
+    /**
+     * Where to reach adbd on this phone: 127.0.0.1 first, then the phone's own network addresses. From Android 17
+     * wireless debugging listens only on the Wi-Fi addresses, so 127.0.0.1 is refused there.
+     */
+    private fun adbHosts(): List<String> {
+        val own =
+            runCatching {
+                NetworkInterface
+                    .getNetworkInterfaces()
+                    .asSequence()
+                    .filter { it.isUp && !it.isLoopback }
+                    .flatMap { it.inetAddresses.asSequence() }
+                    .filter { !it.isLoopbackAddress }
+                    // IPv4 first: it needs no interface scope.
+                    .sortedBy { if (it is Inet4Address) 0 else 1 }
+                    .mapNotNull { it.hostAddress }
+                    .toList()
+            }.getOrDefault(emptyList())
+        return listOf(LOCALHOST) + own
+    }
+
+    /** Pairs on the first address that answers; a refused connection moves on, a wrong code does not. */
+    private fun pairOnAnyAddress(
+        port: Int,
+        code: String,
+    ) {
+        var refused: IOException? = null
+        for (host in adbHosts()) {
+            try {
+                AdbPairingClient(host, port, code, key).use { it.pair() }
+                return
+            } catch (e: ConnectException) {
+                refused = e
+            } catch (e: SocketTimeoutException) {
+                refused = e
+            }
         }
+        throw IOException("Nothing answered on port $port; check the port shown under the code", refused)
+    }
+
+    /** An authenticated adb connection on the first address that answers on [port]. */
+    private fun connectOnAnyAddress(port: Int): AdbClient {
+        var refused: IOException? = null
+        for (host in adbHosts()) {
+            val client = AdbClient(host, port, key)
+            try {
+                client.connect()
+                return client
+            } catch (e: AdbAuthException) {
+                client.close()
+                throw e
+            } catch (e: IOException) {
+                client.close()
+                refused = e
+            }
+        }
+        throw IOException("Wireless debugging did not answer on port $port", refused)
     }
 
     /**
