@@ -85,8 +85,11 @@ class AdbMdns(
             }
             awaitClose {
                 runCatching { nsd.stopServiceDiscovery(listener) }
-                synchronized(pending) { pending.toList().also { pending.clear() } }
-                    .forEach { runCatching { nsd.unregisterServiceInfoCallback(it) } }
+                val leftover = synchronized(pending) { pending.toList().also { pending.clear() } }
+                // Only Android 14 and later register these callbacks.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    leftover.forEach { runCatching { nsd.unregisterServiceInfoCallback(it) } }
+                }
             }
         }.filter { (host, port) -> type == TLS_PAIRING || isOwnAddress(host) || answersLocally(port) }
             .map { it.second }
