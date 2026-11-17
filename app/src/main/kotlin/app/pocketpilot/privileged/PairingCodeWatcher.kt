@@ -17,7 +17,10 @@ import kotlinx.coroutines.launch
 internal object PairingCodeWatcher {
     private val SETTINGS = setOf("com.android.settings", "com.google.android.settings")
     private val CODE = Regex("^\\d{6}$")
-    private val ADDRESS = Regex("(?:\\d{1,3}\\.){3}\\d{1,3}:(\\d{4,5})")
+
+    // An address and port as the dialog shows it: 192.168.8.100:37611, or from Android 17 an mDNS host name such as
+    // Android_976T3PGI.local:37813.
+    private val ADDRESS = Regex("[A-Za-z0-9_.\\-\\]]+:(\\d{4,5})$")
     private const val WATCH_MS = 3 * 60 * 1000L
     private const val READ_EVERY_MS = 300L
 
