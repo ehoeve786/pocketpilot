@@ -112,18 +112,16 @@ class PairingReplyReceiver : BroadcastReceiver() {
                 .orEmpty()
         val app = context.applicationContext as PocketPilotApplication
         PairingNotifier.done(context, context.getString(R.string.builtin_pairing))
-        val pending = goAsync()
+        // The notification's reply is a foreground broadcast with a 10-second limit, and finding the pairing port
+        // and pairing can take longer, so the receiver returns at once; PocketPilot's own foreground service keeps
+        // the process alive while pairing runs, and the result arrives as a notification.
         app.appScope.launch {
-            try {
-                val result = app.privileged.pair(code)
-                if (result.isSuccess) {
-                    PairingNotifier.done(context, context.getString(R.string.builtin_paired))
-                } else {
-                    val reason = result.exceptionOrNull()?.message.orEmpty()
-                    PairingNotifier.ask(context, context.getString(R.string.builtin_pair_failed, reason))
-                }
-            } finally {
-                pending.finish()
+            val result = app.privileged.pair(code)
+            if (result.isSuccess) {
+                PairingNotifier.done(context, context.getString(R.string.builtin_paired))
+            } else {
+                val reason = result.exceptionOrNull()?.message.orEmpty()
+                PairingNotifier.ask(context, context.getString(R.string.builtin_pair_failed, reason))
             }
         }
     }
