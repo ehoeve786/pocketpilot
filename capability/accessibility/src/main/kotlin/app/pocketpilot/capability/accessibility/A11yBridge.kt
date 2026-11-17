@@ -108,6 +108,8 @@ object A11yBridge {
     }
 
     private const val MAX_TEXT_NODES = 600
+    private const val MAX_TEXT_DEPTH = 40
+    private const val MAX_TEXTS = 300
 
     internal fun attach(service: PocketPilotA11yService) {
         current.value = service
@@ -118,7 +120,60 @@ object A11yBridge {
         if (current.compareAndSet(service, null)) connectedFlow.value = false
     }
 
+    @Volatile
+    private var windowListener: ((String) -> Unit)? = null
+
+    /**
+     * Receives the package of each window whose content or state changes, for short watches such as reading the
+     * wireless debugging pairing code. Null stops listening.
+     */
+    fun listenToWindows(listener: ((String) -> Unit)?) {
+        windowListener = listener
+    }
+
+    /**
+     * The texts on screen in the windows of [packages], top window first. Used only while the owner is pairing, to
+     * read the pairing code and port Settings shows.
+     */
+    fun textsIn(packages: Set<String>): List<String> {
+        val service = current.value ?: return emptyList()
+        val roots =
+            runCatching { service.windows.mapNotNull { it.root } }.getOrDefault(emptyList()) +
+                listOfNotNull(service.rootInActiveWindow)
+        val texts = mutableListOf<String>()
+        roots.forEach { root ->
+            if (root.packageName?.toString() in packages) collectTexts(root, texts, 0)
+            root.releasePooled()
+        }
+        return texts
+    }
+
+    private fun collectTexts(
+        node: AccessibilityNodeInfo,
+        into: MutableList<String>,
+        depth: Int,
+    ) {
+        if (depth > MAX_TEXT_DEPTH || into.size > MAX_TEXTS) return
+        node.text
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
+            ?.let(into::add)
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { child ->
+                collectTexts(child, into, depth + 1)
+                child.releasePooled()
+            }
+        }
+    }
+
     internal fun onEvent(event: AccessibilityEvent) {
+        windowListener?.let { listener ->
+            val changed =
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                    event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                    event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+            event.packageName?.toString()?.let { if (changed) listener(it) }
+        }
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             clickListener?.let { listener ->
                 val pkg = event.packageName?.toString() ?: return@let
