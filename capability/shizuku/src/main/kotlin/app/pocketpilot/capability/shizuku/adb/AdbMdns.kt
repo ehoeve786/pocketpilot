@@ -17,7 +17,7 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.Socket
-import java.util.concurrent.Executors
+import java.util.concurrent.Executor
 
 /** Finds this phone's wireless debugging ports, which adbd announces over mDNS and changes on every restart. */
 class AdbMdns(
@@ -50,11 +50,12 @@ class AdbMdns(
      */
     fun ports(type: String): Flow<Int> =
         callbackFlow {
-            val resolver = Executors.newSingleThreadExecutor()
+            // Resolver callbacks still being registered when the search ends are unregistered then.
+            val pending = mutableListOf<NsdManager.ServiceInfoCallback>()
             val listener =
                 object : NsdManager.DiscoveryListener {
                     override fun onServiceFound(info: NsdServiceInfo) {
-                        resolve(info, resolver) { host, port -> trySend(host to port) }
+                        resolve(info, pending) { host, port -> trySend(host to port) }
                     }
 
                     override fun onStartDiscoveryFailed(
@@ -84,7 +85,11 @@ class AdbMdns(
             }
             awaitClose {
                 runCatching { nsd.stopServiceDiscovery(listener) }
-                resolver.shutdown()
+                val leftover = synchronized(pending) { pending.toList().also { pending.clear() } }
+                // Only Android 14 and later register these callbacks.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    leftover.forEach { runCatching { nsd.unregisterServiceInfoCallback(it) } }
+                }
             }
         }.filter { (host, port) -> type == TLS_PAIRING || isOwnAddress(host) || answersLocally(port) }
             .map { it.second }
@@ -93,7 +98,7 @@ class AdbMdns(
     /** Resolves [info] to a host and port; Android 14 and later replaced resolveService with a callback. */
     private fun resolve(
         info: NsdServiceInfo,
-        executor: java.util.concurrent.Executor,
+        pending: MutableList<NsdManager.ServiceInfoCallback>,
         onResolved: (String?, Int) -> Unit,
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -104,6 +109,7 @@ class AdbMdns(
                     override fun onServiceUpdated(updated: NsdServiceInfo) {
                         val host = updated.hostAddresses.firstOrNull()?.hostAddress
                         if (updated.port > 0) onResolved(host, updated.port)
+                        synchronized(pending) { pending.remove(this) }
                         runCatching { nsd.unregisterServiceInfoCallback(this) }
                     }
 
@@ -111,7 +117,8 @@ class AdbMdns(
 
                     override fun onServiceInfoCallbackUnregistered() = Unit
                 }
-            runCatching { nsd.registerServiceInfoCallback(info, executor, callback) }
+            synchronized(pending) { pending.add(callback) }
+            runCatching { nsd.registerServiceInfoCallback(info, DIRECT, callback) }
         } else {
             @Suppress("DEPRECATION")
             nsd.resolveService(
@@ -153,5 +160,11 @@ class AdbMdns(
         const val TLS_CONNECT = "_adb-tls-connect._tcp"
         const val TLS_PAIRING = "_adb-tls-pairing._tcp"
         private const val LOCAL_CHECK_MS = 500
+
+        /**
+         * Runs NsdManager's callbacks on its own thread. They only hand a port on, and an executor that is shut down
+         * when a search ends would reject a late callback and crash the app (RejectedExecutionException).
+         */
+        private val DIRECT = Executor { it.run() }
     }
 }
