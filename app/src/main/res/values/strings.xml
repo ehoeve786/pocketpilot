@@ -50,13 +50,14 @@
     <string name="builtin_running">Running.</string>
     <string name="builtin_problem">Last try: %1$s</string>
     <string name="builtin_pair">Pair with Wireless debugging</string>
-    <string name="builtin_pair_steps">Tap Pair device with pairing code, then type the six digits into PocketPilot\'s notification without leaving that screen.</string>
+    <string name="builtin_pair_steps">Tap Pair device with pairing code. With Accessibility on, PocketPilot reads the code and pairs by itself; otherwise type the six digits into its notification without leaving that screen.</string>
     <string name="builtin_start">Start now</string>
     <string name="builtin_forget">Forget pairing</string>
     <string name="builtin_tcp">Restart without Wi-Fi</string>
     <string name="builtin_tcp_explainer">Keeps adb listening on port 5555 until the next reboot, so PocketPilot can restart its process off Wi-Fi. Devices on the same network still need the phone to allow them.</string>
     <string name="builtin_pair_channel">Pairing</string>
     <string name="builtin_pair_notification_text">In Wireless debugging, tap Pair device with pairing code, then enter the code here. If pairing cannot find the phone, add the port shown under the code, for example 123456 37611.</string>
+    <string name="builtin_pair_notification_auto">In Wireless debugging, tap Pair device with pairing code. PocketPilot reads the code from the screen and pairs on its own; you can still type it here.</string>
     <string name="builtin_pair_code_label">Code (and port)</string>
     <string name="builtin_pair_enter_code">Enter code</string>
     <string name="builtin_pairing">Pairing…</string>
