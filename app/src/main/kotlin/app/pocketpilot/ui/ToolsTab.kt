@@ -513,7 +513,7 @@ private fun toolGroup(spec: ToolSpec): ToolGroup =
                 "files" -> ToolGroup.FILES
                 "home" -> ToolGroup.HOME
                 "adb", "device" -> ToolGroup.DIAGNOSTICS
-                "shell" -> ToolGroup.SHELL
+                "shell", "ssh" -> ToolGroup.SHELL
                 else -> ToolGroup.OTHER
             }
         }
