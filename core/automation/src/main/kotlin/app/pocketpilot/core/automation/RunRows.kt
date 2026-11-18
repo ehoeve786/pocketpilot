@@ -50,8 +50,7 @@ object RunRows {
                 if (window.trim().equals("off", ignoreCase = true)) return@mapNotNull day to null
                 val (start, end) = window.split('-').map { minutesOf(it.trim()) }.takeIf { it.size == 2 } ?: return@mapNotNull null
                 if (start == null || end == null) null else day to start..end
-            }
-            .toMap()
+            }.toMap()
 
     /**
      * The first run starting inside its day's window, or null: [hours] (from [dayHours]) for the days it names,
