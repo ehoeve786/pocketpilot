@@ -46,6 +46,8 @@ import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.ssh.SshServers
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.http.McpHttpServer
+import app.pocketpilot.ssh.SshAddServerTool
+import app.pocketpilot.ssh.SshServersTool
 import dagger.Lazy
 import dagger.Module
 import dagger.Provides
@@ -226,6 +228,11 @@ object AutomationModule {
             AutomationUpdateTool(store, profile.shellExecAvailable, notifier::changed) { notifier.proposed(it) },
             AutomationRunTool(store) { runtime.get().engine },
         )
+
+    /** ssh.servers and ssh.add_server, so an AI app can set up a server for rules; adding one is confirmed every time. */
+    @Provides
+    @ElementsIntoSet
+    fun sshTools(servers: SshServers): Set<ToolHandler> = setOf(SshServersTool(servers), SshAddServerTool(servers))
 
     /** home.*: the owner's Home Assistant for the agent and connected apps; they say how to set it up until it is. */
     @Provides
