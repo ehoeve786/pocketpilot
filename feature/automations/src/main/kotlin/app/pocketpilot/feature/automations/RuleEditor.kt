@@ -45,6 +45,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -832,7 +833,7 @@ private fun ActionStepRow(
     var open by rememberSaveable(step.type, index, depth) { mutableStateOf(hidden == 0) }
     val editOptions = { sheets.editOptions(step, onChange) }
 
-    Column {
+    Column(Modifier.alpha(if (step.off) OFF_ALPHA else 1f)) {
         // The row's buttons keep their own 40dp size instead of growing to 48dp, so each action is a shorter row.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -880,8 +881,10 @@ private fun ActionStepRow(
                     }
                 }
                 StepMenu(
+                    off = step.off,
                     canMoveUp = canMoveUp,
                     canMoveDown = canMoveDown,
+                    onToggle = { onChange(step.copy(off = !step.off)) },
                     onOptions = editOptions,
                     onMove = onMove,
                     onDuplicate = onDuplicate,
@@ -928,6 +931,7 @@ private fun StepNotes(
         buildList {
             if (!conditional && !step.constraints.isEmpty) add(stringResource(R.string.feature_automations_only_if_note, condition))
             if (step.onError == OnError.CONTINUE) add(stringResource(R.string.feature_automations_continues_note))
+            if (step.off) add(stringResource(R.string.feature_automations_off_note))
         }
     if (notes.isNotEmpty()) {
         Text(
@@ -950,8 +954,10 @@ private fun StepNotes(
 /** The step's other controls behind one button, so the sentence keeps the row's width. */
 @Composable
 private fun StepMenu(
+    off: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
+    onToggle: () -> Unit,
     onOptions: () -> Unit,
     onMove: (Int) -> Unit,
     onDuplicate: () -> Unit,
@@ -980,6 +986,7 @@ private fun StepMenu(
             item(R.string.feature_automations_move_up, canMoveUp) { onMove(-1) }
             item(R.string.feature_automations_move_down, canMoveDown) { onMove(1) }
             item(R.string.feature_automations_duplicate, true, onDuplicate)
+            item(if (off) R.string.feature_automations_turn_on else R.string.feature_automations_turn_off, true, onToggle)
             item(R.string.feature_automations_remove, true, onDelete)
         }
     }
@@ -1052,3 +1059,6 @@ private fun <T> List<T>.move(
     if (to !in indices) return this
     return toMutableList().also { it.add(to, it.removeAt(from)) }
 }
+
+/** How faint a turned-off step's row is. */
+private const val OFF_ALPHA = 0.5f

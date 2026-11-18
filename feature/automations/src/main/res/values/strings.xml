@@ -150,6 +150,9 @@
     <string name="feature_automations_add_else">Add Else action</string>
     <string name="feature_automations_step_menu">More</string>
     <string name="feature_automations_duplicate">Duplicate</string>
+    <string name="feature_automations_turn_off">Turn off</string>
+    <string name="feature_automations_turn_on">Turn on</string>
+    <string name="feature_automations_off_note">Turned off: skipped when the rule runs</string>
     <string name="feature_automations_move_up">Move up</string>
     <string name="feature_automations_move_down">Move down</string>
     <string name="feature_automations_category_switch">All rules in %1$s</string>

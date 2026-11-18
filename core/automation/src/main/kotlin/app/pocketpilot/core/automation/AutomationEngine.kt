@@ -457,6 +457,7 @@ class AutomationEngine(
         step: ActionStep,
         label: String,
     ): String? {
+        if (step.off) return "skipped, turned off"
         val def = AutomationCatalog.action(step.type) ?: throw AutomationFailure("This build has no action ${step.type}")
         if (def.sideloadOnly && !host.sideload) throw AutomationFailure("${def.title} is only in the sideload build")
         if (!def.conditional && !step.constraints.isEmpty && !holds(context, step.constraints)) return "skipped, conditions did not hold"

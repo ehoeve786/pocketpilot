@@ -116,7 +116,8 @@ enum class OnError {
 /**
  * One action. Flow actions ([AutomationCatalog] category FLOW) hold more actions: If runs [children]
  * when [constraints] hold and [elseChildren] otherwise; Repeat and While run [children] in a loop.
- * For any other action, [constraints] decide whether it runs at all.
+ * For any other action, [constraints] decide whether it runs at all. A step that is [off] is kept but skipped,
+ * with everything inside it.
  */
 @Serializable
 data class ActionStep(
@@ -126,6 +127,7 @@ data class ActionStep(
     val onError: OnError = OnError.STOP,
     val children: List<ActionStep> = emptyList(),
     val elseChildren: List<ActionStep> = emptyList(),
+    val off: Boolean = false,
 )
 
 /** How a rule's actions run. */
