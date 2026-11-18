@@ -24,7 +24,10 @@ type SshResult struct {
 	Stdout   string
 	Stderr   string
 	TimedOut bool
-	HostKey  string
+	// Closed is true when the connection ended before the command reported how it ended, as when it reboots
+	// the server.
+	Closed  bool
+	HostKey string
 }
 
 // sshOutputMax bounds each of stdout and stderr, so a chatty command cannot fill the app's memory.
@@ -53,10 +56,17 @@ func SshPublicKey(privateKey string) (string, error) {
 	return line + " pocketpilot", nil
 }
 
+// SshSink receives a command's output as it arrives, for showing it live. Calls can come from two goroutines at
+// once, one for each stream, so the app's side must be thread-safe.
+type SshSink interface {
+	Output(stderr bool, text string)
+}
+
 // SshExec runs command on host:port as user and returns its output. Signs in with privateKey when it is not
 // empty and with password when that is not empty. With pinnedHostKey empty, any host key is accepted and returned
 // in the result for the app to pin; otherwise a different key fails the call before anything is sent.
-func SshExec(host string, port int, user, privateKey, password, pinnedHostKey, command string, timeoutMs int) (*SshResult, error) {
+// When sink is not nil, it gets every piece of output as it arrives; the result still holds all of it.
+func SshExec(host string, port int, user, privateKey, password, pinnedHostKey, command string, timeoutMs int, sink SshSink) (*SshResult, error) {
 	if host == "" || user == "" || command == "" {
 		return nil, errors.New("host, user and command are required")
 	}
@@ -133,11 +143,15 @@ func SshExec(host string, port int, user, privateKey, password, pinnedHostKey, c
 		return nil, fmt.Errorf("could not open a session: %w", err)
 	}
 	defer session.Close()
-	var stdout, stderr cappedBuffer
+	stdout := cappedBuffer{sink: sink}
+	stderr := cappedBuffer{sink: sink, stderr: true}
 	session.Stdout = &stdout
 	session.Stderr = &stderr
 
-	err = session.Run(command)
+	if err := session.Start(command); err != nil {
+		return nil, fmt.Errorf("the command did not run: %w", err)
+	}
+	err = session.Wait()
 	result.Stdout = stdout.String()
 	result.Stderr = stderr.String()
 	if ctx.Err() != nil {
@@ -152,22 +166,25 @@ func SshExec(host string, port int, user, privateKey, password, pinnedHostKey, c
 	case errors.As(err, &exit):
 		result.ExitCode = exit.ExitStatus()
 	default:
-		var missing *ssh.ExitMissingError
-		if errors.As(err, &missing) {
-			result.ExitCode = -1
-			return result, nil
-		}
-		return nil, fmt.Errorf("the command did not run: %w", err)
+		// The command started but the connection went away, as when it reboots the server: what it printed
+		// so far is kept.
+		result.ExitCode = -1
+		result.Closed = true
 	}
 	return result, nil
 }
 
 // cappedBuffer keeps the first sshOutputMax bytes and drops the rest, so the command never blocks on a full pipe.
 type cappedBuffer struct {
-	buf bytes.Buffer
+	buf    bytes.Buffer
+	sink   SshSink
+	stderr bool
 }
 
 func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if c.sink != nil && len(p) > 0 {
+		c.sink.Output(c.stderr, string(p))
+	}
 	if room := sshOutputMax - c.buf.Len(); room > 0 {
 		if len(p) > room {
 			c.buf.Write(p[:room])

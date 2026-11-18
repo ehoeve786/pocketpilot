@@ -3,6 +3,7 @@ package app.pocketpilot.network.ssh
 import android.content.Context
 import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
+import app.pocketpilot.network.gonet.gen.ppnet.SshSink
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +44,8 @@ data class SshOutput(
     val stdout: String,
     val stderr: String,
     val timedOut: Boolean,
+    /** The connection ended before the command said how it ended, as when it reboots the server. */
+    val closed: Boolean = false,
 )
 
 class SshFailure(
@@ -140,13 +143,24 @@ class SshServers(
 
     /**
      * Runs [command] on the server called [nameOrId] and returns what it printed. Fails with [SshFailure] when the
-     * server is unknown, cannot be found or reached, refuses the sign-in, or shows a different host key.
+     * server is unknown, cannot be found or reached, refuses the sign-in, or shows a different host key. [onOutput]
+     * gets the output as it arrives, from Go's threads, with true for stderr.
      */
     suspend fun run(
         nameOrId: String,
         command: String,
         timeoutMs: Long,
+        onOutput: ((stderr: Boolean, text: String) -> Unit)? = null,
     ): SshOutput {
+        val sink =
+            onOutput?.let { emit ->
+                object : SshSink {
+                    override fun output(
+                        stderr: Boolean,
+                        text: String,
+                    ) = emit(stderr, text)
+                }
+            }
         val server = find(nameOrId) ?: throw SshFailure("No SSH server called \"$nameOrId\"; add it in Settings, SSH servers")
         val password =
             if (server.usePassword) {
@@ -172,6 +186,7 @@ class SshServers(
                             server.hostKey,
                             command,
                             timeoutMs.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS),
+                            sink,
                         )
                     }
                 } catch (e: Exception) {
@@ -183,7 +198,7 @@ class SshServers(
             update(server.id) { saved ->
                 saved.copy(hostKey = saved.hostKey.ifEmpty { result.hostKey }, lastAddress = address)
             }
-            return SshOutput(result.exitCode.toInt(), result.stdout, result.stderr, result.timedOut)
+            return SshOutput(result.exitCode.toInt(), result.stdout, result.stderr, result.timedOut, result.closed)
         }
         throw SshFailure("${server.name} did not answer on ${addresses.joinToString()}: ${failure?.message}")
     }

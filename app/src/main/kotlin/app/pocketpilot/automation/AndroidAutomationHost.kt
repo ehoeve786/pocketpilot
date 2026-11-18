@@ -284,8 +284,6 @@ class AndroidAutomationHost(
 
             "ha.get" -> return homeGet(params.p("entity"), params.p("attribute"))
 
-            "ssh.exec" -> return sshExec(params)
-
             "overlay.text" -> withContext(Dispatchers.Main) { floatingTexts.handle(params) }
 
             "calendar.add" -> return calendarAdd(params)
@@ -300,28 +298,39 @@ class AndroidAutomationHost(
     }
 
     /**
-     * Runs the command on the server and returns what it printed. A command that fails or times out fails the step,
-     * with its output in the log, so the action's "continue on error" decides whether the rule goes on.
+     * Runs the command on the server. Saves what it printed as {into}, the exit code as {into.exit} and the errors as
+     * {into.stderr}, also when it fails: a command that fails or times out fails the step, so the action's "continue on
+     * error" decides whether the rule goes on, and the steps after it can still read why. With "Live output", a
+     * floating window shows the output as it arrives.
      */
-    private suspend fun sshExec(params: Map<String, String>): String {
+    private suspend fun sshExec(params: Map<String, String>): Map<String, String> {
         val timeoutMs = (params.p("timeout").toLongOrNull() ?: DEFAULT_SSH_TIMEOUT_S).coerceIn(1, MAX_SSH_TIMEOUT_S) * 1_000
+        val server = params.p("server")
+        val window = if (params["live"] == "yes") SshLiveWindow(floatingTexts, speechScope, "SSH $server").also { it.start() } else null
         val out =
             try {
-                ssh.run(params.p("server"), params.p("command"), timeoutMs)
+                ssh.run(server, params.p("command"), timeoutMs, window?.let { w -> { _: Boolean, text: String -> w.output(text) } })
             } catch (e: SshFailure) {
+                window?.finish(e.message ?: "SSH failed", autoHideSeconds = 0)
                 throw AutomationFailure(e.message ?: "SSH failed")
             }
         val printed = out.stdout.trimEnd()
-        if (out.timedOut || out.exitCode != 0) {
-            val ended = if (out.timedOut) "Timed out after ${timeoutMs / 1_000} s" else "Exit code ${out.exitCode}"
-            val detail =
-                out.stderr
-                    .trimEnd()
-                    .ifEmpty { printed }
-                    .takeLast(SSH_FAILURE_CHARS)
-            throw AutomationFailure(if (detail.isEmpty()) ended else "$ended: $detail")
+        val errors = out.stderr.trimEnd()
+        val saved = linkedMapOf("" to printed, "exit" to out.exitCode.toString(), "stderr" to errors)
+        val ended =
+            when {
+                out.timedOut -> "Timed out after ${timeoutMs / 1_000} s"
+                out.closed -> "Connection closed before the command finished"
+                else -> "Exit code ${out.exitCode}"
+            }
+        val ok = !out.timedOut && !out.closed && out.exitCode == 0
+        // A window that ends well goes away on its own; one that shows a failure stays until it is tapped.
+        window?.finish("[$ended]", autoHideSeconds = if (ok) LIVE_HIDE_S else 0)
+        if (!ok) {
+            val detail = errors.ifEmpty { printed }.takeLast(SSH_FAILURE_CHARS)
+            throw AutomationFailure(if (detail.isEmpty()) ended else "$ended: $detail", saved)
         }
-        return printed
+        return saved
     }
 
     /** Through Shizuku when it runs, as a key press any screen lock accepts; else with a wake lock. */
@@ -342,7 +351,12 @@ class AndroidAutomationHost(
     override suspend fun nativeDictionary(
         type: String,
         params: Map<String, String>,
-    ): Map<String, String>? = if (type == "screen.read") readScreen() else null
+    ): Map<String, String>? =
+        when (type) {
+            "screen.read" -> readScreen()
+            "ssh.exec" -> sshExec(params)
+            else -> null
+        }
 
     /**
      * The app in front, saved as MacroDroid saves a screen read: one entry per view, keyed by its resource id, or by
@@ -666,6 +680,7 @@ class AndroidAutomationHost(
         const val DEFAULT_SSH_TIMEOUT_S = 30L
         const val MAX_SSH_TIMEOUT_S = 600L
         const val SSH_FAILURE_CHARS = 500
+        const val LIVE_HIDE_S = 5
         const val WAKE_MS = 5_000L
         const val SPEAK_TIMEOUT_MS = 120_000L
         const val SPEAK_FULL_VOLUME = 100f

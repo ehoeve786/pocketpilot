@@ -82,8 +82,9 @@ interface AutomationHost {
     ): String?
 
     /**
-     * Runs an [ActionKind.Native] action that saves a dictionary: each entry is saved as `into.key`. Null
-     * for the actions that save one value through [native].
+     * Runs an [ActionKind.Native] action that saves a dictionary: each entry is saved as `into.key`, and an entry
+     * keyed "" as `into` itself (otherwise `into` is all the values, one per line). Null for the actions that save
+     * one value through [native].
      */
     suspend fun nativeDictionary(
         type: String,
@@ -518,16 +519,24 @@ class AutomationEngine(
             }
 
             ActionKind.Native -> {
-                val dictionary = host.nativeDictionary(step.type, params)
-                if (dictionary != null) {
-                    // The entries are also kept as one text, so {into} is the whole screen, as a plain value.
-                    if (into.isNotEmpty()) {
-                        dictionary.forEach { (key, value) -> context.vars["$into.$key"] = value }
-                        context.vars[into] = dictionary.values.joinToString("\n")
+                fun saveAll(dictionary: Map<String, String>) {
+                    if (into.isEmpty()) return
+                    dictionary.forEach { (key, value) -> if (key.isNotEmpty()) context.vars["$into.$key"] = value }
+                    // Without an entry of its own, {into} is all the entries as one text, such as the whole screen.
+                    context.vars[into] = dictionary[""] ?: dictionary.values.joinToString("\n")
+                }
+                try {
+                    val dictionary = host.nativeDictionary(step.type, params)
+                    if (dictionary != null) {
+                        saveAll(dictionary)
+                    } else {
+                        val value = host.native(step.type, params)
+                        if (into.isNotEmpty() && value != null) context.vars[into] = value
                     }
-                } else {
-                    val value = host.native(step.type, params)
-                    if (into.isNotEmpty() && value != null) context.vars[into] = value
+                } catch (e: AutomationFailure) {
+                    // A failed command still leaves what it printed and its exit code for the steps after it.
+                    if (e.saved.isNotEmpty()) saveAll(e.saved)
+                    throw e
                 }
                 null
             }

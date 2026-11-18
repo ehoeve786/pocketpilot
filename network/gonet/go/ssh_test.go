@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -77,6 +78,11 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig) {
 				if command == "sleep" {
 					time.Sleep(3 * time.Second)
 				}
+				if command == "drop" {
+					channel.Write([]byte("rebooting"))
+					conn.Close()
+					return
+				}
 				channel.Write([]byte("ran: " + command))
 				channel.Stderr().Write([]byte("warn"))
 				status := make([]byte, 4)
@@ -103,7 +109,7 @@ func TestSshExecWithAGeneratedKey(t *testing.T) {
 	}
 	port, hostKey := testServer(t, clientKey)
 
-	result, err := SshExec("127.0.0.1", port, "comma", private, "", "", "uptime", 5000)
+	result, err := SshExec("127.0.0.1", port, "comma", private, "", "", "uptime", 5000, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +121,7 @@ func TestSshExecWithAGeneratedKey(t *testing.T) {
 	}
 
 	// The pinned key lets the next call through.
-	if _, err := SshExec("127.0.0.1", port, "comma", private, "", result.HostKey, "uptime", 5000); err != nil {
+	if _, err := SshExec("127.0.0.1", port, "comma", private, "", result.HostKey, "uptime", 5000, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -125,7 +131,7 @@ func TestSshExecRefusesAChangedHostKey(t *testing.T) {
 	line, _ := SshPublicKey(private)
 	clientKey, _, _, _, _ := ssh.ParseAuthorizedKey([]byte(line))
 	port, _ := testServer(t, clientKey)
-	_, err := SshExec("127.0.0.1", port, "comma", private, "", "ssh-ed25519 AAAAother", "uptime", 5000)
+	_, err := SshExec("127.0.0.1", port, "comma", private, "", "ssh-ed25519 AAAAother", "uptime", 5000, nil)
 	if err == nil || !strings.Contains(err.Error(), "key changed") {
 		t.Fatalf("expected a changed-key error, got %v", err)
 	}
@@ -133,11 +139,11 @@ func TestSshExecRefusesAChangedHostKey(t *testing.T) {
 
 func TestSshExecWithAPassword(t *testing.T) {
 	port, _ := testServer(t, nil)
-	result, err := SshExec("127.0.0.1", port, "pi", "", "secret", "", "ls", 5000)
+	result, err := SshExec("127.0.0.1", port, "pi", "", "secret", "", "ls", 5000, nil)
 	if err != nil || result.Stdout != "ran: ls" {
 		t.Fatalf("result %+v, %v", result, err)
 	}
-	if _, err := SshExec("127.0.0.1", port, "pi", "", "wrong", "", "ls", 5000); err == nil {
+	if _, err := SshExec("127.0.0.1", port, "pi", "", "wrong", "", "ls", 5000, nil); err == nil {
 		t.Fatal("a wrong password signed in")
 	}
 }
@@ -145,7 +151,7 @@ func TestSshExecWithAPassword(t *testing.T) {
 func TestSshExecTimesOut(t *testing.T) {
 	port, _ := testServer(t, nil)
 	started := time.Now()
-	result, err := SshExec("127.0.0.1", port, "pi", "", "secret", "", "sleep", 1000)
+	result, err := SshExec("127.0.0.1", port, "pi", "", "secret", "", "sleep", 1000, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +161,46 @@ func TestSshExecTimesOut(t *testing.T) {
 }
 
 func TestSshExecNeedsAWayToSignIn(t *testing.T) {
-	if _, err := SshExec("127.0.0.1", 22, "pi", "", "", "", "ls", 1000); err == nil {
+	if _, err := SshExec("127.0.0.1", 22, "pi", "", "", "", "ls", 1000, nil); err == nil {
 		t.Fatal("expected an error without a key or password")
+	}
+}
+
+type recordingSink struct {
+	mu     sync.Mutex
+	stdout strings.Builder
+	stderr strings.Builder
+}
+
+func (r *recordingSink) Output(stderr bool, text string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if stderr {
+		r.stderr.WriteString(text)
+	} else {
+		r.stdout.WriteString(text)
+	}
+}
+
+func TestSshExecStreamsOutputToTheSink(t *testing.T) {
+	port, _ := testServer(t, nil)
+	sink := &recordingSink{}
+	result, err := SshExec("127.0.0.1", port, "pi", "", "secret", "", "ls", 5000, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sink.stdout.String() != "ran: ls" || sink.stderr.String() != "warn" || result.Stdout != "ran: ls" {
+		t.Fatalf("sink %q / %q, result %+v", sink.stdout.String(), sink.stderr.String(), result)
+	}
+}
+
+func TestSshExecKeepsOutputWhenTheConnectionDrops(t *testing.T) {
+	port, _ := testServer(t, nil)
+	result, err := SshExec("127.0.0.1", port, "pi", "", "secret", "", "drop", 5000, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Closed || result.ExitCode != -1 || result.Stdout != "rebooting" {
+		t.Fatalf("result %+v", result)
 	}
 }
