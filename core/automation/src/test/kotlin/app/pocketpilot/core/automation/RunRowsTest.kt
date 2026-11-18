@@ -69,4 +69,21 @@ class RunRowsTest {
         assertEquals(setOf("Monday", "Friday"), RunRows.dayNames("MON, fri, xyz"))
         assertEquals(emptySet(), RunRows.dayNames(""))
     }
+
+    @Test
+    fun `a day's own hours replace the window, and an off day takes nothing`() {
+        val monday = snapshot("Monday")
+        assertNull(RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("mon 10:00-16:00")))
+        assertEquals("e49", RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("tue 10:00-16:00"))?.element)
+        assertNull(RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("Monday off")))
+        assertEquals("e38", RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("sat 16:00-17:00"))?.element)
+    }
+
+    @Test
+    fun `day hours skip entries that do not read as a day and a window`() {
+        assertEquals(
+            mapOf("Monday" to 600..960, "Sunday" to null),
+            RunRows.dayHours("mon 10:00-16:00, sun OFF, xyz 1:00-2:00, tue 25:00-26:00, wed, "),
+        )
+    }
 }

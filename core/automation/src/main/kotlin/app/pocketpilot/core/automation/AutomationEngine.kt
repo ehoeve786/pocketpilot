@@ -656,7 +656,14 @@ class AutomationEngine(
             "ui.tap_run" -> {
                 // Rows scrolled off the list are read too; ui.tap clicks them through Accessibility without scrolling.
                 val snapshot = callTool(context, "screen.snapshot", args("includeInvisible" to true, "maxNodes" to TAP_RUN_NODES))
-                val run = RunRows.pick(snapshot, params.p("from"), params.p("to"), RunRows.dayNames(params.p("days")))
+                val run =
+                    RunRows.pick(
+                        snapshot,
+                        params.p("from"),
+                        params.p("to"),
+                        RunRows.dayNames(params.p("days")),
+                        RunRows.dayHours(params["hours"].orEmpty()),
+                    )
                 context.vars[params.p("into")] = if (run == null) "no" else "yes"
                 if (run != null) {
                     // Saved for a later step, such as an announcement: "<into>_day" and "<into>_time".

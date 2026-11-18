@@ -446,13 +446,15 @@ internal object Actions {
                     category = ui,
                     title = "Take the first open run in a time window",
                     description =
-                        "On a schedule list, taps the first run that starts between the two times on the days you pick. " +
+                        "On a schedule list, taps the first run that starts between the two times on the days you pick, or in " +
+                            "a day's own window from Other hours, such as \"mon 10:00-16:00, sat off\". " +
                             "When it takes a run, it also saves the day as <into>_day and the time range as <into>_time.",
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
                             FieldDef("from", "Earliest start", FieldKind.TIME, default = "06:00"),
                             FieldDef("to", "Latest start", FieldKind.TIME, default = "15:00"),
+                            textField("hours", "Other hours on some days", required = false, hint = "mon 10:00-16:00, sat off"),
                             textField("into", "Save yes or no in variable", default = "run_found", hint = "yes when a run was taken"),
                         ),
                     tier = RiskTier.INTERACT,

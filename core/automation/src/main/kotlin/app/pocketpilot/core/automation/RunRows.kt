@@ -37,12 +37,32 @@ object RunRows {
             .mapNotNull { DAY_CODES[it.trim().lowercase().take(DAY_CODE_LENGTH)] }
             .toSet()
 
-    /** The first run on one of [days] (full day names) starting from [from] to [to] (both HH:mm, inclusive), or null. */
+    /**
+     * Start windows for single days, such as "mon 10:00-16:00, sat off", by full day name; an "off" day maps to null.
+     * Entries that do not read as a day and a window are skipped.
+     */
+    fun dayHours(text: String): Map<String, IntRange?> =
+        text
+            .split(",")
+            .mapNotNull<String, Pair<String, IntRange?>> { entry ->
+                val (code, window) = entry.trim().split(' ', limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
+                val day = DAY_CODES[code.lowercase().take(DAY_CODE_LENGTH)] ?: return@mapNotNull null
+                if (window.trim().equals("off", ignoreCase = true)) return@mapNotNull day to null
+                val (start, end) = window.split('-').map { minutesOf(it.trim()) }.takeIf { it.size == 2 } ?: return@mapNotNull null
+                if (start == null || end == null) null else day to start..end
+            }
+            .toMap()
+
+    /**
+     * The first run starting inside its day's window, or null: [hours] (from [dayHours]) for the days it names,
+     * otherwise [from] to [to] (both HH:mm, inclusive) on [days] (full day names).
+     */
     fun pick(
         snapshot: String,
         from: String,
         to: String,
         days: Set<String>,
+        hours: Map<String, IntRange?> = emptyMap(),
     ): RunRow? {
         val earliest = minutesOf(from) ?: return null
         val latest = minutesOf(to) ?: return null
@@ -54,10 +74,12 @@ object RunRows {
             val row = ROW.find(line)
             if (heading != null) {
                 day = heading.groupValues[1]
-            } else if (row != null && day in days) {
+            } else if (row != null) {
+                val window = if (day in hours) hours[day] else (earliest..latest).takeIf { day in days }
                 val (element, range, hour, minute, half) = row.destructured
-                val startsAt = startMinutes(hour.toInt(), minute.toInt(), half)
-                if (startsAt in earliest..latest) return RunRow(snapshotId, element, day, spoken(range))
+                if (window != null && startMinutes(hour.toInt(), minute.toInt(), half) in window) {
+                    return RunRow(snapshotId, element, day, spoken(range))
+                }
             }
         }
         return null
