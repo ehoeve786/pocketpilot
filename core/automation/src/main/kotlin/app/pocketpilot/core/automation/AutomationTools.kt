@@ -253,6 +253,7 @@ private fun stepSettings(step: ActionStep): JsonObject =
         if (step.children.isNotEmpty()) put("actions", JsonArray(step.children.map { stepSettings(it) }))
         if (step.elseChildren.isNotEmpty()) put("elseActions", JsonArray(step.elseChildren.map { stepSettings(it) }))
         if (step.onError == OnError.CONTINUE) put("continueOnError", true)
+        if (step.off) put("off", true)
     }
 
 /** Writes a flat group of conditions as `conditionMode` and `conditions`. Callers have already ruled out nested groups. */
@@ -307,6 +308,8 @@ data class ProposedAction(
     val actions: List<ProposedAction> = emptyList(),
     val elseActions: List<ProposedAction> = emptyList(),
     val continueOnError: Boolean = false,
+    /** Kept in the rule but skipped, as the editor's Turn off does. */
+    val off: Boolean = false,
 )
 
 private fun mode(text: String): GroupMode = GroupMode.entries.firstOrNull { it.name.equals(text, ignoreCase = true) } ?: GroupMode.ALL
@@ -324,6 +327,7 @@ private fun ProposedAction.toStep(): ActionStep =
         onError = if (continueOnError) OnError.CONTINUE else OnError.STOP,
         children = actions.map { it.toStep() },
         elseChildren = elseActions.map { it.toStep() },
+        off = off,
     )
 
 /**
@@ -564,7 +568,7 @@ private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"typ
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
     "actions":{"type":"array","items":{"type":"object"},"description":"Steps inside flow.if, repeat or while, shaped like this one."},
     "elseActions":{"type":"array","items":{"type":"object"},"description":"Steps for the else branch of flow.if."},
-    "continueOnError":{"type":"boolean"}},"required":["type"]}},
+    "continueOnError":{"type":"boolean"},"off":{"type":"boolean","description":"Kept but skipped when it runs."}},"required":["type"]}},
     "runAs":{"type":"string","enum":["direct","agent"]},"agentPrompt":{"type":"string"}"""
 
 /** `automation.run`: runs a rule whose owner allowed AI apps to run it (its trigger "AI app asks"). */

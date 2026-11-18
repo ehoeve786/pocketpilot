@@ -1559,6 +1559,27 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a turned-off step is skipped and the steps after it still run`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(
+                        ActionStep("var.set", mapOf("name" to "skipped", "value" to "1", "scope" to "global"), off = true),
+                        ActionStep("var.set", mapOf("name" to "ran", "value" to "1", "scope" to "global")),
+                    ),
+                ).copy(id = "a", triggers = listOf(TriggerSpec("intent.action", mapOf("action" to "com.example.GO")))),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.GO")))
+            advanceUntilIdle()
+
+            assertEquals(null, store.data.value.variables["skipped"])
+            assertEquals("1", store.data.value.variables["ran"])
+        }
+
+    @Test
     fun `a loop of variable changes runs each rule once`() =
         runTest {
             val host = FakeHost()
