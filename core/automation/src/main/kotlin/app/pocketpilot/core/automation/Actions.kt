@@ -446,15 +446,14 @@ internal object Actions {
                     category = ui,
                     title = "Take the first open run in a time window",
                     description =
-                        "On a schedule list, taps the first run that starts between the two times on the days you pick, or in " +
-                            "a day's own window from Other hours, such as \"mon 10:00-16:00, sat off\". " +
+                        "On a schedule list, taps the first run that starts between the two times on the days you pick. " +
                             "When it takes a run, it also saves the day as <into>_day and the time range as <into>_time.",
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
                             FieldDef("from", "Earliest start", FieldKind.TIME, default = "06:00"),
                             FieldDef("to", "Latest start", FieldKind.TIME, default = "15:00"),
-                            textField("hours", "Other hours on some days", required = false, hint = "mon 10:00-16:00, sat off"),
+                            textField("unavailable", "Skip runs during", required = false, hint = "{unavailable_times}"),
                             textField("into", "Save yes or no in variable", default = "run_found", hint = "yes when a run was taken"),
                         ),
                     tier = RiskTier.INTERACT,
@@ -1280,6 +1279,24 @@ internal object Actions {
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
                     sentence = { p -> "{${p.p("name")}} = random ${p.p("min")} to ${p.p("max")}" },
+                ),
+                ActionDef(
+                    type = "var.unavailable",
+                    category = Category.VARIABLES,
+                    title = "Unavailable",
+                    description =
+                        "A time you cannot work. The first Unavailable step of a run starts a global list again and later " +
+                            "ones add to it, for Take the first open run's Skip runs during and the Unavailable now condition.",
+                    fields =
+                        listOf(
+                            FieldDef("days", "Days", FieldKind.DAYS, default = "mon"),
+                            FieldDef("from", "From", FieldKind.TIME, default = "06:00"),
+                            FieldDef("to", "To", FieldKind.TIME, default = "10:00"),
+                            textField("name", "Save in global variable", default = "unavailable_times"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "Unavailable ${p.p("days")} ${p.p("from")} to ${p.p("to")}" },
                 ),
                 ActionDef(
                     type = "var.run_window",

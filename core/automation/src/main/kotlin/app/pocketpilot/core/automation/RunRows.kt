@@ -8,6 +8,13 @@ data class RunRow(
     val time: String,
 )
 
+/** A time no run may overlap: on [days] (full day names), from [from] to [to] in minutes after midnight. */
+data class Unavailable(
+    val days: Set<String>,
+    val from: Int,
+    val to: Int,
+)
+
 /**
  * Finds the first run on a schedule list that starts inside a time window on the chosen days. Each run
  * row reads like `button desc="6:00 AM - 10:00 AM, GVA - Downtown"` and sits under its day's heading, such as
@@ -16,8 +23,9 @@ data class RunRow(
 object RunRows {
     private val SNAPSHOT = Regex("""^snapshot (\S+)""")
     private val DAY = Regex("""text "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) *"""")
-    private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - \d{1,2}:\d{2} [AP]M)[^"]*".*\bclick\b""")
+    private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - (\d{1,2}):(\d{2}) ([AP]M))[^"]*".*\bclick\b""")
     private const val DAY_CODE_LENGTH = 3
+    private const val MINUTES_PER_DAY = 24 * 60
     private val DAY_CODES =
         mapOf(
             "mon" to "Monday",
@@ -38,30 +46,35 @@ object RunRows {
             .toSet()
 
     /**
-     * Start windows for single days, such as "mon 10:00-16:00, sat off", by full day name; an "off" day maps to null.
-     * Entries that do not read as a day and a window are skipped.
+     * Unavailable times saved as "mon,tue 06:00-10:00; sat 08:00-12:00", the way the Unavailable step writes them.
+     * Entries that do not read as days and a window are skipped.
      */
-    fun dayHours(text: String): Map<String, IntRange?> =
+    fun unavailable(text: String): List<Unavailable> =
         text
-            .split(",")
-            .mapNotNull<String, Pair<String, IntRange?>> { entry ->
-                val (code, window) = entry.trim().split(' ', limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
-                val day = DAY_CODES[code.lowercase().take(DAY_CODE_LENGTH)] ?: return@mapNotNull null
-                if (window.trim().equals("off", ignoreCase = true)) return@mapNotNull day to null
-                val (start, end) = window.split('-').map { minutesOf(it.trim()) }.takeIf { it.size == 2 } ?: return@mapNotNull null
-                if (start == null || end == null) null else day to start..end
-            }.toMap()
+            .split(";")
+            .mapNotNull { entry ->
+                val (codes, window) = entry.trim().split(' ', limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
+                val (from, to) = window.split('-').map { minutesOf(it.trim()) }.takeIf { it.size == 2 } ?: return@mapNotNull null
+                if (from == null || to == null) null else Unavailable(dayNames(codes), from, to)
+            }
+
+    /** True when [minute] after midnight on [day] (a full day name, any case) is inside one of [times]. */
+    fun blocked(
+        times: List<Unavailable>,
+        day: String,
+        minute: Int,
+    ): Boolean = times.any { time -> time.days.any { it.equals(day, ignoreCase = true) } && minute in time.from..time.to }
 
     /**
-     * The first run starting inside its day's window, or null: [hours] (from [dayHours]) for the days it names,
-     * otherwise [from] to [to] (both HH:mm, inclusive) on [days] (full day names).
+     * The first run on one of [days] (full day names) starting from [from] to [to] (both HH:mm, inclusive) and
+     * overlapping none of [unavailable], or null.
      */
     fun pick(
         snapshot: String,
         from: String,
         to: String,
         days: Set<String>,
-        hours: Map<String, IntRange?> = emptyMap(),
+        unavailable: List<Unavailable> = emptyList(),
     ): RunRow? {
         val earliest = minutesOf(from) ?: return null
         val latest = minutesOf(to) ?: return null
@@ -73,12 +86,14 @@ object RunRows {
             val row = ROW.find(line)
             if (heading != null) {
                 day = heading.groupValues[1]
-            } else if (row != null) {
-                val window = if (day in hours) hours[day] else (earliest..latest).takeIf { day in days }
+            } else if (row != null && day in days) {
                 val (element, range, hour, minute, half) = row.destructured
-                if (window != null && startMinutes(hour.toInt(), minute.toInt(), half) in window) {
-                    return RunRow(snapshotId, element, day, spoken(range))
-                }
+                val startsAt = startMinutes(hour.toInt(), minute.toInt(), half)
+                val endsAt = startMinutes(row.groupValues[6].toInt(), row.groupValues[7].toInt(), row.groupValues[8])
+                // A run past midnight ends the next day; it is only checked against the day it starts on.
+                val end = if (endsAt <= startsAt) MINUTES_PER_DAY else endsAt
+                val free = unavailable.none { day in it.days && startsAt < it.to && end > it.from }
+                if (startsAt in earliest..latest && free) return RunRow(snapshotId, element, day, spoken(range))
             }
         }
         return null

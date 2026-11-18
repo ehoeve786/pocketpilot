@@ -41,6 +41,22 @@ internal object Constraints {
                 },
             ),
             ConstraintDef(
+                type = "time.unavailable",
+                category = Category.TIME,
+                title = "Unavailable now",
+                description = "Now is inside one of the times the Unavailable steps saved.",
+                fields =
+                    listOf(
+                        textField("list", "Unavailable times", default = "{unavailable_times}"),
+                        choiceField("state", "Is", ON_OFF),
+                    ),
+                sentence = { p -> if (p.p("state").ifBlank { "on" } == "on") "Unavailable now" else "Not unavailable now" },
+                check = { p ->
+                    val inside = RunRows.blocked(RunRows.unavailable(p.p("list")), now.dayOfWeek.name, now.hour * 60 + now.minute)
+                    onOff(inside.toString()) == p.p("state").ifBlank { "on" }
+                },
+            ),
+            ConstraintDef(
                 type = "time.days",
                 category = Category.TIME,
                 title = "Days of the week",

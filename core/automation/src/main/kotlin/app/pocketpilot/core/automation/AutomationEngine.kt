@@ -662,7 +662,7 @@ class AutomationEngine(
                         params.p("from"),
                         params.p("to"),
                         RunRows.dayNames(params.p("days")),
-                        RunRows.dayHours(params["hours"].orEmpty()),
+                        RunRows.unavailable(params["unavailable"].orEmpty()),
                     )
                 context.vars[params.p("into")] = if (run == null) "no" else "yes"
                 if (run != null) {
@@ -891,6 +891,16 @@ class AutomationEngine(
                 val address = ScreenAddress.find { id -> context.vars["$screen.$id"] }
                 save(address.orEmpty())
                 return if (address == null) "no address on the screen" else "{$into} = ${address.take(MAX_NOTE)}"
+            }
+
+            "var.unavailable" -> {
+                // The first Unavailable step of a run starts the list again; later ones add to it.
+                val name = params.p("name").ifBlank { "unavailable_times" }
+                val entry = "${params.p("days")} ${params.p("from")}-${params.p("to")}"
+                val list = context.vars[name]?.let { "$it; $entry" } ?: entry
+                context.vars[name] = list
+                setGlobal(name, list, context)
+                return "{$name} = $list"
             }
 
             "var.run_window" -> {

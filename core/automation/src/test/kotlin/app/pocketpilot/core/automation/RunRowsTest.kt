@@ -71,19 +71,18 @@ class RunRowsTest {
     }
 
     @Test
-    fun `a day's own hours replace the window, and an off day takes nothing`() {
+    fun `runs overlapping an unavailable time are skipped, and touching its edge is not overlapping`() {
         val monday = snapshot("Monday")
-        assertNull(RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("mon 10:00-16:00")))
-        assertEquals("e49", RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("tue 10:00-16:00"))?.element)
-        assertNull(RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("Monday off")))
-        assertEquals("e38", RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.dayHours("sat 16:00-17:00"))?.element)
+        assertNull(RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.unavailable("mon 09:00-12:00")))
+        assertEquals("e49", RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.unavailable("mon 10:00-12:00"))?.element)
+        assertEquals("e49", RunRows.pick(monday, "06:00", "15:00", weekdays, RunRows.unavailable("tue,wed 06:00-10:00"))?.element)
     }
 
     @Test
-    fun `day hours skip entries that do not read as a day and a window`() {
+    fun `unavailable times skip entries that do not read as days and a window`() {
         assertEquals(
-            mapOf("Monday" to 600..960, "Sunday" to null),
-            RunRows.dayHours("mon 10:00-16:00, sun OFF, xyz 1:00-2:00, tue 25:00-26:00, wed, "),
+            listOf(Unavailable(setOf("Monday", "Tuesday"), 360, 600), Unavailable(setOf("Saturday"), 480, 720)),
+            RunRows.unavailable("mon,tue 06:00-10:00; junk; sat 8:00-12:00; sun 25:00-26:00"),
         )
     }
 }
