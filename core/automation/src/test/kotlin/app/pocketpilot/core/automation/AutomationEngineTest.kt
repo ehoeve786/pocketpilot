@@ -1609,6 +1609,35 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a variable in an SSH command is quoted as one word unless the step says otherwise`() =
+        runTest {
+            val name = mapOf("name" to "it's; reboot")
+            val quoted = rule(listOf(ActionStep("ssh.exec", mapOf("server" to "C3X", "command" to "echo {name}")))).copy(variables = name)
+            val raw =
+                rule(listOf(ActionStep("ssh.exec", mapOf("server" to "C3X", "command" to "echo {name}", "quote" to "no"))))
+                    .copy(variables = name)
+            val host = FakeHost()
+
+            engine(this, host).run(quoted, "Test")
+            engine(this, host).run(raw, "Test")
+
+            val commands = host.calls.filter { it.first == "ssh.exec" }.map { (it.second["command"] as JsonPrimitive).content }
+            assertEquals(listOf("echo 'it'\\''s; reboot'", "echo it's; reboot"), commands)
+        }
+
+    @Test
+    fun `an outside event cannot choose the SSH command`() =
+        runTest {
+            val host = FakeHost()
+            val steered = rule(listOf(ActionStep("ssh.exec", mapOf("server" to "C3X", "command" to "{trigger.text}"))))
+
+            val record = engine(this, host).run(steered, "intent", mapOf("text" to "rm -rf /"), fromOutside = true)
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue(host.calls.none { it.first == "ssh.exec" })
+        }
+
+    @Test
     fun `an outside event can still run an outbound action to the owner's own address`() =
         runTest {
             val host = FakeHost()

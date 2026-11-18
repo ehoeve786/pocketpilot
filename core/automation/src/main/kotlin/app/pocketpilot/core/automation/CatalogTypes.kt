@@ -82,6 +82,9 @@ enum class PickSource {
 
     /** The triggers of the rule being edited. */
     RULE_TRIGGER,
+
+    /** The SSH servers set up in Settings. */
+    SSH_SERVER,
     ;
 
     /** Bluetooth devices, Wi-Fi networks and cell towers can be several, stored comma-separated. */

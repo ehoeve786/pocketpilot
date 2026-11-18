@@ -255,3 +255,9 @@ object JsonPick {
             .map { it.trim().removeSurrounding("\"").removeSurrounding("'") }
             .filter(String::isNotEmpty)
 }
+
+/** POSIX shell quoting for values put into a command line. */
+object ShellQuote {
+    /** [value] as one shell word: in single quotes, with each single quote closed, escaped and reopened. */
+    fun word(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+}

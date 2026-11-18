@@ -110,6 +110,7 @@ dependencies {
     implementation(projects.feature.onboarding)
     implementation(projects.network.api)
     implementation(projects.network.certificates)
+    implementation(projects.network.ssh)
     implementation(projects.network.tailscale)
     implementation(projects.network.wireguard)
     implementation(projects.server.http)

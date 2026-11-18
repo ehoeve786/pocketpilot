@@ -43,6 +43,7 @@ import app.pocketpilot.core.tools.HomeEntitiesTool
 import app.pocketpilot.core.tools.HomeStateTool
 import app.pocketpilot.core.tools.NotifyPostTool
 import app.pocketpilot.network.api.SecretStore
+import app.pocketpilot.network.ssh.SshServers
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.http.McpHttpServer
 import dagger.Lazy
@@ -61,6 +62,8 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AutomationModule {
+    private const val NEIGHBOR_TIMEOUT_MS = 5_000L
+
     @Provides
     @Singleton
     fun ruleStore(
@@ -90,6 +93,25 @@ object AutomationModule {
         scope: CoroutineScope,
     ): HomeAssistant = HomeAssistant(store, secrets, http, scope)
 
+    /** SSH servers for rules; a server on the phone's hotspot is found by its MAC address through privileged access. */
+    @Provides
+    @Singleton
+    fun sshServers(
+        @ApplicationContext context: Context,
+        secrets: SecretStore,
+        logs: ShizukuSystemReader,
+    ): SshServers =
+        SshServers(context, secrets) {
+            if (!logs.available.value) {
+                null
+            } else {
+                runCatching { logs.read(listOf("ip", "neigh", "show"), "", NEIGHBOR_TIMEOUT_MS) }
+                    .getOrNull()
+                    ?.takeIf { it.exitCode == 0 }
+                    ?.stdout
+            }
+        }
+
     @Provides
     @Singleton
     fun phoneState(
@@ -117,6 +139,7 @@ object AutomationModule {
         scope: CoroutineScope,
         files: SafFileStore,
         homeAssistant: HomeAssistant,
+        ssh: SshServers,
         logs: ShizukuSystemReader,
         screen: ScreenReader,
         capturer: ScreenCapturer,
@@ -143,6 +166,7 @@ object AutomationModule {
                 agent = { agent.get() },
                 files = files,
                 homeAssistant = homeAssistant,
+                ssh = ssh,
                 calendars = calendars,
                 places = places,
                 screen = screen,
@@ -162,6 +186,7 @@ object AutomationModule {
             scope,
             calendars,
             homeAssistant,
+            ssh,
             profile.shellExecAvailable,
         ) { emit ->
             TriggerSources(

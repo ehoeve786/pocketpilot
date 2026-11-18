@@ -478,7 +478,17 @@ class AutomationEngine(
             throw AutomationFailure("Not run: an AI answer is not checked, so it cannot choose what ${def.title} acts on")
         }
         val written = RuleValidator.withDefaults(def.fields, step.params)
-        val params = written.mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
+        // A variable in an SSH command is quoted unless the owner chose otherwise, so a value with spaces or a ;
+        // stays one word instead of running as shell syntax on the server.
+        val quoted = step.type == "ssh.exec" && written["quote"] != "no"
+        val params =
+            written.mapValues { (key, value) ->
+                if (quoted && key == "command") {
+                    Placeholders.fill(value) { name -> lookup(context, name)?.let(ShellQuote::word) }
+                } else {
+                    Placeholders.fill(value) { lookup(context, it) }
+                }
+            }
         // A send whose placeholder found no value would send the placeholder's own text, so it stops instead. The
         // settings as written are checked, since a filled-in value such as a message can hold braces of its own.
         if (step.type in SENDS) {
@@ -1159,7 +1169,7 @@ class AutomationEngine(
         const val VARIABLE_CHANGED = "variable.changed"
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
-        private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
+        private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add", "ssh.exec")
 
         /**
          * Steps that send, open, change or run something on the phone. An outside run may use them only with

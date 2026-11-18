@@ -107,6 +107,7 @@ data class AutomationsState(
     val sideload: Boolean = true,
     /** A Home Assistant access token is saved. */
     val homeAssistantToken: Boolean = false,
+    val sshServers: List<SshServerItem> = emptyList(),
 )
 
 /** What the Automations tab can ask for. */
@@ -136,6 +137,7 @@ class AutomationsActions(
     val listDirectory: suspend (String) -> List<PickOption> = { emptyList() },
     /** Saves Home Assistant's address, and its token when one is typed. */
     val setHomeAssistant: (url: String, token: String) -> Unit = { _, _ -> },
+    val ssh: SshActions = SshActions(),
 )
 
 private val RuleSaver =
@@ -433,6 +435,7 @@ fun AutomationSettingsCard(
                 ) { Text(stringResource(R.string.feature_automations_save)) }
             }
             HomeAssistantSettings(state, actions)
+            SshSettings(state.sshServers, actions.ssh)
         }
     }
 }

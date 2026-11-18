@@ -37,6 +37,7 @@ import app.pocketpilot.core.automation.TriggerEvent
 import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.feature.automations.AppOption
 import app.pocketpilot.feature.automations.automationIconRes
+import app.pocketpilot.network.ssh.SshServers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +70,7 @@ class AutomationRuntime(
     private val scope: CoroutineScope,
     private val calendars: Calendars,
     private val homeAssistant: HomeAssistant,
+    private val ssh: SshServers,
     /** False in the Play build, which never asks for call log or text message access. */
     private val sideload: Boolean,
     sources: (emit: (TriggerEvent) -> Unit) -> TriggerSources,
@@ -244,6 +246,10 @@ class AutomationRuntime(
 
                     PickSource.CELL_TOWER -> {
                         host.cellTowers().map { PickOption(it, it, "Seen now") }
+                    }
+
+                    PickSource.SSH_SERVER -> {
+                        ssh.servers.value.map { PickOption(it.name, it.name, "${it.user}@${it.host.ifEmpty { it.mac }}") }
                     }
 
                     // The rule editor fills these from the rule being edited.

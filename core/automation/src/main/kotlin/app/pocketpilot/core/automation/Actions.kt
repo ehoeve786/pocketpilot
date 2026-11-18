@@ -990,6 +990,32 @@ internal object Actions {
                     sentence = { p -> "Shell: ${p.p("command")}" },
                 ),
                 ActionDef(
+                    type = "ssh.exec",
+                    category = Category.FILES,
+                    title = "Run an SSH command",
+                    description =
+                        "Runs a command on a server set up in Settings, SSH servers, and saves what it printed. A command " +
+                            "that ends with an error stops the rule unless the action continues on errors.",
+                    fields =
+                        listOf(
+                            pickField("server", "Server", PickSource.SSH_SERVER),
+                            textField("command", "Command", hint = "For example uptime"),
+                            choiceField(
+                                "quote",
+                                "Variables in the command",
+                                listOf(
+                                    Choice("yes", "Quoted, as one word each"),
+                                    Choice("no", "As written, so they can hold shell syntax"),
+                                ),
+                            ),
+                            numberField("timeout", "Timeout (seconds)", default = "30"),
+                            INTO,
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "SSH ${p.p("server")}: ${p.p("command")}" },
+                ),
+                ActionDef(
                     type = "tool.call",
                     category = Category.POCKETPILOT,
                     title = "Call any tool",
