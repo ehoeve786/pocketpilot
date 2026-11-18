@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +66,7 @@ internal fun SshSettings(
     var editing by remember { mutableStateOf<SshServerItem?>(null) }
     var publicKey by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<SshServerItem?>(null) }
+    var keyProblem by remember { mutableStateOf<String?>(null) }
 
     Text(stringResource(R.string.feature_automations_ssh), style = MaterialTheme.typography.titleMedium)
     Text(stringResource(R.string.feature_automations_ssh_text), style = MaterialTheme.typography.bodyMedium)
@@ -91,16 +93,20 @@ internal fun SshSettings(
         OutlinedButton(
             onClick = {
                 scope.launch {
-                    val key = runCatching { actions.publicKey() }.getOrNull() ?: return@launch
-                    publicKey = key
-                    clipboard.setText(AnnotatedString(key))
+                    runCatching { actions.publicKey() }
+                        .onSuccess { key ->
+                            publicKey = key
+                            keyProblem = null
+                            clipboard.setText(AnnotatedString(key))
+                        }.onFailure { keyProblem = it.message ?: it.toString() }
                 }
             },
         ) { Text(stringResource(R.string.feature_automations_ssh_copy_key)) }
     }
+    keyProblem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
     publicKey?.let { key ->
         Text(stringResource(R.string.feature_automations_ssh_key_copied), style = MaterialTheme.typography.bodySmall)
-        Text(key, style = MaterialTheme.typography.bodySmall)
+        SelectionContainer { Text(key, style = MaterialTheme.typography.bodySmall) }
     }
 
     editing?.let { server -> SshServerDialog(server, actions, onDone = { editing = null }) }
@@ -231,7 +237,9 @@ private fun SshServerDialog(
                                 user = user,
                                 usePassword = usePassword,
                             )
-                        problem = actions.save(server, password.takeIf { usePassword && it.isNotEmpty() })
+                        problem =
+                            runCatching { actions.save(server, password.takeIf { usePassword && it.isNotEmpty() }) }
+                                .getOrElse { it.message ?: it.toString() }
                         saving = false
                         if (problem == null) onDone()
                     }
