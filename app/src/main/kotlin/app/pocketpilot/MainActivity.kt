@@ -76,6 +76,8 @@ import app.pocketpilot.feature.automations.AutomationSettingsCard
 import app.pocketpilot.feature.automations.AutomationsActions
 import app.pocketpilot.feature.automations.AutomationsScreen
 import app.pocketpilot.feature.automations.AutomationsState
+import app.pocketpilot.feature.automations.SshActions
+import app.pocketpilot.feature.automations.SshServerItem
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.network.OwnNetworkActions
 import app.pocketpilot.feature.network.OwnNetworkCard
@@ -83,6 +85,8 @@ import app.pocketpilot.feature.onboarding.OnboardingScreen
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.certificates.CertificateManager
+import app.pocketpilot.network.ssh.SshServer
+import app.pocketpilot.network.ssh.SshServers
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
 import app.pocketpilot.onboarding.OnboardingStore
@@ -178,6 +182,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var automationNotifier: AutomationNotifier
 
     @Inject lateinit var homeAssistant: HomeAssistant
+
+    @Inject lateinit var sshServers: SshServers
 
     @Inject lateinit var providerHealth: ProviderHealth
 
@@ -432,6 +438,25 @@ class MainActivity : ComponentActivity() {
                     homeAssistantToken.value = homeAssistant.hasToken
                     homeAssistant.reconnect()
                 },
+                ssh =
+                    SshActions(
+                        save = { item, password ->
+                            val old = item.id?.let(sshServers::find)
+                            val server =
+                                (old ?: SshServer(name = item.name, user = item.user)).copy(
+                                    name = item.name,
+                                    host = item.host,
+                                    mac = item.mac,
+                                    port = item.port,
+                                    user = item.user,
+                                    usePassword = item.usePassword,
+                                )
+                            sshServers.save(server, password)
+                        },
+                        delete = { id -> appScope.launch { sshServers.delete(id) } },
+                        forgetHostKey = { id -> appScope.launch { sshServers.forgetHostKey(id) } },
+                        publicKey = sshServers::publicKey,
+                    ),
             )
         homeAssistantToken.value = homeAssistant.hasToken
         setContent {
@@ -492,6 +517,22 @@ class MainActivity : ComponentActivity() {
                     tools = remember(tools) { tools.map { it.name }.sorted() },
                     sideload = policyProfile.shellExecAvailable,
                     homeAssistantToken = homeAssistantToken.value,
+                    sshServers =
+                        sshServers.servers
+                            .collectAsStateWithLifecycle()
+                            .value
+                            .map {
+                                SshServerItem(
+                                    it.id,
+                                    it.name,
+                                    it.host,
+                                    it.mac,
+                                    it.port,
+                                    it.user,
+                                    it.usePassword,
+                                    it.hostKey.isNotEmpty(),
+                                )
+                            },
                 )
             // Notification and battery grants have no listener; they are read again on every resume.
             resumes.intValue

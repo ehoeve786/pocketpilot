@@ -54,6 +54,8 @@ import app.pocketpilot.core.policy.ConfirmationAnswer
 import app.pocketpilot.core.policy.ConfirmationRequest
 import app.pocketpilot.core.policy.Confirmer
 import app.pocketpilot.core.policy.PolicyEngine
+import app.pocketpilot.network.ssh.SshFailure
+import app.pocketpilot.network.ssh.SshServers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +94,7 @@ class AndroidAutomationHost(
     private val agent: () -> AgentCoordinator,
     private val files: FileStore,
     private val homeAssistant: HomeAssistant,
+    private val ssh: SshServers,
     private val calendars: Calendars,
     private val places: PlaceWatcher,
     private val screen: ScreenReader,
@@ -281,6 +284,8 @@ class AndroidAutomationHost(
 
             "ha.get" -> return homeGet(params.p("entity"), params.p("attribute"))
 
+            "ssh.exec" -> return sshExec(params)
+
             "overlay.text" -> withContext(Dispatchers.Main) { floatingTexts.handle(params) }
 
             "calendar.add" -> return calendarAdd(params)
@@ -292,6 +297,31 @@ class AndroidAutomationHost(
             else -> throw AutomationFailure("This build cannot run $type")
         }
         return null
+    }
+
+    /**
+     * Runs the command on the server and returns what it printed. A command that fails or times out fails the step,
+     * with its output in the log, so the action's "continue on error" decides whether the rule goes on.
+     */
+    private suspend fun sshExec(params: Map<String, String>): String {
+        val timeoutMs = (params.p("timeout").toLongOrNull() ?: DEFAULT_SSH_TIMEOUT_S).coerceIn(1, MAX_SSH_TIMEOUT_S) * 1_000
+        val out =
+            try {
+                ssh.run(params.p("server"), params.p("command"), timeoutMs)
+            } catch (e: SshFailure) {
+                throw AutomationFailure(e.message ?: "SSH failed")
+            }
+        val printed = out.stdout.trimEnd()
+        if (out.timedOut || out.exitCode != 0) {
+            val ended = if (out.timedOut) "Timed out after ${timeoutMs / 1_000} s" else "Exit code ${out.exitCode}"
+            val detail =
+                out.stderr
+                    .trimEnd()
+                    .ifEmpty { printed }
+                    .takeLast(SSH_FAILURE_CHARS)
+            throw AutomationFailure(if (detail.isEmpty()) ended else "$ended: $detail")
+        }
+        return printed
     }
 
     /** Through Shizuku when it runs, as a key press any screen lock accepts; else with a wake lock. */
@@ -633,6 +663,9 @@ class AndroidAutomationHost(
         const val NO_AGENT = "Agent mode has no usable model, or another Agent run is in progress"
         const val NO_MODEL = "No AI model is set up; add one under Activity > Agent"
         const val SHELL_TIMEOUT_MS = 5_000L
+        const val DEFAULT_SSH_TIMEOUT_S = 30L
+        const val MAX_SSH_TIMEOUT_S = 600L
+        const val SSH_FAILURE_CHARS = 500
         const val WAKE_MS = 5_000L
         const val SPEAK_TIMEOUT_MS = 120_000L
         const val SPEAK_FULL_VOLUME = 100f
