@@ -82,7 +82,7 @@ class SshAddServerTool(
                 "Adds an SSH server for the \"Run an SSH command\" rule action, or changes the one with the same name; the " +
                     "owner confirms it. Give host (a name or address), mac (for a device on the phone's hotspot, whose address " +
                     "changes; find it with adb.query `ip neigh`), or both. It signs in with PocketPilot's key (see ssh.servers); " +
-                    "passwords are set by the owner in Settings. A comma device uses user comma and port 22.",
+                    "passwords are set by the owner in Settings. Ask the owner for the user; openpilot uses comma, forks such as IQPilot may differ.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"name":{"type":"string"},"host":{"type":"string"},
