@@ -64,9 +64,11 @@ class FloatingTexts(
     ): String {
         val template = params["text"].orEmpty()
         if (template.isBlank()) throw AutomationFailure("Give the text to show")
+        val plain = params[PLAIN] == "true"
         val style =
             A11yFloatingText.Style(
-                text = render(template),
+                // Plain text, such as a command's output, is shown as it is: its braces are not live parts.
+                text = if (plain) template else render(template),
                 textColor = color(params["color"], "Text colour", Color.WHITE),
                 background = color(params["background"], "Background colour", Color.BLACK),
                 textSizeSp = number(params["size"], 14.0, 6.0, 72.0).toFloat(),
@@ -89,7 +91,7 @@ class FloatingTexts(
         if (!A11yFloatingText.show(id, style)) {
             throw AutomationFailure("Floating text needs PocketPilot's Accessibility service; turn it on in Settings > Accessibility")
         }
-        if (LiveText.isLive(template)) {
+        if (!plain && LiveText.isLive(template)) {
             live[id] = template
             tick()
         } else {
@@ -178,7 +180,9 @@ class FloatingTexts(
         max: Double,
     ): Double = (value?.trim()?.toDoubleOrNull() ?: default).coerceIn(min, max)
 
-    private companion object {
-        const val MS_PER_SECOND = 1_000L
+    companion object {
+        /** A setting the app adds itself, never a rule: shows the text without filling in live parts. */
+        const val PLAIN = "plain"
+        private const val MS_PER_SECOND = 1_000L
     }
 }

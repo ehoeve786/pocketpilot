@@ -26,9 +26,13 @@ object AutomationJson {
         }
 }
 
-/** Fails one action with a message the owner sees in the run log. */
+/**
+ * Fails one action with a message the owner sees in the run log. [saved] is what the action still saves before it
+ * fails, keyed as for [AutomationHost.nativeDictionary]: "" for its `into` variable itself, other keys as `into.key`.
+ */
 class AutomationFailure(
     message: String,
+    val saved: Map<String, String> = emptyMap(),
 ) : RuntimeException(message)
 
 /** Fills `{name}` placeholders from [lookup]; unknown names stay as written so mistakes show. */

@@ -129,7 +129,10 @@ class AutomationEngineTest {
         override suspend fun nativeDictionary(
             type: String,
             params: Map<String, String>,
-        ): Map<String, String>? = if (type == "screen.read") mapOf("index:20" to "Side Menu") else null
+        ): Map<String, String>? = if (type == "screen.read") mapOf("index:20" to "Side Menu") else dictionaries[type]?.invoke(params)
+
+        /** What a native dictionary action returns, by type, for the actions a test sets up. */
+        val dictionaries = mutableMapOf<String, (Map<String, String>) -> Map<String, String>>()
 
         override suspend fun confirm(
             title: String,
@@ -1623,6 +1626,29 @@ class AutomationEngineTest {
 
             val commands = host.calls.filter { it.first == "ssh.exec" }.map { (it.second["command"] as JsonPrimitive).content }
             assertEquals(listOf("echo 'it'\\''s; reboot'", "echo it's; reboot"), commands)
+        }
+
+    @Test
+    fun `an SSH command saves its output and exit code, also when it fails`() =
+        runTest {
+            val host = FakeHost()
+            host.dictionaries["ssh.exec"] = { params ->
+                val saved = mapOf("" to "tracked local changes", "exit" to "1", "stderr" to "")
+                if (params["command"] == "update") throw AutomationFailure("Exit code 1", saved)
+                mapOf("" to "up 3 days", "exit" to "0", "stderr" to "")
+            }
+            val steps =
+                listOf(
+                    ActionStep("ssh.exec", mapOf("server" to "C3X", "command" to "update", "into" to "out"), onError = OnError.CONTINUE),
+                    ActionStep("notify.post", mapOf("title" to "{out} ({out.exit})")),
+                    ActionStep("ssh.exec", mapOf("server" to "C3X", "command" to "uptime", "into" to "up")),
+                    ActionStep("notify.post", mapOf("title" to "{up} ({up.exit})")),
+                )
+
+            engine(this, host).run(rule(steps), "Test")
+
+            val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
+            assertEquals(listOf("tracked local changes (1)", "up 3 days (0)"), titles)
         }
 
     @Test

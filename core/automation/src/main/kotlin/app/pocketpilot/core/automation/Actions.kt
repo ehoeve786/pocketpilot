@@ -994,8 +994,10 @@ internal object Actions {
                     category = Category.FILES,
                     title = "Run an SSH command",
                     description =
-                        "Runs a command on a server set up in Settings, SSH servers, and saves what it printed. A command " +
-                            "that ends with an error stops the rule unless the action continues on errors.",
+                        "Runs a command on a server set up in Settings, SSH servers. Saves what it printed in {into}, its exit " +
+                            "code in {into.exit} and its errors in {into.stderr}, also when it fails. A command that ends with " +
+                            "an error stops the rule unless the action continues on errors. Live output shows the command's " +
+                            "output in a floating window while it runs.",
                     fields =
                         listOf(
                             pickField("server", "Server", PickSource.SSH_SERVER),
@@ -1009,6 +1011,7 @@ internal object Actions {
                                 ),
                             ),
                             numberField("timeout", "Timeout (seconds)", default = "30"),
+                            choiceField("live", "Live output", listOf(Choice("no", "Off"), Choice("yes", "Show in a floating window"))),
                             INTO,
                         ),
                     tier = RiskTier.SENSITIVE,
