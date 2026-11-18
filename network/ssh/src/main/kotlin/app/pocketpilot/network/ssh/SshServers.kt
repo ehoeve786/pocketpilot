@@ -266,12 +266,13 @@ class SshServers(
         }
     }
 
-    private fun passwordKey(id: String) = "ssh.password.$id"
-
-    private companion object {
+    internal companion object {
         const val PREFS = "ssh_servers"
         const val KEY_SERVERS = "servers"
-        const val KEY = "ssh.key"
+        const val KEY = "ssh_key"
+
+        /** The secret store takes names of lower-case letters, digits and underscores only. */
+        fun passwordKey(id: String) = "ssh_password_" + id.lowercase().replace(Regex("[^a-z0-9]"), "")
 
         /** How [Ppnet.sshExec] starts the message of a connection that never reached the server. */
         const val DIAL_PREFIX = "could not reach"
