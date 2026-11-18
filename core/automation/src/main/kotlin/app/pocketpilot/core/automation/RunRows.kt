@@ -8,6 +8,13 @@ data class RunRow(
     val time: String,
 )
 
+/** A time no run may overlap: on [days] (full day names), from [from] to [to] in minutes after midnight. */
+data class Unavailable(
+    val days: Set<String>,
+    val from: Int,
+    val to: Int,
+)
+
 /**
  * Finds the first run on a schedule list that starts inside a time window on the chosen days. Each run
  * row reads like `button desc="6:00 AM - 10:00 AM, GVA - Downtown"` and sits under its day's heading, such as
@@ -16,8 +23,9 @@ data class RunRow(
 object RunRows {
     private val SNAPSHOT = Regex("""^snapshot (\S+)""")
     private val DAY = Regex("""text "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) *"""")
-    private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - \d{1,2}:\d{2} [AP]M)[^"]*".*\bclick\b""")
+    private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - (\d{1,2}):(\d{2}) ([AP]M))[^"]*".*\bclick\b""")
     private const val DAY_CODE_LENGTH = 3
+    private const val MINUTES_PER_DAY = 24 * 60
     private val DAY_CODES =
         mapOf(
             "mon" to "Monday",
@@ -37,12 +45,36 @@ object RunRows {
             .mapNotNull { DAY_CODES[it.trim().lowercase().take(DAY_CODE_LENGTH)] }
             .toSet()
 
-    /** The first run on one of [days] (full day names) starting from [from] to [to] (both HH:mm, inclusive), or null. */
+    /**
+     * Unavailable times saved as "mon,tue 06:00-10:00; sat 08:00-12:00", the way the Unavailable step writes them.
+     * Entries that do not read as days and a window are skipped.
+     */
+    fun unavailable(text: String): List<Unavailable> =
+        text
+            .split(";")
+            .mapNotNull { entry ->
+                val (codes, window) = entry.trim().split(' ', limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
+                val (from, to) = window.split('-').map { minutesOf(it.trim()) }.takeIf { it.size == 2 } ?: return@mapNotNull null
+                if (from == null || to == null) null else Unavailable(dayNames(codes), from, to)
+            }
+
+    /** True when [minute] after midnight on [day] (a full day name, any case) is inside one of [times]. */
+    fun blocked(
+        times: List<Unavailable>,
+        day: String,
+        minute: Int,
+    ): Boolean = times.any { time -> time.days.any { it.equals(day, ignoreCase = true) } && minute in time.from..time.to }
+
+    /**
+     * The first run on one of [days] (full day names) starting from [from] to [to] (both HH:mm, inclusive) and
+     * overlapping none of [unavailable], or null.
+     */
     fun pick(
         snapshot: String,
         from: String,
         to: String,
         days: Set<String>,
+        unavailable: List<Unavailable> = emptyList(),
     ): RunRow? {
         val earliest = minutesOf(from) ?: return null
         val latest = minutesOf(to) ?: return null
@@ -57,7 +89,11 @@ object RunRows {
             } else if (row != null && day in days) {
                 val (element, range, hour, minute, half) = row.destructured
                 val startsAt = startMinutes(hour.toInt(), minute.toInt(), half)
-                if (startsAt in earliest..latest) return RunRow(snapshotId, element, day, spoken(range))
+                val endsAt = startMinutes(row.groupValues[6].toInt(), row.groupValues[7].toInt(), row.groupValues[8])
+                // A run past midnight ends the next day; it is only checked against the day it starts on.
+                val end = if (endsAt <= startsAt) MINUTES_PER_DAY else endsAt
+                val free = unavailable.none { day in it.days && startsAt < it.to && end > it.from }
+                if (startsAt in earliest..latest && free) return RunRow(snapshotId, element, day, spoken(range))
             }
         }
         return null

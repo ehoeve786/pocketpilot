@@ -56,6 +56,17 @@ class MoreConstraintsTest {
     }
 
     @Test
+    fun `unavailable now matches the saved days and times`() =
+        runTest {
+            // November 16, 2026 is a Monday.
+            val list = mapOf("list" to "mon 06:00-10:00; sat 08:00-12:00")
+            assertTrue(holds("time.unavailable", list, Scope(at(11, 16, 9))))
+            assertFalse(holds("time.unavailable", list, Scope(at(11, 16, 11))))
+            assertFalse(holds("time.unavailable", list, Scope(at(11, 17, 9))))
+            assertTrue(holds("time.unavailable", list + ("state" to "off"), Scope(at(11, 17, 9))))
+        }
+
+    @Test
     fun `day of the month and month ranges wrap around`() =
         runTest {
             assertTrue(holds("time.month_day", mapOf("from" to "28", "to" to "3"), Scope(at(10, 2, 9))))
