@@ -85,4 +85,13 @@ class RunRowsTest {
             RunRows.unavailable("mon,tue 06:00-10:00; junk; sat 8:00-12:00; sun 25:00-26:00"),
         )
     }
+
+    @Test
+    fun `latest time until picks the last quoted time not after the limit`() {
+        val list = "e1 text \"11:34 AM – 4:15 PM\"\n e2 button desc=\"3:30 PM\"\n e3 button desc=\"4:00 PM\"\n e4 button desc=\"4:15 PM\""
+        assertEquals("4:00 PM", RunRows.latestUntil(list, "16:00"))
+        assertEquals("3:30 PM", RunRows.latestUntil(list, "15:59"))
+        assertEquals("", RunRows.latestUntil(list, "15:00"))
+        assertEquals("", RunRows.latestUntil(list, "4pm"))
+    }
 }

@@ -23,6 +23,7 @@ data class Unavailable(
 object RunRows {
     private val SNAPSHOT = Regex("""^snapshot (\S+)""")
     private val DAY = Regex("""text "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) *"""")
+    private val CLOCK = Regex("""(?<=")(\d{1,2}):(\d{2}) ([AP]M)(?=")""")
     private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - (\d{1,2}):(\d{2}) ([AP]M))[^"]*".*\bclick\b""")
     private const val DAY_CODE_LENGTH = 3
     private const val MINUTES_PER_DAY = 24 * 60
@@ -107,6 +108,22 @@ object RunRows {
             .replace(" - ", " to ")
 
     /** Minutes after midnight for "HH:mm", or null when it is not a time. */
+    /**
+     * The last time quoted on its own, like `desc="3:45 PM"` in a snapshot, in [text] that is not later than [limit] (HH:mm),
+     * or "" when there is none.
+     */
+    fun latestUntil(
+        text: String,
+        limit: String,
+    ): String {
+        val latest = minutesOf(limit.trim()) ?: return ""
+        return CLOCK
+            .findAll(text)
+            .lastOrNull { startMinutes(it.groupValues[1].toInt(), it.groupValues[2].toInt(), it.groupValues[3]) <= latest }
+            ?.value
+            .orEmpty()
+    }
+
     private fun minutesOf(time: String): Int? {
         val parts = time.split(":")
         if (parts.size != 2) return null
