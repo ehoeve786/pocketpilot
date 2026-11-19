@@ -1321,8 +1321,8 @@ internal object Actions {
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
                     sentence = { p ->
-                        "Run window: ${p.p("days")} starting ${p.p("from")} to ${p.p("to")}" +
-                            p.p("end").takeIf { it.isNotBlank() }?.let { ", ending by $it" }.orEmpty()
+                        val end = p.p("end")
+                        "Run window: ${p.p("days")} starting ${p.p("from")} to ${p.p("to")}" + if (end.isBlank()) "" else ", ending by $end"
                     },
                 ),
             )

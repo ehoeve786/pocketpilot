@@ -107,7 +107,6 @@ object RunRows {
             .replace(" PM", "pm")
             .replace(" - ", " to ")
 
-    /** Minutes after midnight for "HH:mm", or null when it is not a time. */
     /**
      * The last time quoted on its own, like `desc="3:45 PM"` in a snapshot, in [text] that is not later than [limit] (HH:mm),
      * or "" when there is none.
@@ -124,6 +123,7 @@ object RunRows {
             .orEmpty()
     }
 
+    /** Minutes after midnight for "HH:mm", or null when it is not a time. */
     private fun minutesOf(time: String): Int? {
         val parts = time.split(":")
         if (parts.size != 2) return null
