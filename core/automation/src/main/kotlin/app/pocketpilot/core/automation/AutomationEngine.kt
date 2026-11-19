@@ -859,6 +859,10 @@ class AutomationEngine(
                             match?.groupValues?.getOrNull(1) ?: match?.value.orEmpty()
                         }
 
+                        "latest_until" -> {
+                            RunRows.latestUntil(current, find)
+                        }
+
                         "upper" -> {
                             current.uppercase()
                         }
@@ -915,7 +919,7 @@ class AutomationEngine(
 
             "var.run_window" -> {
                 val into = params.p("into").ifBlank { "run" }
-                listOf("days", "from", "to").forEach { context.vars["${into}_$it"] = params.p(it) }
+                listOf("days", "from", "to", "end").forEach { context.vars["${into}_$it"] = params.p(it) }
                 return "{${into}_days} = ${params.p("days")}, ${params.p("from")} to ${params.p("to")}"
             }
 

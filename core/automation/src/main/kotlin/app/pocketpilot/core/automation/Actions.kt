@@ -1248,6 +1248,7 @@ internal object Actions {
                                 listOf(
                                     Choice("replace", "Replace"),
                                     Choice("extract", "Extract with regex"),
+                                    Choice("latest_until", "Latest time until"),
                                     Choice("upper", "Upper case"),
                                     Choice("lower", "Lower case"),
                                     Choice("trim", "Trim"),
@@ -1263,6 +1264,7 @@ internal object Actions {
                         val name = "{${p.p("name")}}"
                         when (p.p("op")) {
                             "extract" -> "Extract ${p.p("find")} from $name"
+                            "latest_until" -> "Latest time until ${p.p("find")} in $name"
                             "replace" -> "Replace \"${p.p("find")}\" with \"${p.p("with")}\" in $name"
                             else -> "${p.p("op").replaceFirstChar(Char::uppercase)} $name"
                         }
@@ -1306,18 +1308,22 @@ internal object Actions {
                     category = Category.VARIABLES,
                     title = "Set run window",
                     description =
-                        "Saves the days and start times once, as <into>_days, <into>_from and <into>_to, for later steps " +
-                            "such as Take the first open run to read as {run_days}, {run_from} and {run_to}.",
+                        "Saves the days, start times and latest end once, as <into>_days, <into>_from, <into>_to and " +
+                            "<into>_end, for later steps such as Take the first open run to read as {run_days}, {run_from} and {run_to}.",
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
                             FieldDef("from", "Earliest start", FieldKind.TIME, default = "06:00"),
                             FieldDef("to", "Latest start", FieldKind.TIME, default = "15:00"),
+                            FieldDef("end", "Latest end", FieldKind.TIME, required = false),
                             textField("into", "Save in variables starting with", default = "run"),
                         ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
-                    sentence = { p -> "Run window: ${p.p("days")} starting ${p.p("from")} to ${p.p("to")}" },
+                    sentence = { p ->
+                        val end = p.p("end")
+                        "Run window: ${p.p("days")} starting ${p.p("from")} to ${p.p("to")}" + if (end.isBlank()) "" else ", ending by $end"
+                    },
                 ),
             )
 
