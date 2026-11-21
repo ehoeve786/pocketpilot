@@ -4,14 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
-import android.graphics.drawable.Icon
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import app.pocketpilot.core.automation.TriggerEvent
 import app.pocketpilot.security.KeystoreSecretStore
 import java.security.MessageDigest
 import java.util.UUID
-import app.pocketpilot.core.designsystem.R as DsR
 
 /**
  * Runs the rule whose home screen icon was tapped. It shows nothing: the icon is the only UI. It is exported so the
@@ -41,24 +39,48 @@ class HomeScreenIconActivity : ComponentActivity() {
 }
 
 /**
- * Asks the launcher to put an icon named [name] on the home screen. Tapping it fires the "Home screen
- * icon" trigger with that name. Returns false when the launcher cannot pin icons.
+ * Asks the launcher to put an icon named [name] on the home screen, drawn from the "Home screen icon" trigger's
+ * [params]. Tapping it fires the trigger with that name. Returns false when the launcher cannot pin icons.
  */
-fun Context.requestHomeScreenIcon(name: String): Boolean {
+fun Context.requestHomeScreenIcon(
+    name: String,
+    params: Map<String, String> = emptyMap(),
+): Boolean {
     val manager = getSystemService(ShortcutManager::class.java)
     if (!manager.isRequestPinShortcutSupported) return false
     val token = UUID.randomUUID().toString()
     KeystoreSecretStore(noBackupFilesDir).put(HomeScreenIconActivity.iconTokenName(name), token)
-    val info =
-        ShortcutInfo
-            .Builder(this, "icon:$name")
-            .setShortLabel(name)
-            .setIcon(Icon.createWithResource(this, DsR.drawable.core_designsystem_ic_bolt))
-            .setIntent(
-                Intent(this, HomeScreenIconActivity::class.java)
-                    .setAction(Intent.ACTION_VIEW)
-                    .putExtra(HomeScreenIconActivity.EXTRA_NAME, name)
-                    .putExtra(HomeScreenIconActivity.EXTRA_TOKEN, token),
-            ).build()
-    return manager.requestPinShortcut(info, null)
+    return manager.requestPinShortcut(shortcut(name, params, token), null)
 }
+
+/**
+ * Redraws the home screen icon named [name] with [params], when it is already on the home screen, so a new icon
+ * or colour shows without adding it again. Does nothing for an icon that was never pinned.
+ */
+fun Context.updateHomeScreenIcon(
+    name: String,
+    params: Map<String, String>,
+) {
+    val manager = getSystemService(ShortcutManager::class.java)
+    if (manager.pinnedShortcuts.none { it.id == shortcutId(name) }) return
+    val token = KeystoreSecretStore(noBackupFilesDir).get(HomeScreenIconActivity.iconTokenName(name)) ?: return
+    runCatching { manager.updateShortcuts(listOf(shortcut(name, params, token))) }
+}
+
+private fun shortcutId(name: String) = "icon:$name"
+
+private fun Context.shortcut(
+    name: String,
+    params: Map<String, String>,
+    token: String,
+): ShortcutInfo =
+    ShortcutInfo
+        .Builder(this, shortcutId(name))
+        .setShortLabel(name)
+        .setIcon(HomeScreenIconArt.draw(this, params))
+        .setIntent(
+            Intent(this, HomeScreenIconActivity::class.java)
+                .setAction(Intent.ACTION_VIEW)
+                .putExtra(HomeScreenIconActivity.EXTRA_NAME, name)
+                .putExtra(HomeScreenIconActivity.EXTRA_TOKEN, token),
+        ).build()
