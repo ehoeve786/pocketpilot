@@ -265,3 +265,14 @@ object ShellQuote {
     /** [value] as one shell word: in single quotes, with each single quote closed, escaped and reopened. */
     fun word(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 }
+
+/** The options of a "Choose from a list" step. */
+object Choices {
+    /** [text] split at commas or new lines, trimmed, without empty or repeated options. */
+    fun split(text: String): List<String> =
+        text
+            .split(',', '\n')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+}

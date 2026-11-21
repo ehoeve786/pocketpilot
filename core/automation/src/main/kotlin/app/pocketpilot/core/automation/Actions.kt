@@ -881,6 +881,41 @@ internal object Actions {
                     sentence = { p -> "Ask the owner: ${p.p("title")}" },
                 ),
                 ActionDef(
+                    type = "ask.text",
+                    category = Category.FLOW,
+                    title = "Ask for text",
+                    description =
+                        "Shows a box on the phone to type into and saves what the owner typed. Cancel, or no answer within " +
+                            "5 minutes, stops the rule.",
+                    fields =
+                        listOf(
+                            textField("title", "Title", hint = "For example Fork to switch to"),
+                            textField("message", "Message", required = false, hint = "For example username/branch"),
+                            textField("default", "Starting text", required = false),
+                            INTO.copy(required = true, default = "input"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "{${p.p("into")}} = typed: ${p.p("title")}" },
+                ),
+                ActionDef(
+                    type = "ask.choice",
+                    category = Category.FLOW,
+                    title = "Choose from a list",
+                    description =
+                        "Shows a list on the phone and saves the option the owner picks. Cancel, or no answer within " +
+                            "5 minutes, stops the rule.",
+                    fields =
+                        listOf(
+                            textField("title", "Title", hint = "For example Fork base"),
+                            textField("options", "Options, comma-separated", hint = "For example openpilot, sunnypilot, FrogPilot"),
+                            INTO.copy(required = true, default = "choice"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "{${p.p("into")}} = pick from ${p.p("options")}" },
+                ),
+                ActionDef(
                     type = "address.from_screen",
                     category = Category.VARIABLES,
                     title = "Address from screen",
