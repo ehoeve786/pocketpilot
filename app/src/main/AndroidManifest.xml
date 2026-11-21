@@ -165,10 +165,13 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- A task of its own (empty affinity), so a tap runs the rule without bringing PocketPilot's screens forward. -->
         <activity
             android:name=".automation.HomeScreenIconActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
             android:theme="@android:style/Theme.NoDisplay" />
 
         <receiver
