@@ -42,6 +42,7 @@ import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.automation.EventKey
 import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.automation.requestHomeScreenIcon
+import app.pocketpilot.automation.updateHomeScreenIcon
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.PocketPilotA11yService
 import app.pocketpilot.capability.api.DeviceInfoSource
@@ -210,6 +211,14 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         handleOpen(intent)
     }
+
+    /** The settings of the "Home screen icon" trigger named [name], for the picture its icon is drawn with. */
+    private fun homeScreenIconParams(name: String): Map<String, String> =
+        automations.store.data.value.rules
+            .flatMap { it.triggers }
+            .firstOrNull { it.type == "shortcut" && it.params["name"] == name }
+            ?.params
+            .orEmpty()
 
     /**
      * Runs [onAccepted] once the owner confirms, when the rule runs shell commands or changes an existing rule;
@@ -402,6 +411,10 @@ class MainActivity : ComponentActivity() {
                         acceptGated(rule) { automations.store.saveAccepted(rule) }
                     } else {
                         automations.store.upsert(rule)
+                        // An icon already on the home screen takes the rule's new picture right away.
+                        rule.triggers
+                            .filter { it.type == "shortcut" && it.params["name"].orEmpty().isNotBlank() }
+                            .forEach { updateHomeScreenIcon(it.params.getValue("name"), it.params) }
                     }
                 },
                 delete = automations.store::delete,
@@ -409,7 +422,7 @@ class MainActivity : ComponentActivity() {
                 setPinned = automations.store::setPinned,
                 run = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_run)) },
                 addIcon = { name ->
-                    if (!requestHomeScreenIcon(name)) {
+                    if (!requestHomeScreenIcon(name, homeScreenIconParams(name))) {
                         Toast.makeText(this, R.string.automation_icon_unsupported, Toast.LENGTH_LONG).show()
                     }
                 },
