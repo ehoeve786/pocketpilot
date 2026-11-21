@@ -12,6 +12,7 @@ import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.automation.PhoneState
 import app.pocketpilot.automation.PlaceAlerts
 import app.pocketpilot.automation.PlaceWatcher
+import app.pocketpilot.automation.Prompts
 import app.pocketpilot.automation.SecretStoreRuleSecrets
 import app.pocketpilot.automation.TriggerSources
 import app.pocketpilot.capability.api.notifications.NotificationPoster
@@ -95,6 +96,13 @@ object AutomationModule {
         scope: CoroutineScope,
     ): HomeAssistant = HomeAssistant(store, secrets, http, scope)
 
+    /** The questions "Ask for text" and "Choose from a list" put to the owner. */
+    @Provides
+    @Singleton
+    fun prompts(
+        @ApplicationContext context: Context,
+    ): Prompts = Prompts(context)
+
     /** SSH servers for rules; a server on the phone's hotspot is found by its MAC address through privileged access. */
     @Provides
     @Singleton
@@ -142,6 +150,7 @@ object AutomationModule {
         files: SafFileStore,
         homeAssistant: HomeAssistant,
         ssh: SshServers,
+        prompts: Prompts,
         logs: ShizukuSystemReader,
         screen: ScreenReader,
         capturer: ScreenCapturer,
@@ -169,6 +178,7 @@ object AutomationModule {
                 files = files,
                 homeAssistant = homeAssistant,
                 ssh = ssh,
+                prompts = prompts,
                 calendars = calendars,
                 places = places,
                 screen = screen,

@@ -112,6 +112,8 @@
     <string name="remote_copy_url">Copy URL</string>
     <string name="remote_claude_steps">In Claude, open Settings, then Connectors, add a custom connector with this URL, and tap Connect. Approve the request when this phone asks.</string>
     <string name="approvals_channel">Approvals</string>
+    <string name="prompts_channel">Rule questions</string>
+    <string name="prompts_text">A rule is waiting for your answer</string>
     <string name="approvals_title">PocketPilot needs your approval</string>
     <string name="approvals_consent_text">%1$s wants to connect to this phone</string>
     <string name="approvals_confirm_text">%1$s wants to run %2$s</string>

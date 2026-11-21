@@ -95,6 +95,7 @@ class AndroidAutomationHost(
     private val files: FileStore,
     private val homeAssistant: HomeAssistant,
     private val ssh: SshServers,
+    private val prompts: Prompts,
     private val calendars: Calendars,
     private val places: PlaceWatcher,
     private val screen: ScreenReader,
@@ -208,6 +209,17 @@ class AndroidAutomationHost(
                 .filterNot { hidden(it.packageName) }
                 .map { NotificationInfo(it.packageName, it.title, it.text) }
         }
+
+    override suspend fun askText(
+        title: String,
+        message: String,
+        default: String,
+    ): String? = prompts.askText(title, message, default)
+
+    override suspend fun choose(
+        title: String,
+        options: List<String>,
+    ): String? = prompts.choose(title, options)
 
     override suspend fun confirm(
         title: String,

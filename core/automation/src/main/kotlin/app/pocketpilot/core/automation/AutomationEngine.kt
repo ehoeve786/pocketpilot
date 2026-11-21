@@ -69,6 +69,19 @@ interface AutomationHost {
 
     suspend fun notifications(): List<NotificationInfo>
 
+    /** Asks the owner to type something; null when cancelled, unanswered, or when this host cannot ask. */
+    suspend fun askText(
+        title: String,
+        message: String,
+        default: String,
+    ): String? = null
+
+    /** Asks the owner to pick one of [options]; null when cancelled, unanswered, or when this host cannot ask. */
+    suspend fun choose(
+        title: String,
+        options: List<String>,
+    ): String? = null
+
     /** Asks the owner on the phone to approve. False when declined, timed out, or when this host cannot ask. */
     suspend fun confirm(
         title: String,
@@ -900,6 +913,30 @@ class AutomationEngine(
                 return if (approved) "approved" else "declined"
             }
 
+            "ask.text" -> {
+                val typed =
+                    host.askText(params.p("title"), params.p("message"), params.p("default"))
+                        ?: run {
+                            context.lines += stamped("    cancelled, so the rule stops")
+                            throw StopRun()
+                        }
+                save(typed)
+                return "{$into} = ${typed.take(MAX_NOTE)}"
+            }
+
+            "ask.choice" -> {
+                val options = Choices.split(params.p("options"))
+                if (options.isEmpty()) throw AutomationFailure("Give the options to choose from")
+                val picked =
+                    host.choose(params.p("title"), options)
+                        ?: run {
+                            context.lines += stamped("    cancelled, so the rule stops")
+                            throw StopRun()
+                        }
+                save(picked)
+                return "{$into} = ${picked.take(MAX_NOTE)}"
+            }
+
             "address.from_screen" -> {
                 val screen = params.p("screen")
                 val address = ScreenAddress.find { id -> context.vars["$screen.$id"] }
@@ -1275,7 +1312,7 @@ class AutomationEngine(
          * Steps an outside event may never run: they change which rules are on, which only the owner decides, or
          * they hand the AI a task the event wrote.
          */
-        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask", "ai.ask", "confirm.ask")
+        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask", "ai.ask", "confirm.ask", "ask.text", "ask.choice")
 
         /** Steps that send data out of the phone or to another app, which refuse to send a placeholder's own text. */
         private val SENDS = SENDS_OUT + setOf("app.start_activity", "app.send_broadcast", "app.open_url")

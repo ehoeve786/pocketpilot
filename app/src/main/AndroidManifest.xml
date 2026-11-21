@@ -155,6 +155,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- "Ask for text" and "Choose from a list": a dialog over whatever is on screen. -->
+        <activity
+            android:name=".automation.PromptActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:taskAffinity="app.pocketpilot.prompts"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".automation.HomeScreenIconActivity"
             android:excludeFromRecents="true"

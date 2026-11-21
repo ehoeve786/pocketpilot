@@ -131,6 +131,21 @@ class AutomationEngineTest {
             params: Map<String, String>,
         ): Map<String, String>? = if (type == "screen.read") mapOf("index:20" to "Side Menu") else dictionaries[type]?.invoke(params)
 
+        /** What the owner types or picks; null answers as Cancel. */
+        var typed: String? = null
+        var picked: ((List<String>) -> String?) = { null }
+
+        override suspend fun askText(
+            title: String,
+            message: String,
+            default: String,
+        ): String? = typed
+
+        override suspend fun choose(
+            title: String,
+            options: List<String>,
+        ): String? = picked(options)
+
         /** What a native dictionary action returns, by type, for the actions a test sets up. */
         val dictionaries = mutableMapOf<String, (Map<String, String>) -> Map<String, String>>()
 
@@ -1670,6 +1685,54 @@ class AutomationEngineTest {
 
             val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
             assertEquals(listOf("tracked local changes (1)", "up 3 days (0)"), titles)
+        }
+
+    @Test
+    fun `typed text and a picked option are saved for the steps after them`() =
+        runTest {
+            val host = FakeHost()
+            host.typed = "dzid26/vtb-sla"
+            host.picked = { options -> options[1] }
+            val steps =
+                listOf(
+                    ActionStep("ask.text", mapOf("title" to "Fork", "into" to "input")),
+                    ActionStep("ask.choice", mapOf("title" to "Base", "options" to "openpilot, sunnypilot,FrogPilot", "into" to "base")),
+                    ActionStep("notify.post", mapOf("title" to "{input} on {base}")),
+                )
+
+            engine(this, host).run(rule(steps), "Test")
+
+            assertEquals("dzid26/vtb-sla on sunnypilot", (host.calls.last().second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `cancelling a question stops the rule without failing it`() =
+        runTest {
+            val host = FakeHost()
+            val steps =
+                listOf(
+                    ActionStep("ask.text", mapOf("title" to "Fork", "into" to "input")),
+                    ActionStep("notify.post", mapOf("title" to "should not run")),
+                )
+
+            val record = engine(this, host).run(rule(steps), "Test")
+
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertTrue(host.calls.none { it.first == "notify.post" })
+        }
+
+    @Test
+    fun `an AI app cannot pop up questions`() =
+        runTest {
+            val host = FakeHost()
+            host.typed = "x"
+            val record =
+                engine(
+                    this,
+                    host,
+                ).run(rule(listOf(ActionStep("ask.text", mapOf("title" to "Fork")))), "intent", fromOutside = true)
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
         }
 
     @Test
