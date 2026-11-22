@@ -5,6 +5,7 @@ import app.pocketpilot.BuildConfig
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.automation.HomeAssistant
+import app.pocketpilot.automation.TermuxRunner
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.A11yInputController
 import app.pocketpilot.capability.accessibility.A11yScreenCapturer
@@ -50,6 +51,7 @@ import app.pocketpilot.core.imaging.ImagePipeline
 import app.pocketpilot.core.model.CapabilityId
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.model.Scope
+import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionKind
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
@@ -97,6 +99,7 @@ import app.pocketpilot.core.tools.SensorReadTool
 import app.pocketpilot.core.tools.SettingsGetTool
 import app.pocketpilot.core.tools.SettingsSetTool
 import app.pocketpilot.core.tools.ShellExecTool
+import app.pocketpilot.core.tools.TermuxRunTool
 import app.pocketpilot.core.tools.UiGlobalActionTool
 import app.pocketpilot.core.tools.UiLongPressTool
 import app.pocketpilot.core.tools.UiPressKeyTool
@@ -131,6 +134,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
 import javax.inject.Singleton
+
+/** What the Shell commands switch adds to a session: the raw shell and Termux commands. */
+internal val SHELL_SCOPES = setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN)
 
 /**
  * The app module is the only place that binds capability implementations to their interfaces
@@ -334,8 +340,14 @@ object AppModule {
         input: InputController,
         shell: ShizukuShellRunner,
         shellSwitch: ShellSwitch,
-    ): Set<ToolHandler> =
-        setOf(
+        termux: TermuxRunner,
+    ): Set<ToolHandler> {
+        // Remote clients need their own switch too; the local token, Agent mode and rules need only the shell switch.
+        val shellOn = { session: Session ->
+            val remote = session.kind == SessionKind.MCP_CLIENT && session.principal != SessionFactory.LOCAL_PRINCIPAL
+            shellSwitch.enabled.value && (!remote || shellSwitch.remoteAllowed)
+        }
+        return setOf(
             AppStopTool(admin),
             AppPermissionsTool(admin),
             AppSetPermissionTool(admin),
@@ -351,12 +363,11 @@ object AppModule {
             AdbQueryTool(system),
             AdbLogsTool(system),
             BatteryUsageTool(system),
-            ShellExecTool(shell) { session ->
-                // Remote clients need their own switch too; the local token, Agent mode and rules need only the shell switch.
-                val remote = session.kind == SessionKind.MCP_CLIENT && session.principal != SessionFactory.LOCAL_PRINCIPAL
-                shellSwitch.enabled.value && (!remote || shellSwitch.remoteAllowed)
-            },
+            ShellExecTool(shell, shellOn),
+            // Termux commands sit behind the same switches as the raw shell.
+            TermuxRunTool(termux, shellOn),
         )
+    }
 
     /** Settings change through Shizuku only; without it the model uses the Settings app. */
     @Provides
@@ -421,6 +432,7 @@ object AppModule {
         shizukuShell: ShizukuShellRunner,
         sharedFolders: SafFileStore,
         homeAssistant: HomeAssistant,
+        termux: TermuxRunner,
         scope: CoroutineScope,
     ): CapabilityGraph =
         CapabilityGraph(
@@ -434,6 +446,7 @@ object AppModule {
                 CapabilityId.READ_NOTIFICATIONS to listOf(ListenerNotificationSource),
                 CapabilityId.READ_FILES to listOf(sharedFolders),
                 CapabilityId.HOME_ASSISTANT to listOf(homeAssistant),
+                CapabilityId.RUN_TERMUX to listOf(termux),
             ),
             scope,
         )
@@ -631,8 +644,8 @@ object AppModule {
                 ),
             sessions =
                 SessionFactory(
-                    localExtraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() },
-                    remoteExtraScopes = { if (shell.remoteAllowed) setOf(Scope.SHELL_EXEC) else emptySet() },
+                    localExtraScopes = { if (shell.enabled.value) SHELL_SCOPES else emptySet() },
+                    remoteExtraScopes = { if (shell.remoteAllowed) SHELL_SCOPES else emptySet() },
                 ),
             localToken = tokens::current,
             oauth = oauth,

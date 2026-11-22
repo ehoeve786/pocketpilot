@@ -54,6 +54,7 @@ class McpServerFactory(
             opening any app. Do this even when the task says to open Settings or another app, and leave those apps
             closed. If shell.exec is available, it comes next; the owner approves each new command once. Drive the
             screen only when neither can do the job.
+            For Termux's own tools and files (python, git, the owner's scripts), use termux.run, not shell.exec.
             To reach a screen inside an app, find it with app.activities and open it with app.start_activity.
             For a route to the nearest place of a kind (gas station, pharmacy), use app.directions.
             To troubleshoot, read state with adb.query and logs with adb.logs; device.battery_usage names the apps draining the battery.

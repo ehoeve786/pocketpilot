@@ -29,6 +29,7 @@ import app.pocketpilot.capability.api.screen.Role
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.SnapshotOptions
+import app.pocketpilot.capability.api.termux.TermuxException
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.AgentOutcome
@@ -352,7 +353,16 @@ class AndroidAutomationHost(
      */
     private suspend fun termuxRun(params: Map<String, String>): Map<String, String>? {
         val timeoutMs = (params.p("timeout").toLongOrNull() ?: DEFAULT_TERMUX_TIMEOUT_S).coerceIn(1, MAX_SSH_TIMEOUT_S) * 1_000
-        val result = termux.run(params.p("command"), terminal = params["mode"] == "terminal", timeoutMs) ?: return emptyMap()
+        val result =
+            try {
+                if (params["mode"] == "terminal") {
+                    termux.openTerminal(params.p("command"))
+                    return emptyMap()
+                }
+                termux.run(params.p("command"), wait = true, timeoutMs)
+            } catch (e: TermuxException) {
+                throw AutomationFailure(e.message ?: "Termux did not run the command")
+            } ?: return emptyMap()
         val printed = result.stdout.trimEnd()
         val errors = result.stderr.trimEnd()
         val saved = linkedMapOf("" to printed, "exit" to result.exitCode.toString(), "stderr" to errors)

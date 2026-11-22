@@ -21,7 +21,7 @@ fun interface ToolModes {
 
     companion object {
         /** Tools that never run without asking, whatever their tier. */
-        val NEVER_ALLOW: Set<String> = setOf("shell.exec")
+        val NEVER_ALLOW: Set<String> = setOf("shell.exec", "termux.run")
 
         /**
          * The modes the owner may choose for [spec]. The tier caps the choice, so a setting can never
