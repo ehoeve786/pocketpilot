@@ -10,7 +10,6 @@ import app.pocketpilot.agent.runtime.FileRunStore
 import app.pocketpilot.agent.runtime.ProfileStore
 import app.pocketpilot.agent.runtime.ProviderHealth
 import app.pocketpilot.capability.api.screen.ScreenReader
-import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolRegistry
@@ -113,7 +112,7 @@ object AgentModule {
             secrets = secrets,
             scope = scope,
             onRunState = notifier::update,
-            extraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() },
+            extraScopes = { if (shell.enabled.value) SHELL_SCOPES else emptySet() },
         )
     }
 }

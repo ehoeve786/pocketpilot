@@ -75,11 +75,12 @@
     <string name="capability_launch_apps">Open apps</string>
     <string name="capability_write_settings">Change settings</string>
     <string name="capability_run_shell">Run shell commands</string>
+    <string name="capability_run_termux">Run Termux commands</string>
     <string name="capability_other">Other</string>
     <string name="shell_title">Shell commands</string>
-    <string name="shell_explainer">Lets Claude and Agent mode run any shell command through Shizuku. You see each command in full and approve it before it runs.</string>
+    <string name="shell_explainer">Lets Claude and Agent mode run any shell command through Shizuku, and commands in Termux. You see each command in full and approve it before it runs.</string>
     <string name="shell_remote_title">Also for remote clients</string>
-    <string name="shell_remote_explainer">Lets clients that sign in remotely, such as the Claude app, use shell commands too. Each new command still asks you on this phone first. Off takes it away at once.</string>
+    <string name="shell_remote_explainer">Lets clients that sign in remotely, such as the Claude app, use shell and Termux commands too. Each new command still asks you on this phone first. Off takes it away at once.</string>
     <string name="shell_warning">Shell is on. A shell command can change or delete anything Shizuku can reach, so read each one before you allow it.</string>
     <string name="backend_accessibility">Accessibility</string>
     <string name="backend_shizuku">Shizuku</string>

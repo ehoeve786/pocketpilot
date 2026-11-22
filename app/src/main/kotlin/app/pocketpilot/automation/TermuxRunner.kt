@@ -7,55 +7,41 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import app.pocketpilot.core.automation.AutomationFailure
+import app.pocketpilot.capability.api.BackendIds
+import app.pocketpilot.capability.api.termux.TermuxCommands
+import app.pocketpilot.capability.api.termux.TermuxException
+import app.pocketpilot.capability.api.termux.TermuxOutput
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
-/** What a Termux command printed and how it ended. */
-data class TermuxResult(
-    val stdout: String,
-    val stderr: String,
-    val exitCode: Int,
-)
-
 /**
- * "Run a Termux command": starts bash in Termux through its RUN_COMMAND service, the interface Tasker's Termux
- * plugin uses, and in the background waits for the result Termux sends back to [TermuxResultReceiver]. Termux
- * accepts it only with its RUN_COMMAND permission, which rules grant through privileged access, and with
- * allow-external-apps = true in ~/.termux/termux.properties.
+ * "Run a Termux command" and `termux.run`: starts bash in Termux through its RUN_COMMAND service, the interface
+ * Tasker's Termux plugin uses, and waits for the result Termux sends back to [TermuxResultReceiver]. Termux accepts
+ * it only with its RUN_COMMAND permission, which [grant] gives through privileged access when it is missing, and
+ * with allow-external-apps = true in ~/.termux/termux.properties.
  */
 class TermuxRunner(
     private val context: Context,
-) {
-    /**
-     * Runs [command] with `bash -c`. In the background it waits up to [timeoutMs] and returns the output; in a
-     * terminal ([terminal]) it opens a Termux session to watch and returns null at once.
-     */
-    suspend fun run(
+    /** Grants [PERMISSION] through privileged access; does nothing without it. */
+    private val grant: suspend () -> Unit = {},
+) : TermuxCommands {
+    override val backendId: String = BackendIds.TERMUX
+
+    /** Whether Termux is there is checked on each run, so one installed later works without a restart. */
+    override val available: StateFlow<Boolean> = MutableStateFlow(true)
+
+    override suspend fun run(
         command: String,
-        terminal: Boolean,
+        wait: Boolean,
         timeoutMs: Long,
-    ): TermuxResult? {
-        if (runCatching { context.packageManager.getPackageInfo(PACKAGE, 0) }.isFailure) {
-            throw AutomationFailure("Termux is not installed")
-        }
-        if (context.checkSelfPermission(PERMISSION) != PackageManager.PERMISSION_GRANTED) {
-            throw AutomationFailure(
-                "PocketPilot may not run Termux commands yet: turn on privileged access, or allow " +
-                    "\"Run commands in Termux environment\" in PocketPilot's app permissions",
-            )
-        }
-        val intent =
-            Intent(ACTION)
-                .setClassName(PACKAGE, SERVICE)
-                .putExtra(EXTRA_PATH, BASH)
-                .putExtra(EXTRA_ARGUMENTS, arrayOf("-c", command))
-                .putExtra(EXTRA_WORKDIR, HOME)
-                .putExtra(EXTRA_BACKGROUND, !terminal)
-        if (terminal) {
-            start(intent.putExtra(EXTRA_SESSION_ACTION, SESSION_SWITCH_TO_NEW))
+    ): TermuxOutput? {
+        val intent = prepare(command, background = true)
+        if (!wait) {
+            start(intent)
             return null
         }
         val id = ids.incrementAndGet()
@@ -73,13 +59,13 @@ class TermuxRunner(
             start(intent.putExtra(EXTRA_PENDING_INTENT, reply))
             val result =
                 withTimeoutOrNull(timeoutMs) { answer.await() }
-                    ?: throw AutomationFailure("Termux did not answer within ${timeoutMs / 1_000} s")
+                    ?: throw TermuxException("Termux did not answer within ${timeoutMs / 1_000} s")
             // Termux's own error, such as allow-external-apps being off, comes as err and errmsg.
             val error = result.getInt(RESULT_ERR, RESULT_OK)
             if (error != RESULT_OK) {
-                throw AutomationFailure("Termux refused the command: ${result.getString(RESULT_ERRMSG).orEmpty().trim()}")
+                throw TermuxException("Termux refused the command: ${result.getString(RESULT_ERRMSG).orEmpty().trim()}")
             }
-            return TermuxResult(
+            return TermuxOutput(
                 stdout = result.getString(RESULT_STDOUT).orEmpty(),
                 stderr = result.getString(RESULT_STDERR).orEmpty(),
                 exitCode = result.getInt(RESULT_EXIT_CODE, -1),
@@ -88,6 +74,35 @@ class TermuxRunner(
             pending.remove(id)
         }
     }
+
+    /** Opens a new Termux session that runs [command], for the owner to watch; nothing comes back. */
+    suspend fun openTerminal(command: String) {
+        start(prepare(command, background = false).putExtra(EXTRA_SESSION_ACTION, SESSION_SWITCH_TO_NEW))
+    }
+
+    private suspend fun prepare(
+        command: String,
+        background: Boolean,
+    ): Intent {
+        if (runCatching { context.packageManager.getPackageInfo(PACKAGE, 0) }.isFailure) {
+            throw TermuxException("Termux is not installed")
+        }
+        if (!permitted()) grant()
+        if (!permitted()) {
+            throw TermuxException(
+                "PocketPilot may not run Termux commands yet: turn on privileged access, or allow " +
+                    "\"Run commands in Termux environment\" in PocketPilot's app permissions",
+            )
+        }
+        return Intent(ACTION)
+            .setClassName(PACKAGE, SERVICE)
+            .putExtra(EXTRA_PATH, BASH)
+            .putExtra(EXTRA_ARGUMENTS, arrayOf("-c", command))
+            .putExtra(EXTRA_WORKDIR, HOME)
+            .putExtra(EXTRA_BACKGROUND, background)
+    }
+
+    private fun permitted() = context.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
 
     /**
      * Termux's service goes to the foreground itself. Android can refuse a foreground start from the background, as
@@ -100,10 +115,10 @@ class TermuxRunner(
             try {
                 context.startService(intent)
             } catch (again: Exception) {
-                throw AutomationFailure("Termux could not be started: ${again.message ?: e.message}")
+                throw TermuxException("Termux could not be started: ${again.message ?: e.message}")
             }
         } catch (e: SecurityException) {
-            throw AutomationFailure("Termux could not be started: ${e.message}")
+            throw TermuxException("Termux could not be started: ${e.message}")
         }
     }
 

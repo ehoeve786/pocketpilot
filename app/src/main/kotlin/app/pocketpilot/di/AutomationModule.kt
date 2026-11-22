@@ -97,6 +97,19 @@ object AutomationModule {
         scope: CoroutineScope,
     ): HomeAssistant = HomeAssistant(store, secrets, http, scope)
 
+    /** Termux commands for rules and `termux.run`; Termux's permission is granted through privileged access. */
+    @Provides
+    @Singleton
+    fun termuxRunner(
+        @ApplicationContext context: Context,
+        shell: ShizukuShellRunner,
+    ): TermuxRunner =
+        TermuxRunner(context) {
+            if (shell.available.value) {
+                runCatching { shell.run("pm grant ${context.packageName} ${TermuxRunner.PERMISSION}", NEIGHBOR_TIMEOUT_MS) }
+            }
+        }
+
     /** The questions "Ask for text" and "Choose from a list" put to the owner. */
     @Provides
     @Singleton
@@ -152,6 +165,7 @@ object AutomationModule {
         homeAssistant: HomeAssistant,
         ssh: SshServers,
         prompts: Prompts,
+        termux: TermuxRunner,
         logs: ShizukuSystemReader,
         screen: ScreenReader,
         capturer: ScreenCapturer,
@@ -180,7 +194,7 @@ object AutomationModule {
                 homeAssistant = homeAssistant,
                 ssh = ssh,
                 prompts = prompts,
-                termux = TermuxRunner(context),
+                termux = termux,
                 calendars = calendars,
                 places = places,
                 screen = screen,
