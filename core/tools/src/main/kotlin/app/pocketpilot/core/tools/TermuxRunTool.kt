@@ -35,9 +35,12 @@ class TermuxRunTool(
             description =
                 "Runs one command with bash in Termux's home folder, with Termux's packages (python, git, ssh) and the " +
                     "owner's scripts, which shell.exec cannot reach. Waits for it and returns stdout, stderr and the exit " +
-                    "code; for a job longer than timeoutMs, pass wait=false and redirect its output to a file " +
-                    "(command > ~/job.log 2>&1), then read the file with another termux.run call. Shared storage is " +
-                    "/sdcard (after termux-setup-storage). The owner approves each new command once.",
+                    "code, waiting up to timeoutMs (10 minutes at most). Give a job that ends within that one call with a " +
+                    "long timeoutMs rather than starting it and checking on it. For a longer job, pass wait=false with " +
+                    "its output sent to a file (command > ~/job.log 2>&1), then make one call that waits for it to end " +
+                    "and prints the log, such as: while pgrep -f job >/dev/null; do sleep 5; done; cat ~/job.log, " +
+                    "with timeoutMs 600000, instead of polling in short calls. Shared storage is /sdcard (after " +
+                    "termux-setup-storage). The owner approves each new command once.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"command":{"type":"string"},"wait":{"type":"boolean",
