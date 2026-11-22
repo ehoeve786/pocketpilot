@@ -619,6 +619,7 @@ class AutomationRuntime(
         /** Permissions for single types, so reading a calendar never grants writing to it. */
         val EXACT_PERMISSIONS =
             mapOf(
+                "termux.run" to listOf(TermuxRunner.PERMISSION),
                 "calendar.event" to listOf(Manifest.permission.READ_CALENDAR),
                 "calendar.busy" to listOf(Manifest.permission.READ_CALENDAR),
                 "calendar.now" to listOf(Manifest.permission.READ_CALENDAR),

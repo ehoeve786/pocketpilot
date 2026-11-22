@@ -14,6 +14,7 @@ import app.pocketpilot.automation.PlaceAlerts
 import app.pocketpilot.automation.PlaceWatcher
 import app.pocketpilot.automation.Prompts
 import app.pocketpilot.automation.SecretStoreRuleSecrets
+import app.pocketpilot.automation.TermuxRunner
 import app.pocketpilot.automation.TriggerSources
 import app.pocketpilot.capability.api.notifications.NotificationPoster
 import app.pocketpilot.capability.api.screen.ScreenCapturer
@@ -179,6 +180,7 @@ object AutomationModule {
                 homeAssistant = homeAssistant,
                 ssh = ssh,
                 prompts = prompts,
+                termux = TermuxRunner(context),
                 calendars = calendars,
                 places = places,
                 screen = screen,

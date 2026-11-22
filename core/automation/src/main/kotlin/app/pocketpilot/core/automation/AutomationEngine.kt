@@ -495,7 +495,7 @@ class AutomationEngine(
         val written = RuleValidator.withDefaults(def.fields, step.params)
         // A variable in an SSH command is quoted unless the owner chose otherwise, so a value with spaces or a ;
         // stays one word instead of running as shell syntax on the server.
-        val quoted = step.type == "ssh.exec" && written["quote"] != "no"
+        val quoted = step.type in QUOTED_COMMANDS && written["quote"] != "no"
         val params =
             written.mapValues { (key, value) ->
                 if (quoted && key == "command") {
@@ -1237,7 +1237,10 @@ class AutomationEngine(
         const val VARIABLE_CHANGED = "variable.changed"
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
-        private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add", "ssh.exec")
+        private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add", "ssh.exec", "termux.run")
+
+        /** Steps whose command quotes the variables put into it, unless the step says otherwise. */
+        private val QUOTED_COMMANDS = setOf("ssh.exec", "termux.run")
 
         /**
          * Steps that send, open, change or run something on the phone. An outside run may use them only with

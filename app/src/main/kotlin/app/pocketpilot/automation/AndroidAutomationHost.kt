@@ -96,6 +96,7 @@ class AndroidAutomationHost(
     private val homeAssistant: HomeAssistant,
     private val ssh: SshServers,
     private val prompts: Prompts,
+    private val termux: TermuxRunner,
     private val calendars: Calendars,
     private val places: PlaceWatcher,
     private val screen: ScreenReader,
@@ -345,6 +346,24 @@ class AndroidAutomationHost(
         return saved
     }
 
+    /**
+     * Runs the command in Termux. In the background it saves the output as {into}, the exit code as {into.exit} and
+     * the errors as {into.stderr}, also when it fails, as "Run an SSH command" does; in a terminal it saves nothing.
+     */
+    private suspend fun termuxRun(params: Map<String, String>): Map<String, String>? {
+        val timeoutMs = (params.p("timeout").toLongOrNull() ?: DEFAULT_TERMUX_TIMEOUT_S).coerceIn(1, MAX_SSH_TIMEOUT_S) * 1_000
+        val result = termux.run(params.p("command"), terminal = params["mode"] == "terminal", timeoutMs) ?: return emptyMap()
+        val printed = result.stdout.trimEnd()
+        val errors = result.stderr.trimEnd()
+        val saved = linkedMapOf("" to printed, "exit" to result.exitCode.toString(), "stderr" to errors)
+        if (result.exitCode != 0) {
+            val detail = errors.ifEmpty { printed }.takeLast(SSH_FAILURE_CHARS)
+            val ended = "Exit code ${result.exitCode}"
+            throw AutomationFailure(if (detail.isEmpty()) ended else "$ended: $detail", saved)
+        }
+        return saved
+    }
+
     /** Through Shizuku when it runs, as a key press any screen lock accepts; else with a wake lock. */
     private suspend fun wake() {
         if (shell.available.value &&
@@ -367,6 +386,7 @@ class AndroidAutomationHost(
         when (type) {
             "screen.read" -> readScreen()
             "ssh.exec" -> sshExec(params)
+            "termux.run" -> termuxRun(params)
             else -> null
         }
 
@@ -693,6 +713,7 @@ class AndroidAutomationHost(
         const val MAX_SSH_TIMEOUT_S = 600L
         const val SSH_FAILURE_CHARS = 500
         const val LIVE_HIDE_S = 5
+        const val DEFAULT_TERMUX_TIMEOUT_S = 60L
         const val WAKE_MS = 5_000L
         const val SPEAK_TIMEOUT_MS = 120_000L
         const val SPEAK_FULL_VOLUME = 100f
