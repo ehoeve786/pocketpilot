@@ -1736,6 +1736,24 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a Termux command quotes its variables and an outside event cannot choose it`() =
+        runTest {
+            val host = FakeHost()
+            val step = ActionStep("termux.run", mapOf("command" to "~/switch_fork.sh {user}"))
+            engine(this, host).run(rule(listOf(step)).copy(variables = mapOf("user" to "a b;c")), "Test")
+            assertEquals(
+                "~/switch_fork.sh 'a b;c'",
+                (host.calls.single { it.first == "termux.run" }.second["command"] as JsonPrimitive).content,
+            )
+
+            val outside = FakeHost()
+            val steered = rule(listOf(ActionStep("termux.run", mapOf("command" to "{trigger.text}"))))
+            val record = engine(this, outside).run(steered, "intent", mapOf("text" to "rm -rf ~"), fromOutside = true)
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue(outside.calls.none { it.first == "termux.run" })
+        }
+
+    @Test
     fun `an outside event cannot choose the SSH command`() =
         runTest {
             val host = FakeHost()

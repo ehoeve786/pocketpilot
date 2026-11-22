@@ -1026,6 +1026,39 @@ internal object Actions {
                     sentence = { p -> "Shell: ${p.p("command")}" },
                 ),
                 ActionDef(
+                    type = "termux.run",
+                    category = Category.FILES,
+                    title = "Run a Termux command",
+                    description =
+                        "Runs a command with bash in Termux, with Termux's packages and home folder. In the background it " +
+                            "saves what the command printed in {into}, its exit code in {into.exit} and its errors in " +
+                            "{into.stderr}, also when it fails; a command that fails stops the rule unless the action " +
+                            "continues on errors. In a terminal it opens a Termux session to watch, and saves nothing. " +
+                            "Needs allow-external-apps = true in ~/.termux/termux.properties.",
+                    fields =
+                        listOf(
+                            textField("command", "Command", hint = "For example ~/switch_fork.sh {username} {branch}"),
+                            choiceField(
+                                "quote",
+                                "Variables in the command",
+                                listOf(
+                                    Choice("yes", "Quoted, as one word each"),
+                                    Choice("no", "As written, so they can hold shell syntax"),
+                                ),
+                            ),
+                            choiceField(
+                                "mode",
+                                "Run",
+                                listOf(Choice("background", "In the background"), Choice("terminal", "In a Termux terminal")),
+                            ),
+                            numberField("timeout", "Timeout (seconds)", default = "60"),
+                            INTO,
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "Termux: ${p.p("command")}" },
+                ),
+                ActionDef(
                     type = "ssh.exec",
                     category = Category.FILES,
                     title = "Run an SSH command",

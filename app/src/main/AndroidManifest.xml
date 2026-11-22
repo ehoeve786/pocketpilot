@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- "Run a Termux command": Termux's own permission, granted through privileged access when a rule needs it. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- The caller's number for "Phone call" and the "Text message received" trigger. Granted through Shizuku once an
@@ -51,6 +53,8 @@
          home network are not reachable over cleartext, so they need HTTPS. -->
     <!-- The "Home screen in front" condition asks which app is the home screen. -->
     <queries>
+        <!-- "Run a Termux command" checks that Termux is installed and starts its RunCommandService. -->
+        <package android:name="com.termux" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
@@ -180,6 +184,11 @@
 
         <receiver
             android:name=".automation.CalendarAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Termux sends a background command's result here, through the PendingIntent it was given. -->
+        <receiver
+            android:name=".automation.TermuxResultReceiver"
             android:exported="false" />
 
         <!-- Android's proximity alerts for "Arrive at or leave a place". -->
