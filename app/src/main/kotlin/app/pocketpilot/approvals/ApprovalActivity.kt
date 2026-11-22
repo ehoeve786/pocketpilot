@@ -1,5 +1,8 @@
 package app.pocketpilot.approvals
 
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -32,6 +35,14 @@ class ApprovalActivity : ComponentActivity() {
         enableEdgeToEdge()
         // An approval must not be captured by a screenshot, the recents preview or a screen recording.
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // A glass card over whatever was on screen: the app behind is blurred where Android allows it, else dimmed.
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.setDimAmount(DIM)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            window.attributes = window.attributes.apply { blurBehindRadius = BLUR_RADIUS }
+        }
         setContent {
             val items = center.items.collectAsStateWithLifecycle().value
             val first = items.firstOrNull()
@@ -114,6 +125,9 @@ class ApprovalActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val DIM = 0.3f
+        const val BLUR_RADIUS = 48
+
         /** What a client that names no scopes gets preselected: reading only. Acting on the phone is the owner's choice. */
         val DEFAULT_SCOPES = setOf("screen:read", "apps:read", "device:read")
 

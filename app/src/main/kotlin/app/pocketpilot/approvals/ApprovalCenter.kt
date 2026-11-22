@@ -58,8 +58,33 @@ class ApprovalCenter(
         combine(oauth.pending, confirmations) { consents, confirms -> consents.map(ApprovalItem::Consent) + confirms }
             .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
+    /** The approvals already brought on screen, so each opens the card once and later changes only redraw it. */
+    private val shown = HashSet<String>()
+
     init {
-        scope.launch { items.collect(::notify) }
+        scope.launch {
+            items.collect { list ->
+                notify(list)
+                popUp(list)
+            }
+        }
+    }
+
+    /**
+     * Opens [ApprovalActivity] over whatever is on screen for an approval that was not shown yet. Android lets
+     * PocketPilot start it from the background while its Accessibility service is on or one of its windows is
+     * showing; otherwise the start is dropped and the notification stays the way in.
+     */
+    private fun popUp(list: List<ApprovalItem>) {
+        val ids = list.map { it.id }.toSet()
+        shown.retainAll(ids)
+        if (ids.none { it !in shown }) return
+        shown += ids
+        runCatching {
+            context.startActivity(
+                Intent(context, ApprovalActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+        }
     }
 
     override suspend fun confirm(request: ConfirmationRequest): ConfirmationAnswer {

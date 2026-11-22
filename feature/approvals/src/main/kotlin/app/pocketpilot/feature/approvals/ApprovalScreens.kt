@@ -1,18 +1,28 @@
 package app.pocketpilot.feature.approvals
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,9 +31,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
+import app.pocketpilot.core.designsystem.R as DsR
 
 /** One permission on the consent screen. */
 data class ScopeOption(
@@ -64,16 +78,12 @@ fun ConsentScreen(
                 .toSet(),
         )
     }
-    Scaffold(modifier = modifier.fillMaxSize()) { padding ->
+    GlassDialog(modifier) {
         Column(
-            modifier =
-                Modifier
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.feature_approvals_consent_title, ui.clientName), style = MaterialTheme.typography.headlineSmall)
+            DialogHeader(stringResource(R.string.feature_approvals_consent_title, ui.clientName), DsR.drawable.core_designsystem_ic_link)
             Text(stringResource(R.string.feature_approvals_consent_from, ui.redirectHost), style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.feature_approvals_consent_explainer), style = MaterialTheme.typography.bodySmall)
             if (ui.paired) {
@@ -99,13 +109,8 @@ fun ConsentScreen(
                 }
             }
             Text(stringResource(R.string.feature_approvals_consent_warning), style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onDeny) { Text(stringResource(R.string.feature_approvals_deny)) }
-                Button(onClick = { onAllow(chosen) }, enabled = ui.paired && chosen.isNotEmpty()) {
-                    Text(stringResource(R.string.feature_approvals_allow))
-                }
-            }
         }
+        DialogButtons(onDeny = onDeny, onAllow = { onAllow(chosen) }, allowEnabled = ui.paired && chosen.isNotEmpty())
     }
 }
 
@@ -120,6 +125,10 @@ data class ConfirmUi(
     val detail: String? = null,
 )
 
+/**
+ * A tool call waiting for the owner, as a glass card over whatever is on screen: who asks, the tool, the app it
+ * acts in, and exactly what will run, with Deny and Allow always in reach under a scrolling detail.
+ */
 @Composable
 fun ConfirmScreen(
     ui: ConfirmUi,
@@ -127,38 +136,112 @@ fun ConfirmScreen(
     onDeny: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(modifier = modifier.fillMaxSize()) { padding ->
-        // Scrolls, so a long command never pushes Allow and Deny off the screen.
-        Column(
-            modifier =
+    GlassDialog(modifier) {
+        DialogHeader(
+            stringResource(R.string.feature_approvals_confirm_title, ui.principal),
+            if (ui.destructive) DsR.drawable.core_designsystem_ic_lock else DsR.drawable.core_designsystem_ic_bolt,
+        )
+        Text(ui.toolTitle, style = MaterialTheme.typography.titleMedium)
+        Text(ui.tool, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ui.foregroundPackage?.let {
+            Text(stringResource(R.string.feature_approvals_confirm_in_app, it), style = MaterialTheme.typography.bodyMedium)
+        }
+        ui.detail?.let {
+            // A long command scrolls inside its box, so Allow and Deny stay on screen.
+            Box(
                 Modifier
-                    .padding(padding)
+                    .fillMaxWidth()
+                    .heightIn(max = DETAIL_MAX_HEIGHT)
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(stringResource(R.string.feature_approvals_confirm_title, ui.principal), style = MaterialTheme.typography.headlineSmall)
-            Text("${ui.toolTitle} (${ui.tool})", style = MaterialTheme.typography.bodyLarge)
-            ui.foregroundPackage?.let {
-                Text(stringResource(R.string.feature_approvals_confirm_in_app, it), style = MaterialTheme.typography.bodyMedium)
-            }
-            ui.detail?.let {
+                    .padding(12.dp),
+            ) {
                 Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
             }
-            if (ui.destructive) {
-                Text(
-                    stringResource(R.string.feature_approvals_confirm_destructive),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onDeny) { Text(stringResource(R.string.feature_approvals_deny)) }
-                Button(onClick = onAllow) { Text(stringResource(R.string.feature_approvals_allow)) }
-            }
+        }
+        if (ui.destructive) {
+            Text(
+                stringResource(R.string.feature_approvals_confirm_destructive),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        DialogButtons(onDeny = onDeny, onAllow = onAllow, destructive = ui.destructive)
+    }
+}
+
+/** The glass card the approval screens sit in, centred over a soft scrim; the window behind is blurred. */
+@Composable
+private fun GlassDialog(
+    modifier: Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = SCRIM_ALPHA))
+            .safeDrawingPadding()
+            .padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        LiquidGlassBentoCard(
+            modifier = Modifier.widthIn(max = DIALOG_MAX_WIDTH).fillMaxWidth(),
+            contentPadding = PaddingValues(22.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
         }
     }
 }
+
+@Composable
+private fun DialogHeader(
+    title: String,
+    icon: Int,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painterResource(icon),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Text(title, style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+private fun DialogButtons(
+    onDeny: () -> Unit,
+    onAllow: () -> Unit,
+    allowEnabled: Boolean = true,
+    destructive: Boolean = false,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        OutlinedButton(onClick = onDeny, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.feature_approvals_deny)) }
+        Button(
+            onClick = onAllow,
+            enabled = allowEnabled,
+            modifier = Modifier.weight(1f),
+            colors =
+                if (destructive) {
+                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                } else {
+                    ButtonDefaults.buttonColors()
+                },
+        ) { Text(stringResource(R.string.feature_approvals_allow)) }
+    }
+}
+
+private val DIALOG_MAX_WIDTH = 480.dp
+private val DETAIL_MAX_HEIGHT = 220.dp
+private const val SCRIM_ALPHA = 0.25f
 
 @Composable
 private fun scopeTitle(scope: String): String =
