@@ -119,11 +119,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Translucent: the approval is a glass card over whatever app is on screen. -->
         <activity
             android:name=".approvals.ApprovalActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleTop"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:taskAffinity="app.pocketpilot.approvals" />
 
         <!-- Shares a rule file with another app; only the files in the shared cache folder are readable. -->
