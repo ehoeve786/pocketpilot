@@ -20,8 +20,16 @@ val gomobileClasses = layout.buildDirectory.file("gomobile/classes/classes.jar")
 val gomobileBind =
     tasks.register<Exec>("gomobileBind") {
         description = "Builds the Go networking library in go/ into an AAR with gomobile."
-        inputs.files(fileTree(goSources) { include("**/*.go", "go.mod", "go.sum") })
-        outputs.file(gomobileAar)
+        // Paths relative to go/, so the build cache serves the AAR to any checkout when no Go code changed; Go
+        // tests do not go into the library. The NDK that compiles it is an input too, so a new one rebuilds it.
+        inputs
+            .files(fileTree(goSources) { include("**/*.go", "go.mod", "go.sum").exclude("**/*_test.go") })
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .withPropertyName("goSources")
+        inputs.property("ndk", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
+        outputs.file(gomobileAar).withPropertyName("aar")
+        // A gomobile bind takes minutes; its AAR depends only on the inputs above.
+        outputs.cacheIf { true }
         workingDir(goSources)
         val out = gomobileAar.get().asFile
         doFirst { out.parentFile.mkdirs() }
