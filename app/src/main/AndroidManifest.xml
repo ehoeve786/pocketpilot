@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- "Run a Termux command": Termux's own permission, granted through privileged access when a rule needs it. -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <!-- Samsung Modes and Routines: lists and runs manual routines through its routine info provider. Granted only
+         where Samsung's protection level allows it; PocketPilot checks before it uses the provider. -->
+    <uses-permission android:name="com.samsung.android.app.routines.permission.READ_ROUTINE_INFO" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- The caller's number for "Phone call" and the "Text message received" trigger. Granted through Shizuku once an
@@ -55,6 +58,8 @@
     <queries>
         <!-- "Run a Termux command" checks that Termux is installed and starts its RunCommandService. -->
         <package android:name="com.termux" />
+        <!-- Samsung Modes and Routines, for its routine info provider. -->
+        <package android:name="com.samsung.android.app.routines" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
