@@ -1,5 +1,10 @@
 package app.pocketpilot.feature.automations
 
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -472,6 +477,10 @@ private fun FieldEditor(
             ColorField(label, value, onChange)
         }
 
+        FieldKind.SHORTCUT -> {
+            ShortcutField(label, value, field.choices.firstOrNull(), onChange)
+        }
+
         FieldKind.APP -> {
             AppField(label, value, context, field.single, onChange)
         }
@@ -565,6 +574,62 @@ private val SWATCHES =
         "#D81B60",
         "#6D4C41",
     )
+
+/**
+ * Opens another app's "Add to Home screen" picker, such as Samsung Modes and Routines', and keeps the shortcut it
+ * hands back as "name\nintent URI". A picker that only offers a pinned shortcut gives nothing PocketPilot can start,
+ * so that is said instead.
+ */
+@Composable
+private fun ShortcutField(
+    label: String,
+    value: String,
+    picker: Choice?,
+    onChange: (String) -> Unit,
+) {
+    var problem by remember { mutableStateOf<String?>(null) }
+    val noShortcut = stringResource(R.string.feature_automations_shortcut_none)
+    val notInstalled = stringResource(R.string.feature_automations_shortcut_missing)
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val data = result.data ?: return@rememberLauncherForActivityResult
+
+            @Suppress("DEPRECATION")
+            val shortcut = data.getParcelableExtra<Intent>(Intent.EXTRA_SHORTCUT_INTENT)
+            val name =
+                data
+                    .getStringExtra(Intent.EXTRA_SHORTCUT_NAME)
+                    .orEmpty()
+                    .ifBlank { "Routine" }
+                    .replace('\n', ' ')
+            if (shortcut == null) {
+                problem = noShortcut
+            } else {
+                problem = null
+                onChange(name + "\n" + shortcut.toUri(Intent.URI_INTENT_SCHEME))
+            }
+        }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(
+            value.substringBefore('\n').ifBlank { stringResource(R.string.feature_automations_shortcut_empty) },
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        if (picker != null) {
+            OutlinedButton(
+                onClick = {
+                    val component = ComponentName.unflattenFromString(picker.value)
+                    try {
+                        launcher.launch(Intent(Intent.ACTION_CREATE_SHORTCUT).setComponent(component))
+                    } catch (e: ActivityNotFoundException) {
+                        problem = notInstalled
+                    }
+                },
+            ) { Text(picker.label) }
+        }
+        problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+    }
+}
 
 /** A colour setting: tap a swatch, or type any "#RRGGBB" or "#AARRGGBB" below it. */
 @OptIn(ExperimentalLayoutApi::class)

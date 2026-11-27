@@ -1237,7 +1237,8 @@ class AutomationEngine(
         const val VARIABLE_CHANGED = "variable.changed"
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
-        private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add", "ssh.exec", "termux.run")
+        private val SENDS_OUT =
+            setOf("http.request", "http.download", "ha.call", "calendar.add", "ssh.exec", "termux.run", "samsung.routine")
 
         /** Steps whose command quotes the variables put into it, unless the step says otherwise. */
         private val QUOTED_COMMANDS = setOf("ssh.exec", "termux.run")

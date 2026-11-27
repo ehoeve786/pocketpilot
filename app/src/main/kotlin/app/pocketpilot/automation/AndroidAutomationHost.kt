@@ -2,6 +2,7 @@ package app.pocketpilot.automation
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioAttributes
@@ -38,6 +39,8 @@ import app.pocketpilot.core.automation.AutomationHost
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.NotificationInfo
 import app.pocketpilot.core.automation.Rule
+import app.pocketpilot.core.automation.SamsungRoutines
+import app.pocketpilot.core.automation.ShellQuote
 import app.pocketpilot.core.automation.StateKeys
 import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.common.UlidGenerator
@@ -298,6 +301,8 @@ class AndroidAutomationHost(
 
             "ha.get" -> return homeGet(params.p("entity"), params.p("attribute"))
 
+            "samsung.routine" -> return samsungRoutine(params.p("routine"))
+
             "overlay.text" -> withContext(Dispatchers.Main) { floatingTexts.handle(params) }
 
             "calendar.add" -> return calendarAdd(params)
@@ -372,6 +377,37 @@ class AndroidAutomationHost(
             throw AutomationFailure(if (detail.isEmpty()) ended else "$ended: $detail", saved)
         }
         return saved
+    }
+
+    /**
+     * Starts the shortcut Modes and Routines made for a routine, which starts the routine when it is stopped and stops
+     * it when it runs. Only a shortcut into Modes and Routines is started, so a rule cannot be made to open another
+     * app's screens this way. When Android blocks the start from the background, privileged access starts it.
+     */
+    private suspend fun samsungRoutine(stored: String): String {
+        val name = SamsungRoutines.name(stored)
+        val uri = SamsungRoutines.intentUri(stored).ifBlank { throw AutomationFailure("Pick the routine first") }
+        val intent =
+            runCatching { Intent.parseUri(uri, Intent.URI_INTENT_SCHEME) }.getOrNull()
+                ?: throw AutomationFailure("The saved routine shortcut cannot be read; pick the routine again")
+        val target = intent.component?.packageName ?: intent.`package`
+        if (target != SamsungRoutines.PACKAGE) throw AutomationFailure("That shortcut is not a Samsung routine")
+        val started =
+            withContext(Dispatchers.Main) {
+                runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+            }
+        if (!started) {
+            if (!shell.available.value) {
+                throw AutomationFailure("Android blocked starting $name; turn on privileged access or PocketPilot's Accessibility")
+            }
+            val result = shell.run("am start " + ShellQuote.word(uri), SHELL_TIMEOUT_MS)
+            if (result.exitCode != 0 || result.stdout.contains("Error")) {
+                throw AutomationFailure(
+                    "Could not start $name: ${(result.stderr.ifBlank { result.stdout }).trim().take(SSH_FAILURE_CHARS)}",
+                )
+            }
+        }
+        return "toggled $name"
     }
 
     /** Through Shizuku when it runs, as a key press any screen lock accepts; else with a wake lock. */

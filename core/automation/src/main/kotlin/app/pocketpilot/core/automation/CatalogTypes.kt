@@ -40,6 +40,12 @@ enum class FieldKind {
 
     /** A JSON object, such as a tool's arguments. */
     JSON,
+
+    /**
+     * A shortcut picked in another app's "Add to Home screen" picker, whose activity is the first choice's value, stored
+     * as "name\nintent URI".
+     */
+    SHORTCUT,
 }
 
 data class Choice(
