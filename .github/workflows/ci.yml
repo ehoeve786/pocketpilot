@@ -115,6 +115,9 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Writes the pre-release that carries the plain .apk; the other jobs keep read-only access.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -150,3 +153,25 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      # Artifacts always download as a zip, so the APK also goes on a pre-release named after the pull request, as a
+      # plain .apk that installs straight from the phone's browser. A new push to the pull request replaces it.
+      - name: Publish the APK on the pull request's pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          apk="$RUNNER_TEMP/PocketPilot-$POCKETPILOT_VERSION_CODE.apk"
+          cp app/build/outputs/apk/release/*.apk "$apk"
+          tag="pr-$PR"
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            gh release create "$tag" --prerelease --target "$HEAD_SHA" --title "PR #$PR build" \
+              --notes "Signed release APK of pull request #$PR, versioned as its squash merge."
+          fi
+          # Only the newest APK stays, so the link never points at an older build.
+          gh release view "$tag" --json assets --jq '.assets[].name' | while read -r old; do
+            gh release delete-asset "$tag" "$old" --yes
+          done
+          gh release upload "$tag" "$apk"
+          echo "APK: https://github.com/${{ github.repository }}/releases/download/$tag/$(basename "$apk")" >> "$GITHUB_STEP_SUMMARY"
