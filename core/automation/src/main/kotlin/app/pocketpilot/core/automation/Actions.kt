@@ -1026,6 +1026,28 @@ internal object Actions {
                     sentence = { p -> "Shell: ${p.p("command")}" },
                 ),
                 ActionDef(
+                    type = "samsung.routine",
+                    category = Category.POCKETPILOT,
+                    title = "Samsung routine",
+                    description =
+                        "Starts a Samsung Modes and Routines routine when it is stopped, or stops it when it runs, through " +
+                            "the shortcut Modes and Routines makes for it; Samsung keeps a plain start or stop for system " +
+                            "apps. For a routine that must only start, give it the Notification condition and post a " +
+                            "notification instead.",
+                    fields =
+                        listOf(
+                            FieldDef(
+                                "routine",
+                                "Routine",
+                                FieldKind.SHORTCUT,
+                                choices = listOf(Choice(SamsungRoutines.PICKER, "Pick from Samsung Routines…")),
+                            ),
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "Toggle Samsung routine ${SamsungRoutines.name(p.p("routine"))}" },
+                ),
+                ActionDef(
                     type = "termux.run",
                     category = Category.FILES,
                     title = "Run a Termux command",

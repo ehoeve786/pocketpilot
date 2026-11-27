@@ -37,6 +37,9 @@
     <string name="feature_automations_ha_url">Address</string>
     <string name="feature_automations_ha_token">Access token</string>
     <string name="feature_automations_ha_token_saved">Saved; type a new one to replace it</string>
+    <string name="feature_automations_shortcut_empty">None picked yet</string>
+    <string name="feature_automations_shortcut_none">That app gave no shortcut PocketPilot can start; pick another one.</string>
+    <string name="feature_automations_shortcut_missing">That app is not installed or turned on.</string>
     <string name="feature_automations_ssh">SSH servers</string>
     <string name="feature_automations_ssh_text">For the \"Run an SSH command\" action. PocketPilot signs in with its own key: copy it and add it to the server\'s ~/.ssh/authorized_keys. For a comma device, add it to your GitHub account\'s SSH keys and set your GitHub username on the device. The server\'s own key is saved on the first connection, and a different one is refused.</string>
     <string name="feature_automations_ssh_add">Add server</string>

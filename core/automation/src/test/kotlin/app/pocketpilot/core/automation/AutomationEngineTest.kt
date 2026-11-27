@@ -1754,6 +1754,19 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a Samsung routine step hands its picked shortcut to the phone`() =
+        runTest {
+            val stored = "Car\nintent:#Intent;component=com.samsung.android.app.routines/.ui.main.RoutineLaunchActivity;end"
+            val host = FakeHost()
+
+            engine(this, host).run(rule(listOf(ActionStep("samsung.routine", mapOf("routine" to stored)))), "Test")
+
+            assertEquals(stored, (host.calls.single { it.first == "samsung.routine" }.second["routine"] as JsonPrimitive).content)
+            assertEquals("Car", SamsungRoutines.name(stored))
+            assertTrue(SamsungRoutines.intentUri(stored).startsWith("intent:#Intent;"))
+        }
+
+    @Test
     fun `an outside event cannot choose the SSH command`() =
         runTest {
             val host = FakeHost()

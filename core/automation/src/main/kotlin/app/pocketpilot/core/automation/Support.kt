@@ -276,3 +276,15 @@ object Choices {
             .filter(String::isNotEmpty)
             .distinct()
 }
+
+/** The "Samsung routine" action's stored shortcut: the routine's name, a new line, and the shortcut's intent URI. */
+object SamsungRoutines {
+    const val PACKAGE = "com.samsung.android.app.routines"
+
+    /** Modes and Routines' "Add to Home screen" picker, which other apps may open. */
+    const val PICKER = "$PACKAGE/.ui.shortcut.ShortcutCreationActivity"
+
+    fun name(stored: String): String = stored.substringBefore('\n').ifBlank { "(none picked)" }
+
+    fun intentUri(stored: String): String = stored.substringAfter('\n', "")
+}
