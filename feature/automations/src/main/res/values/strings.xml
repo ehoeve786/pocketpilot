@@ -125,6 +125,7 @@
 
     <string name="feature_automations_name">Name</string>
     <string name="feature_automations_delete">Delete rule</string>
+    <string name="feature_automations_delete_title">Delete %1$s?</string>
     <string name="feature_automations_remove">Remove</string>
     <string name="feature_automations_add_trigger">Add trigger</string>
     <string name="feature_automations_add_condition">Add condition</string>

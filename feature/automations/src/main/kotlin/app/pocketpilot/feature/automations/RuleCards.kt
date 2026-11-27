@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -80,7 +81,7 @@ internal fun TierTag(tier: RiskTier) {
 
 internal fun ActionStep.tier(): RiskTier = AutomationCatalog.action(type)?.tier ?: RiskTier.SENSITIVE
 
-/** One rule in the list: When, Only if, Then, its switch, last run, Run and pin. Tap to edit. */
+/** One rule in the list: When, Only if, Then, its switch, last run, Run, pin and delete. Tap to edit. */
 @Composable
 fun AutomationRuleCard(
     rule: Rule,
@@ -90,12 +91,14 @@ fun AutomationRuleCard(
     onRun: () -> Unit,
     onStop: () -> Unit,
     onPinnedChange: (Boolean) -> Unit,
+    onDelete: () -> Unit,
     onAddIcon: (String) -> Unit,
     ruleName: (String) -> String?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val iconName =
         rule.triggers
             .firstOrNull { it.type == "shortcut" }
@@ -184,6 +187,13 @@ fun AutomationRuleCard(
                             )
                         }
                     }
+                    IconButton(onClick = { confirmDelete = true }) {
+                        Icon(
+                            painterResource(R.drawable.feature_automations_ic_delete),
+                            contentDescription = stringResource(R.string.feature_automations_delete),
+                            tint = MaterialTheme.colorScheme.outline,
+                        )
+                    }
                     if (running) {
                         OutlinedButton(onClick = onStop) {
                             Icon(painterResource(R.drawable.feature_automations_ic_stop), contentDescription = null, Modifier.size(18.dp))
@@ -198,6 +208,21 @@ fun AutomationRuleCard(
                 }
             }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.feature_automations_delete_title, rule.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDelete()
+                }) { Text(stringResource(R.string.feature_automations_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
+            },
+        )
     }
 }
 
